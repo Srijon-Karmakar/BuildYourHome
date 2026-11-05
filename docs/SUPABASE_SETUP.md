@@ -10,12 +10,13 @@ To use real accounts and cloud storage:
 2. Open **SQL editor**, paste [`services/supabase/migrations/0001_init.sql`](../services/supabase/migrations/0001_init.sql) and run it.
    It creates `projects`, `shares`, `subscriptions`, `unlocks`, turns on row-level security and adds the public
    `get_shared_project(token)` function.
-3. **Project settings → API**: copy the *Project URL* and the **anon public** key.
-   **Never** put the `service_role` key in the app or in git.
+3. **Project settings → API Keys**: copy the **Publishable key** (`sb_publishable_…`; older dashboards call it the *anon public* key).
+   The project URL is under the green **Connect** button / Settings → General.
+   **Never** put the **Secret key** (`sb_secret_…`, formerly `service_role`) in the app, in `.env.local` or in git.
 4. Create `apps/web/.env.local` (git-ignored) from `apps/web/.env.example`:
    ```
    VITE_SUPABASE_URL=https://xxxx.supabase.co
-   VITE_SUPABASE_ANON_KEY=eyJ...
+   VITE_SUPABASE_ANON_KEY=sb_publishable_...   # the publishable key (variable keeps its old name)
    ```
 5. **Authentication → Providers**: email is on by default. For a quick demo you may turn off *Confirm email*;
    otherwise users must open the confirmation link before they can sign in (the app tells them so).
