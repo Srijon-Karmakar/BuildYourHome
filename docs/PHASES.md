@@ -13,10 +13,11 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 - [x] P0-06b T-junction auto-split: ending/starting a wall on the body of another wall splits it and joins them (needed so dividers create rooms) (code done; awaiting owner test)
 - [x] P0-07 (code done; awaiting owner device test) Orbit camera + FPS walkthrough with wall collision (desktop)
 - [x] P0-08 (done as a design-language + touch-layout pass, see ADR-016; real-device test still pending) Touch controls (pinch/pan, joystick) + test on mid-range Android + iPhone via LAN/PWA
-- [ ] P0-09 Perf baseline measurements recorded in `progressReport.md`
-- [ ] P0-10 Realism spike: PBR + HDRI + shadows + AO + tone mapping on the sample house; measure each quality tier on phone & desktop
-- [ ] P0-11 Progressive-rendering spike (degrade while moving, refine on idle) — validate it feels smooth
+- [x] P0-09 (tooling done: Display menu, stats, one-tap benchmark; **owner's device numbers pending**) Perf baseline measurements recorded in `progressReport.md`
+- [x] P0-10 (done: procedural IBL, AO, textures, ceilings) Realism spike: PBR + HDRI + shadows + AO + tone mapping on the sample house; measure each quality tier on phone & desktop
+- [x] P0-11 (done: AdaptiveDpr regress + auto governor) Progressive-rendering spike (degrade while moving, refine on idle) — validate it feels smooth
 **Exit criteria:** can draw a 3-room house, see it in 3D, walk through it at ≥ 30 fps on a mid-range phone. Go/no-go on stack decision (ADR-001).
+**RESULT (2026-11-05): MET — GO.** Mid-range phone (Mali-G68) holds 60 fps at medium/low; desktop 100 fps (display cap). See progressReport P0-12.
 
 ## Phase 1 — MVP editor (≈ 6–8 weeks)
 **Goal:** a complete single-user local design tool.

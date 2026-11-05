@@ -1,6 +1,7 @@
 import { PlanCanvas } from './plan/PlanCanvas';
 import { useUi } from './plan/session';
 import { BottomBar } from './ui/BottomBar';
+import { PerfPanel } from './ui/PerfPanel';
 import { ToolRail } from './ui/ToolRail';
 import { TopBar } from './ui/TopBar';
 import { Scene3D } from './view3d/Scene3D';
@@ -28,6 +29,7 @@ export function App() {
       <TopBar />
       <ToolRail />
       <BottomBar />
+      <PerfPanel />
     </div>
   );
 }

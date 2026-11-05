@@ -29,6 +29,42 @@ Planning/documentation: **Done** (2026-11-05)
 
 ## Log
 
+### [2026-11-05] P0-12 — Phase 0 verdict: GO (owner's device benchmark)
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done. **Phase 0 exit criteria met → ADR-001 (web-first React + R3F + Capacitor) confirmed.**
+- **Data (owner, sample/current plan, orbit benchmark, 6 s per tier):**
+
+| Device | Tier | fps | avg ms | p95 ms | p99 ms | worst ms | draw calls |
+|---|---|---|---|---|---|---|---|
+| Desktop — RTX 4060, 20 cores, 1920×1080 @1x, Chrome 156 | high | 100 | 10.0 | 10.1 | 10.2 | 10.9 | 73 |
+| | medium | 100 | 10.0 | 10.1 | 10.2 | 10.3 | 64 |
+| | low | 100 | 10.0 | 10.2 | 10.2 | 11.2 | 34 |
+| Phone — Mali-G68 MC4 (mid-range Android 10), 8 cores, 384×832 @2.81x | high | 48 | 20.8 | **66.8** | **124.6** | 128.8 | 65 |
+| | medium | 60 | 16.7 | 17.4 | 17.9 | 18.2 | 64 |
+| | low | 60 | 16.7 | 17.6 | 18.4 | 19.7 | 34 |
+
+- **Reading:** Desktop is capped by the display (100 Hz) at every tier — lots of headroom. On the mid-range phone **medium and low hold a locked 60 fps with tight frame times** (p99 ≈ 18 ms), well above the 30 fps target. **High averages 48 fps but stutters (p95 67 ms, p99 125 ms)** — the post-processing AO + MSAA at 2.8× pixel ratio is too heavy there. That is exactly what the tiers/Auto governor exist for: Auto's first guess for touch devices is **medium**, which is the right tier for this phone.
+- **Decisions / follow-ups:**
+  - Keep Auto → medium on touch devices (already so). Do NOT default phones to high. Label High as "Most realistic (needs a powerful device)".
+  - Phone high-tier cost is dominated by the composer at high DPR: when we revisit (P3-04) try half-res AO, cap composer DPR at 1.5 on touch, or bake AO.
+  - **Caveat:** the test scene is tiny (~130 triangles, ~65 draw calls). Real homes (furniture, plants, windows) will be 50–100× heavier. **Re-run the benchmark with a stress scene once the furniture catalog exists (P1-06)** and enforce the asset budgets in docs/ASSET_PIPELINE.md.
+  - Phone report said `memory ?` (Chrome doesn't expose deviceMemory over http on LAN) — governor relies on measured fps, not on that value.
+- **Next step:** Start Phase 1 — P1-01 doors & windows (real openings in walls + collision gaps).
+
+### [2026-11-05] P0-09 + P0-10 + P0-11 — Performance baseline tooling, realism pass, progressive rendering
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done in code and **verified in a real browser (Edge via Playwright, software WebGL)**. **Owner still needs to run the benchmark on their desktop and phone** — those numbers are the Phase 0 go/no-go data (software-renderer numbers here only prove the plumbing).
+- **What was done:**
+  - **Realism (P0-10):** procedural softbox environment lighting (no HDRI download), ACES tone mapping, soft shadows, **N8AO ambient occlusion + MSAA on the high tier**, plank-textured oak floors (canvas-generated, seeded, tileable), plaster normal map on walls, **ceilings while walking**. Everything offline and asset-free (ADR-013/017).
+  - **Progressive rendering + governor (P0-11):** `AdaptiveDpr` + R3F performance regress while orbiting (restores ~180 ms after you stop); `PerfProbe` auto-steps the tier down when interaction drops below ~38 fps; initial tier guessed from the device. Walk frame-time cap raised to 100 ms (slow devices no longer walk in slow motion; collision is sub-stepped so it's safe).
+  - **Baseline tooling (P0-09):** **Display** menu (Quality: Auto/Low/Medium/High; Show stats; **Run benchmark**); live stats panel (tier, fps, ms, p95, draw calls, triangles, pixel ratio, GPU name); one-tap **benchmark** (fixed orbit, high→medium→low, 6 s each) with a **Copy report** text block; `?bench=1` runs it straight from a link; `?perf=1` shows stats.
+  - **Testing infrastructure:** Playwright browser smoke test (`pnpm e2e`, 15 checks) + `window.__hd` dev handle + URL flags; unit tests for tier/governor/statistics logic (8). Added a favicon (was a console 404).
+- **Verified:** typecheck, lint, build; **94 unit tests** (8 schema + 33 geometry + 45 editor-core + 8 web); **15/15 browser checks** (draw/closed room/undo/redo/divider split/snap menu/walk/collision distance exact (0.36 m = 0.115 half wall + 0.25 radius)/Esc/benchmark completes with 3 rows/no console errors). Software-GL benchmark showed tiers scale as intended (high 2 fps → medium 12 → low 14 on the CPU renderer).
+- **Files:** `apps/web/src/view3d/{qualityLogic,perfStats,qualityStore,textures,materials,framing,PerfProbe,BenchmarkRunner,Effects,CeilingMesh,benchmark}.ts(x)` + tests; `ui/{DisplayMenu,PerfPanel}.tsx`; edits to `Scene3D`, `WallMesh`, `FloorMesh`, `TopBar`, `App`, `main.tsx`, `styles.css`, `WalkControls`; `e2e/smoke.mjs`; deps `@react-three/postprocessing`, `postprocessing`, `vitest` (web), `playwright-core` (root dev).
+- **Decisions:** ADR-017.
+- **Known gaps / notes:** AO not gated during motion (see ADR-017); wood/plaster are procedural placeholders; no windows yet so the sun shines through ceilings (they don't cast shadows); bundle main chunk 391 KB gz (+101 KB lazy effects) — code-splitting 3D vs plan can wait; Vite dev prints a harmless "Multiple instances of Three.js" warning (single three@0.180.0 installed — dev pre-bundling artefact).
+- **Next step:** **Owner:** open the app on desktop and phone → Display → *Run benchmark* (or open `…/?bench=1`), then *Copy report* and paste the text to me (note phone model). Then I record the Phase 0 verdict (go/no-go on ADR-001) and we move to Phase 1.
+
 ### [2026-11-05] P0-08 — Design-language pass: minimal "architectural paper" UI + touch layout
 - **Model/Author:** Claude Sonnet 5.5
 - **Status:** Done; **visually verified by me via headless-Edge screenshots** (desktop 1440×900 and phone-width 500×900, sample home). Interactive behaviour and real-phone feel still need the owner's test.

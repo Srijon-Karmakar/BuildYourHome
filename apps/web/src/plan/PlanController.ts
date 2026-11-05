@@ -132,7 +132,7 @@ export class PlanController {
       const phone = window.matchMedia('(max-width: 699px)').matches;
       const padL = phone ? 28 : 120;
       const padR = 40;
-      const padT = 90;
+      const padT = phone ? 140 : 90;
       const padB = phone && useUi.getState().view === '2d' ? 200 : 110;
       const availW = Math.max(this.cssW - padL - padR, 50);
       const availH = Math.max(this.cssH - padT - padB, 50);

@@ -8,6 +8,7 @@ Format: Status · Context · Decision · Consequences. Never delete an ADR; mark
 - **Context:** Need web + mobile from one team. Alternatives: Unity/Unreal (heavy web builds, poor 2D UI), Flutter (weak 3D), React Native + expo-three (clunkier 3D), Babylon.js (viable alternative to Three).
 - **Decision:** React + TypeScript + Three.js via React Three Fiber; Capacitor wraps the web app for iOS/Android; PWA first.
 - **Consequences:** + single codebase, huge ecosystem, fast iteration. − WebView GPU/memory limits on low-end phones; mitigate via asset budgets, quality tiers (Phase 0 validates). Revisit if Phase 0 fails the 30 fps phone target.
+- **Validation (2026-11-05):** Phase 0 benchmark passed — 60 fps on a mid-range Mali-G68 Android phone at medium/low quality, 100 fps desktop. Decision stands. (Test was in Chrome on the phone, not yet inside the Capacitor WebView — re-measure in Phase 4.)
 
 ## ADR-002 — Scene JSON is the single source of truth; all edits are commands
 - **Status:** Accepted
@@ -95,6 +96,20 @@ Format: Status · Context · Decision · Consequences. Never delete an ADR; mark
 - **Context:** Owner wants a clean, minimal, maximally user-friendly UI in the style of an architecture-studio brand sheet (warm greys, black type, brick accent, light geometric sans, lots of whitespace). Audience spans beginners to engineers (ADR-014).
 - **Decision:** Light theme with CSS-variable tokens + mirrored canvas colours; Outfit variable font (bundled, free stand-in for ABC Visby CF); floating chrome at the edges (top bar, left tool rail that becomes a bottom bar on phones, contextual pills, one-line caption); text labels on every tool; one accent colour (brick). Snap options hidden behind one popover; Delete/Done only appear when relevant.
 - **Consequences:** + calm, consistent, themeable (dark theme later = new token values). − less discoverability for advanced options (mitigated by tooltips + Pro mode later); canvas colours are duplicated in `render.ts` and must be kept in sync with `styles.css` (move to a shared `theme.ts` when a second canvas needs them).
+
+---
+## ADR-017 — Quality tiers, procedural lighting/textures, auto-governor and built-in benchmark (implements ADR-010)
+- **Status:** Accepted (P0-09/10/11)
+- **Decision:**
+  - Three tiers (`low` / `medium` / `high`) defined as data in `view3d/qualityLogic.ts` (DPR cap, sun shadows + map size, environment resolution, AO + MSAA, texture size, normal maps). Setting = Auto | Low | Medium | High (persisted).
+  - **No downloaded assets for lighting**: image-based lighting comes from a procedural softbox environment (`Lightformer`s), so the app is offline-safe and ADR-012-friendly. Wood-plank and plaster-relief textures are generated on a canvas (seeded, tileable, cached) — placeholders per ADR-013.
+  - High tier adds **N8AO ambient occlusion + MSAA + ACES tone mapping** through the post-processing composer, lazy-loaded (separate 101 KB gz chunk).
+  - **Progressive rendering**: render-on-demand; while orbiting R3F "regresses" performance and `AdaptiveDpr` lowers pixel ratio, restoring ~180 ms after the last move. (AO is *not* gated during motion: toggling the composer risks a visible tone-mapping flash; revisit in P3-04.)
+  - **Auto governor** (`PerfProbe`): samples frame times only while interacting; if the last 45 frames average < 38 fps it steps the tier DOWN (3 s cooldown). It never steps up on its own (no oscillation); user can re-select.
+  - **Initial tier guess**: desktop → high; touch devices → medium; touch with ≤ 2 GB or ≤ 4 cores → low.
+  - **Benchmark**: one tap (or `?bench=1`) orbits the home on a fixed route for 6 s per tier (1.5 s warm-up), reports fps / p95 / p99 / draw calls / triangles + a copyable text report, so numbers are comparable across devices.
+  - Ceilings are rendered in walk mode only.
+- **Consequences:** + measurable, tunable, offline. − three code paths to keep visually consistent; procedural wood looks good but generic; draw-call counts include post passes.
 
 ## Template
 ```

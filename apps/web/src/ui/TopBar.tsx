@@ -1,5 +1,6 @@
 import { activePlan } from '../plan/PlanCanvas';
 import { useUi, type ViewMode } from '../plan/session';
+import { DisplayMenu } from './DisplayMenu';
 
 const VIEWS: Array<{ id: ViewMode; label: string; title: string }> = [
   { id: '2d', label: 'Plan', title: 'Floor plan only' },
@@ -34,9 +35,10 @@ export function TopBar() {
       </div>
 
       <div className="topbar-right">
+        <DisplayMenu />
         <button
           type="button"
-          className="pill quiet"
+          className="pill quiet hide-phone"
           title="Fit the whole plan on screen (F)"
           onClick={() => {
             activePlan?.fitToPlan();

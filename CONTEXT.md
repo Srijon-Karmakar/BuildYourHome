@@ -9,15 +9,17 @@ _Last updated: 2026-11-05 by Claude Sonnet 5.5_
 HomeDesigner is a cross-platform (web + Capacitor mobile app) tool to design a home's interior and exterior from a 2D plan, auto-generate it in 3D, and explore it via orbit and first-person walkthrough. Stack: React + TypeScript + Three.js/React Three Fiber, Capacitor for mobile, JSON scene graph as source of truth, glTF assets, Supabase (proposed) backend.
 
 ## 2. Current state
-- **Phase:** Phase 0 (prototype / spike) in progress.
+- **Phase:** Phase 1 (MVP editor) — starting. Phase 0 done.
 - **Last completed task:** P0-03 — `@hd/editor-core` (Immer-patch undo/redo, transactions, wall/level commands, postProcess invariants; 14 tests incl. property test). Earlier: P0-02 scene-schema; P0-01 hello-cube (owner: smooth on desktop+phone, "not realistic" yet — expected, see P0-10/P1-12).
 - **Done:** P0-04 2D plan editor, P0-05 mitered walls + live 3D + 2D/Split/3D switcher (owner tested: ok), P0-06 room detection + floors (rooms auto-follow wall loops, keep names; 2D labels with m²; 3D floors). 66 unit tests pass. P0-06 visuals awaiting owner test.
 - **P0-06b done:** `addWall` auto-splits at T/X junctions and existing nodes; new `wall` snap kind (ray∩wall, wall body). 76 unit tests pass, incl. a no-unjoined-crossings property test. Awaiting owner test.
 - **Known gaps:** dragging a corner onto another wall doesn't join/split; halves of a split wall aren't re-merged when the junction wall is deleted.
 - **P0-07 done in code:** first-person walkthrough (WASD/Shift + drag-look on desktop; floating touch stick + drag-look on phone), sliding wall collision (`geometry/collision`), "you are here" marker on the plan. 86 unit tests pass. **Needs owner device test** (feel, speed, touch comfort).
 - **P0-08 done: design-language pass.** Owner wants a CLEAN, MINIMAL, MOST USER-FRIENDLY UI like the reference in `docs/design/reference-brand-guidelines.png`. **Read `docs/DESIGN.md` before touching any UI** (tokens, Outfit font, floating chrome, one brick accent, text labels, contextual actions, phone bottom rail). ADR-016.
-- **Tip:** open `http://localhost:5173/?demo=1` for a ready sample home. Headless Edge screenshots work for visual checks: `msedge --headless=new --enable-unsafe-swiftshader --use-angle=swiftshader --window-size=1440,900 --virtual-time-budget=15000 --screenshot=out.png URL` (the Chrome extension is usually not connected).
-- **Next task:** P0-09 perf baseline (owner devices), P0-10 realism spike, P0-11 progressive rendering. See `docs/PHASES.md`.
+- **Tip:** open `http://localhost:5173/?demo=1` for a ready sample home (more flags in docs/ENGINEERING.md). Headless Edge screenshots work for visual checks: `msedge --headless=new --enable-unsafe-swiftshader --use-angle=swiftshader --window-size=1440,900 --virtual-time-budget=15000 --screenshot=out.png URL` (the Chrome extension is usually not connected).
+- **P0-09/10/11 done in code (ADR-017):** quality tiers (low/medium/high/auto), procedural lighting + textures, AO on high, progressive rendering, auto governor, **Display menu with stats + one-tap benchmark** (`?bench=1`), Playwright smoke test (`pnpm e2e`, 15 checks), 94 unit tests.
+- **PHASE 0 COMPLETE — verdict GO (P0-12).** Owner's benchmark: desktop RTX 4060 = 100 fps (display cap) at all tiers; mid-range phone (Mali-G68, Android) = locked 60 fps at medium/low, but high stutters (p99 125 ms). Auto defaults touch devices to medium. Caveat: test scene is tiny — re-benchmark with furniture (P1-06).
+- **Phase 1 starting.** Next task: **P1-01 doors & windows** (openings cut into walls via box-splitting per ADR-007, collision gaps for doors, UI to place/resize). See `docs/PHASES.md`.
 - **Commands:** `pnpm dev | typecheck | test | lint | build`.
 - **Owner profile:** solo developer, no team; region India first (global later); project name is a placeholder.
 - **Run it:** `pnpm install` then `pnpm dev` (http://localhost:5173, also on LAN for phone testing).

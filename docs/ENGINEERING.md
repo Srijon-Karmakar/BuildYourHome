@@ -5,6 +5,9 @@
 - `pnpm install` · `pnpm dev` (apps/web) · `pnpm test` · `pnpm lint` · `pnpm typecheck` · `pnpm build`
 - Test on phone during dev: `pnpm dev --host`, open LAN URL (HTTPS via local cert if sensors/pointer-lock required).
 
+### Browser smoke test (Playwright + Edge/Chrome, software WebGL)
+`pnpm dev` in one terminal, `pnpm e2e` in another (`E2E_URL`, `E2E_CHANNEL=msedge|chrome` to override). It draws a room with the mouse, undo/redo, splits it with a divider, opens menus, walks into walls, and runs the benchmark; screenshots go to `e2e/out/`. In dev builds the app exposes `window.__hd` (`editor`, `useUi`, `walkPose`) for such tests. URL flags: `?demo=1` sample home, `?view=2d|split|3d`, `?walk=1`, `?perf=1` live stats, `?bench=1` auto-run benchmark.
+
 ## 2. Code conventions
 - TypeScript `strict`, no `any` without comment. ESLint + Prettier + `eslint-plugin-boundaries` to enforce package dependency direction:
   `scene-schema ← geometry ← editor-core ← apps/*` (and `ui`, `assets`). Packages never import from apps.

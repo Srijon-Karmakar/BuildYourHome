@@ -69,7 +69,9 @@ export function WalkControls() {
   }, [camera, invalidate]);
 
   useFrame((_, delta) => {
-    const dt = Math.min(delta, 0.05); // a long frame must not teleport the player
+    // A long frame must not teleport the player; collision is sub-stepped (≤ 10 cm) so 100 ms is safe,
+    // and slow devices (≈ 10 fps) still walk at full speed.
+    const dt = Math.min(delta, 0.1);
     const s = st.current;
     const k = keys.current;
 

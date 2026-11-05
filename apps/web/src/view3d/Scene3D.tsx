@@ -1,48 +1,38 @@
-import { useEffect, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Environment, OrbitControls } from '@react-three/drei';
+import { AdaptiveDpr, Environment, Lightformer, OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useStore } from 'zustand';
 import { computeFootprints } from '@hd/geometry';
 import { editor, useUi } from '../plan/session';
 import { levelRooms } from '../plan/rooms';
-import { FloorMesh } from './FloorMesh';
 import { WalkControls } from '../walk/WalkControls';
+import { BenchmarkRunner } from './BenchmarkRunner';
+import { CeilingMesh } from './CeilingMesh';
+import { FloorMesh } from './FloorMesh';
+import { computeFraming } from './framing';
+import { PerfProbe } from './PerfProbe';
+import { TIERS, type Tier } from './qualityLogic';
+import { useTier } from './qualityStore';
 import { WallMesh } from './WallMesh';
+
+// Post-processing (AO) is only downloaded on devices that reach the high tier.
+const Effects = lazy(() => import('./Effects'));
 
 /** Orbit target/camera framing for the whole plan. */
 function CameraFit() {
   const fitTick = useUi((s) => s.fitTick);
-  const camera = useThree((s) => s.camera);
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const invalidate = useThree((s) => s.invalidate);
   // Re-frame once the canvas has a real size (the aspect ratio is needed for the fit).
   const sized = useThree((s) => s.size.width > 0 && s.size.height > 0);
 
   useEffect(() => {
-    const sc = editor.getState().scene;
-    const nodes = Object.values(sc.nodes);
-    let cx = 0, cz = 0, radius = 5;
-    const height = Math.max(3, ...Object.values(sc.levels).map((l) => l.elevation + l.height));
-    if (nodes.length) {
-      let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
-      for (const n of nodes) {
-        minX = Math.min(minX, n.p[0]); maxX = Math.max(maxX, n.p[0]);
-        minZ = Math.min(minZ, n.p[1]); maxZ = Math.max(maxZ, n.p[1]);
-      }
-      cx = (minX + maxX) / 2;
-      cz = (minZ + maxZ) / 2;
-      radius = Math.max(4, Math.hypot(maxX - minX, maxZ - minZ, height) / 2);
-    }
-    // Distance at which the bounding sphere fits both the vertical and horizontal field of view.
-    const persp = camera as THREE.PerspectiveCamera;
-    const vFov = (persp.fov * Math.PI) / 180;
-    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * persp.aspect);
-    const dist = (radius / Math.sin(Math.min(vFov, hFov) / 2)) * 1.05;
+    const { target, distance } = computeFraming(editor.getState().scene, camera);
     const dir = new THREE.Vector3(0.45, 1.0, 0.75).normalize();
-    const target = new THREE.Vector3(cx, height * 0.4, cz);
-    camera.position.copy(target).addScaledVector(dir, dist);
+    camera.position.copy(target).addScaledVector(dir, distance);
     if (controls) {
       controls.target.copy(target);
       controls.update();
@@ -55,7 +45,7 @@ function CameraFit() {
   return null;
 }
 
-function Walls() {
+function Walls({ tier }: { tier: Tier }) {
   const scene = useStore(editor.store, (s) => s.scene);
   const { walls, nodes, levels, levelOrder } = scene;
 
@@ -74,14 +64,14 @@ function Walls() {
       {data.flatMap(({ level, walls: lw, fps }) =>
         lw.map((w) => {
           const fp = fps[w.id];
-          return fp ? <WallMesh key={w.id} wall={w} fp={fp} elevation={level.elevation} /> : null;
+          return fp ? <WallMesh key={w.id} wall={w} fp={fp} elevation={level.elevation} tier={tier} /> : null;
         }),
       )}
     </>
   );
 }
 
-function Floors() {
+function Floors({ tier }: { tier: Tier }) {
   const scene = useStore(editor.store, (s) => s.scene);
   return (
     <>
@@ -92,6 +82,7 @@ function Floors() {
             polygon={r.polygon}
             elevation={scene.levels[lid]!.elevation}
             materialId={r.room?.floorMaterial.id ?? 'floor-wood-oak'}
+            tier={tier}
           />
         )),
       )}
@@ -99,23 +90,51 @@ function Floors() {
   );
 }
 
-export function Scene3D() {
-  const walk = useUi((s) => s.walk);
+/** Ceilings only exist while walking: from above they would hide the plan. */
+function Ceilings({ tier }: { tier: Tier }) {
+  const scene = useStore(editor.store, (s) => s.scene);
   return (
-    <Canvas
-      shadows
-      frameloop="demand"
-      dpr={[1, 2]}
-      camera={{ position: [8, 7, 10], fov: 50, near: 0.1, far: 500 }}
-    >
-      <color attach="background" args={['#e6e4e0']} />
-      <Environment preset="apartment" background={false} />
-      <hemisphereLight args={['#dfe9f5', '#7d7a70', 0.5]} />
+    <>
+      {scene.levelOrder.flatMap((lid) => {
+        const level = scene.levels[lid]!;
+        return levelRooms(scene, lid)
+          .filter((r) => r.room?.hasCeiling !== false)
+          .map((r, i) => (
+            <CeilingMesh
+              key={`${lid}:${r.room?.id ?? i}`}
+              polygon={r.polygon}
+              y={level.elevation + level.height}
+              materialId={r.room?.ceilingMaterial?.id ?? 'paint-white'}
+              tier={tier}
+            />
+          ));
+      })}
+    </>
+  );
+}
+
+/**
+ * Light without any downloaded HDRI: a procedural "studio" environment (soft boxes) for image-based lighting,
+ * plus one shadow-casting sun. Everything is deterministic and works offline.
+ */
+function Lighting({ tier }: { tier: Tier }) {
+  const cfg = TIERS[tier];
+  return (
+    <>
+      <Environment resolution={cfg.envResolution} background={false} environmentIntensity={0.7}>
+        <color attach="background" args={['#c9c4b9']} />
+        <Lightformer form="rect" intensity={2.4} position={[0, 7, 0]} rotation-x={Math.PI / 2} scale={[24, 24, 1]} />
+        <Lightformer form="rect" intensity={1.4} position={[-9, 3, 0]} rotation-y={Math.PI / 2} scale={[12, 6, 1]} />
+        <Lightformer form="rect" intensity={1.0} position={[9, 3, 5]} rotation-y={-Math.PI / 2} scale={[12, 6, 1]} />
+        <Lightformer form="rect" intensity={0.7} position={[0, 3, -9]} scale={[14, 6, 1]} />
+      </Environment>
+      {/* Keyed by shadow-map size: three can't resize an existing shadow map in place. */}
       <directionalLight
+        key={`${cfg.shadows}-${cfg.shadowMapSize}`}
         position={[10, 16, 6]}
-        intensity={1.8}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
+        intensity={1.3}
+        castShadow={cfg.shadows}
+        shadow-mapSize={[cfg.shadowMapSize, cfg.shadowMapSize]}
         shadow-camera-left={-25}
         shadow-camera-right={25}
         shadow-camera-top={25}
@@ -123,21 +142,52 @@ export function Scene3D() {
         shadow-camera-near={1}
         shadow-camera-far={60}
         shadow-bias={-0.0004}
+        shadow-normalBias={0.02}
       />
+    </>
+  );
+}
+
+export function Scene3D() {
+  const walk = useUi((s) => s.walk);
+  const tier = useTier();
+  const cfg = TIERS[tier];
+  return (
+    <Canvas
+      shadows="soft"
+      frameloop="demand"
+      dpr={cfg.dpr}
+      // Progressive rendering: while the user orbits, R3F "regresses" performance (DPR drops via AdaptiveDpr)
+      // and restores full quality ~180 ms after the last movement.
+      performance={{ min: 0.6, max: 1, debounce: 180 }}
+      gl={{ antialias: true, powerPreference: 'high-performance' }}
+      camera={{ position: [8, 7, 10], fov: 50, near: 0.1, far: 500 }}
+    >
+      <color attach="background" args={['#e6e4e0']} />
+      <Lighting tier={tier} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.002, 0]} receiveShadow>
         <planeGeometry args={[300, 300]} />
         <meshStandardMaterial color="#d6d2c8" roughness={1} />
       </mesh>
-      <Floors />
-      <Walls />
+      <Floors tier={tier} />
+      <Walls tier={tier} />
+      {walk && <Ceilings tier={tier} />}
       {walk ? (
         <WalkControls />
       ) : (
         <>
-          <OrbitControls makeDefault maxPolarAngle={Math.PI / 2 - 0.02} enableDamping={false} />
+          <OrbitControls makeDefault regress maxPolarAngle={Math.PI / 2 - 0.02} enableDamping={false} />
           <CameraFit />
         </>
       )}
+      <AdaptiveDpr pixelated={false} />
+      {cfg.ao && (
+        <Suspense fallback={null}>
+          <Effects msaa={cfg.msaa} />
+        </Suspense>
+      )}
+      <PerfProbe />
+      <BenchmarkRunner />
     </Canvas>
   );
 }
