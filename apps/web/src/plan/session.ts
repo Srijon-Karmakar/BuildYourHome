@@ -6,7 +6,7 @@ import { createEditor, createWallTool, DEFAULT_SNAP, type SnapSettings } from '@
 export const editor = createEditor(createEmptyScene());
 export const wallTool = createWallTool(editor);
 
-export type ToolId = 'select' | 'wall';
+export type ToolId = 'select' | 'wall' | 'door' | 'window';
 export type ViewMode = '2d' | '3d' | 'split';
 
 const wide = typeof window !== 'undefined' && window.matchMedia('(min-width: 900px)').matches;

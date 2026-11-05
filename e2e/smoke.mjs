@@ -114,6 +114,88 @@ try {
     await page.close();
   }
 
+  // ---------------------------------------------------------------- 2b. doors and windows
+  {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+
+    // Place a door with the Door tool on an empty plan: draw a wall, pick Door, click the wall.
+    await page.goto(BASE + '?view=2d');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForTimeout(400);
+    const box = await page.locator('canvas.plan-canvas').boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    await page.mouse.click(cx - 180, cy); // start (−3 m, 0)
+    await page.mouse.click(cx + 180, cy); // end   ( 3 m, 0)
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Door' }).click();
+    await page.mouse.move(cx + 30, cy - 12);
+    await page.mouse.click(cx + 30, cy - 12);
+    let ops = await page.evaluate(() => Object.values(window.__hd.editor.getState().scene.openings));
+    check('Door tool places a door on the wall', ops.length === 1 && ops[0].type === 'door', JSON.stringify(ops.map((o) => [o.type, +o.offset.toFixed(2)])));
+    check('door opens toward the pointer side', ops[0]?.flip.swing === true || ops[0]?.flip.swing === false);
+
+    // A second click on the same spot lands in the nearest free place, never overlapping.
+    await page.mouse.click(cx + 30, cy - 12);
+    ops = await page.evaluate(() => Object.values(window.__hd.editor.getState().scene.openings));
+    const sorted = ops.map((o) => o.offset).sort((a, b) => a - b);
+    check('a second door never overlaps the first', ops.length === 2 && sorted[1] - sorted[0] >= 0.9 + 0.05 - 1e-6, JSON.stringify(sorted));
+
+    // Select tool: tap selects it, contextual pills appear, Swing flips, Delete removes.
+    await page.getByRole('button', { name: 'Select' }).click();
+    const first = ops.sort((a, b) => a.offset - b.offset)[0];
+    const sx = cx + (first.offset - 3) * 60;
+    await page.mouse.click(sx, cy);
+    check('tapping a door selects it', (await page.evaluate(() => window.__hd.editor.getState().selection)).length === 1);
+    check('Swing / Wider pills appear', (await page.getByRole('button', { name: 'Swing' }).isVisible()) && (await page.getByRole('button', { name: 'Wider' }).isVisible()));
+    const before = await page.evaluate((id) => window.__hd.editor.getState().scene.openings[id].flip.swing, first.id);
+    await page.getByRole('button', { name: 'Swing' }).click();
+    const after = await page.evaluate((id) => window.__hd.editor.getState().scene.openings[id].flip.swing, first.id);
+    check('Swing flips the door', before !== after);
+    await page.keyboard.press('Delete');
+    check('Delete removes the selected door', (await page.evaluate(() => Object.keys(window.__hd.editor.getState().scene.openings).length)) === 1);
+    await page.close();
+
+    // Walk through a doorway of the sample home (living -> bedroom door on the divider at z = 1.75) ...
+    const walk = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    walk.on('pageerror', (e) => errors.push(String(e)));
+    await walk.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await walk.goto(BASE + '?demo=1&view=3d');
+    await walk.waitForSelector('canvas');
+    await walk.waitForTimeout(1200);
+    const startWalk = async (x, z) => {
+      await walk.evaluate(([x, z]) => {
+        window.__hd.rememberPose({ x, z, yaw: -Math.PI / 2 }); // facing east (+x)
+        window.__hd.useUi.getState().setWalk(true);
+      }, [x, z]);
+      await walk.waitForTimeout(500);
+    };
+    const stop = async () => {
+      await walk.keyboard.up('w');
+      await walk.evaluate(() => window.__hd.useUi.getState().setWalk(false));
+      await walk.waitForTimeout(300);
+    };
+    await startWalk(4.5, 1.75);
+    await walk.keyboard.down('w');
+    await walk.waitForFunction(() => window.__hd.walkPose.getState().x > 6.8, null, { timeout: 30000 }).catch(() => {});
+    const through = await walk.evaluate(() => window.__hd.walkPose.getState());
+    await stop();
+    check('walker passes through the doorway', through.x > 6.8, `x=${through.x.toFixed(2)}, z=${through.z.toFixed(2)}`);
+
+    // ... but is stopped by the solid wall beside it.
+    await startWalk(4.5, 0.7);
+    await walk.keyboard.down('w');
+    await walk.waitForTimeout(6000);
+    const blocked = await walk.evaluate(() => window.__hd.walkPose.getState());
+    await stop();
+    check('walker is blocked by the wall next to the door', blocked.x < 5.7, `x=${blocked.x.toFixed(2)}`);
+    check('no page errors with doors and windows', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await walk.close();
+  }
+
   // ---------------------------------------------------------------- 3. benchmark
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });

@@ -4,14 +4,15 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { AdaptiveDpr, Environment, Lightformer, OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useStore } from 'zustand';
-import { computeFootprints } from '@hd/geometry';
 import { editor, useUi } from '../plan/session';
 import { levelRooms } from '../plan/rooms';
+import { levelGeometry } from '../plan/wallGeom';
 import { WalkControls } from '../walk/WalkControls';
 import { BenchmarkRunner } from './BenchmarkRunner';
 import { CeilingMesh } from './CeilingMesh';
 import { FloorMesh } from './FloorMesh';
 import { computeFraming } from './framing';
+import { OpeningMesh } from './OpeningMesh';
 import { PerfProbe } from './PerfProbe';
 import { TIERS, type Tier } from './qualityLogic';
 import { useTier } from './qualityStore';
@@ -47,26 +48,37 @@ function CameraFit() {
 
 function Walls({ tier }: { tier: Tier }) {
   const scene = useStore(editor.store, (s) => s.scene);
-  const { walls, nodes, levels, levelOrder } = scene;
+  const { walls, nodes, openings, levels, levelOrder } = scene;
 
-  // Recomputed when walls/nodes change; Immer structural sharing keeps unchanged inputs stable.
+  // Shared, memoized geometry (also used by the plan view); recomputed only when walls/nodes/openings change.
   const data = useMemo(
     () =>
-      levelOrder.map((lid) => {
-        const lw = Object.values(walls).filter((w) => w.levelId === lid);
-        return { level: levels[lid]!, walls: lw, fps: computeFootprints(nodes, lw) };
-      }),
-    [walls, nodes, levels, levelOrder],
+      levelOrder.map((lid) => ({
+        level: levels[lid]!,
+        walls: Object.values(walls).filter((w) => w.levelId === lid),
+        geom: levelGeometry(scene, lid),
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [walls, nodes, openings, levels, levelOrder],
   );
+  const bySide = useMemo(() => Object.values(openings), [openings]);
 
   return (
     <>
-      {data.flatMap(({ level, walls: lw, fps }) =>
+      {data.flatMap(({ level, walls: lw, geom }) =>
         lw.map((w) => {
-          const fp = fps[w.id];
-          return fp ? <WallMesh key={w.id} wall={w} fp={fp} elevation={level.elevation} tier={tier} /> : null;
+          const fp = geom.footprints[w.id];
+          return fp ? (
+            <WallMesh key={w.id} wall={w} fp={fp} cuts={geom.cuts[w.id] ?? []} elevation={level.elevation} tier={tier} />
+          ) : null;
         }),
       )}
+      {bySide.map((o) => {
+        const w = walls[o.wallId];
+        const level = w && levels[w.levelId];
+        const fp = w && data.find((d) => d.level.id === w.levelId)?.geom.footprints[w.id];
+        return fp && level ? <OpeningMesh key={o.id} opening={o} fp={fp} elevation={level.elevation} /> : null;
+      })}
     </>
   );
 }

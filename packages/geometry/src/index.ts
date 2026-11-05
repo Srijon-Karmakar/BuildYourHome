@@ -1,4 +1,5 @@
 export * from './wall/footprint';
+export * from './wall/openings';
 export * from './wall/mesh';
 export * from './room/detect';
 export * from './room/floor';

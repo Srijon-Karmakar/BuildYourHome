@@ -1,4 +1,5 @@
 import type { WallFootprint } from './footprint';
+import { axialOf, facePoint, validCuts, type OpeningCut } from './openings';
 
 /** Material slot per triangle group; apps map these to materials (sideA = wall.materialA, …). */
 export type WallSlot = 'sideA' | 'sideB' | 'top' | 'ends';
@@ -52,16 +53,51 @@ class Builder {
   }
 }
 
+/** A rectangle on a wall face in (axial s, height y) coordinates. */
+interface Strip {
+  s0: number;
+  s1: number;
+  y0: number;
+  y1: number;
+}
+
 /**
- * Extrude a wall footprint into a prism from y = elevation to elevation + height.
- * UVs are in world metres (u along the wall, v up) so materials tile at real-world scale.
- * Bottom face omitted (never seen).
+ * Wall face = full rectangle minus the openings, as axis-aligned strips (ADR-007: boxes around the
+ * holes, no CSG). Walks left → right: a full-height strip before each opening, then the pieces below
+ * (window sill) and above (lintel) the opening itself.
  */
-export function buildWallMesh(fp: WallFootprint, elevation: number, height: number): MeshData {
+function faceStrips(sStart: number, sEnd: number, cuts: readonly OpeningCut[], H: number): Strip[] {
+  const out: Strip[] = [];
+  let pos = sStart;
+  for (const c of cuts) {
+    const s0 = c.offset - c.width / 2;
+    const s1 = c.offset + c.width / 2;
+    if (s0 > pos + 1e-9) out.push({ s0: pos, s1: s0, y0: 0, y1: H });
+    if (c.sill > 1e-9) out.push({ s0, s1, y0: 0, y1: c.sill });
+    if (c.sill + c.height < H - 1e-9) out.push({ s0, s1, y0: c.sill + c.height, y1: H });
+    pos = s1;
+  }
+  if (sEnd > pos + 1e-9) out.push({ s0: pos, s1: sEnd, y0: 0, y1: H });
+  return out;
+}
+
+/**
+ * Extrude a wall footprint into a solid from y = elevation to elevation + height, with rectangular
+ * openings cut through it (and the reveals — jambs, head, sill — that line each hole).
+ * UVs are world metres (u along the wall, v up) so materials tile at real-world scale.
+ * Bottom face omitted (never seen). Openings that cannot be built (outside the wall, overlapping) are skipped.
+ */
+export function buildWallMesh(
+  fp: WallFootprint,
+  elevation: number,
+  height: number,
+  openings: readonly OpeningCut[] = [],
+): MeshData {
   const [aL, bL, bR, aR] = fp.footprint;
-  const y0 = elevation;
-  const y1 = elevation + height;
-  const v = (p: readonly [number, number], y: number): V3 => [p[0], y, p[1]];
+  const cuts = validCuts(fp, openings, height);
+  const v = (p: readonly [number, number], y: number): V3 => [p[0], elevation + y, p[1]];
+  // 3D point on a face at axial s, height y.
+  const at = (s: number, y: number, side: 1 | -1): V3 => v(facePoint(fp, s, side), y);
 
   const ux = bL[0] - aL[0];
   const uz = bL[1] - aL[1];
@@ -71,21 +107,57 @@ export function buildWallMesh(fp: WallFootprint, elevation: number, height: numb
 
   const per = { sideA: new Builder(), sideB: new Builder(), top: new Builder(), ends: new Builder() };
 
-  // Side A (L face), read from outside: u runs a → b.
-  per.sideA.quad(
-    [v(aL, y0), v(bL, y0), v(bL, y1), v(aL, y1)],
-    [[0, 0], [lenL, 0], [lenL, height], [0, height]],
-    nL,
-  );
+  // Side A (L face), read from outside: u runs a → b. Edge points are the mitered footprint ends.
+  const sL0 = axialOf(fp, aL);
+  const sL1 = axialOf(fp, bL);
+  for (const st of faceStrips(sL0, sL1, cuts, height)) {
+    const p0 = st.s0 === sL0 ? v(aL, st.y0) : at(st.s0, st.y0, 1);
+    const p3 = st.s0 === sL0 ? v(aL, st.y1) : at(st.s0, st.y1, 1);
+    const p1 = st.s1 === sL1 ? v(bL, st.y0) : at(st.s1, st.y0, 1);
+    const p2 = st.s1 === sL1 ? v(bL, st.y1) : at(st.s1, st.y1, 1);
+    per.sideA.quad([p0, p1, p2, p3], [[st.s0, st.y0], [st.s1, st.y0], [st.s1, st.y1], [st.s0, st.y1]], nL);
+  }
+
   // Side B (R face), read from outside: u runs b → a.
-  const lenR = Math.hypot(aR[0] - bR[0], aR[1] - bR[1]) || 1;
-  per.sideB.quad(
-    [v(bR, y0), v(aR, y0), v(aR, y1), v(bR, y1)],
-    [[0, 0], [lenR, 0], [lenR, height], [0, height]],
-    [-nL[0], 0, -nL[2]],
+  const sR0 = axialOf(fp, aR);
+  const sR1 = axialOf(fp, bR);
+  for (const st of faceStrips(sR0, sR1, cuts, height)) {
+    const p0 = st.s0 === sR0 ? v(aR, st.y0) : at(st.s0, st.y0, -1);
+    const p3 = st.s0 === sR0 ? v(aR, st.y1) : at(st.s0, st.y1, -1);
+    const p1 = st.s1 === sR1 ? v(bR, st.y0) : at(st.s1, st.y0, -1);
+    const p2 = st.s1 === sR1 ? v(bR, st.y1) : at(st.s1, st.y1, -1);
+    per.sideB.quad(
+      [p0, p1, p2, p3],
+      [[sR1 - st.s0, st.y0], [sR1 - st.s1, st.y0], [sR1 - st.s1, st.y1], [sR1 - st.s0, st.y1]],
+      [-nL[0], 0, -nL[2]],
+    );
+  }
+
+  // Top (continuous: a lintel always remains above every opening).
+  per.top.quad(
+    [v(aL, height), v(bL, height), v(bR, height), v(aR, height)],
+    [aL, bL, bR, aR].map((p) => [p[0], p[1]] as [number, number]),
+    [0, 1, 0],
   );
-  // Top.
-  per.top.quad([v(aL, y1), v(bL, y1), v(bR, y1), v(aR, y1)], [aL, bL, bR, aR].map((p) => [p[0], p[1]] as [number, number]), [0, 1, 0]);
+
+  // Reveals lining each hole, facing into the opening.
+  const t = fp.thickness;
+  for (const c of cuts) {
+    const s0 = c.offset - c.width / 2;
+    const s1 = c.offset + c.width / 2;
+    const y0 = c.sill;
+    const y1 = c.sill + c.height;
+    const dir: V3 = [u[0], 0, u[1]];
+    // Left jamb (faces +s) and right jamb (faces −s).
+    per.ends.quad([at(s0, y0, 1), at(s0, y0, -1), at(s0, y1, -1), at(s0, y1, 1)], [[0, y0], [t, y0], [t, y1], [0, y1]], dir);
+    per.ends.quad([at(s1, y0, 1), at(s1, y0, -1), at(s1, y1, -1), at(s1, y1, 1)], [[0, y0], [t, y0], [t, y1], [0, y1]], [-dir[0], 0, -dir[2]]);
+    // Head (underside of the lintel).
+    per.ends.quad([at(s0, y1, 1), at(s1, y1, 1), at(s1, y1, -1), at(s0, y1, -1)], [[s0, 0], [s1, 0], [s1, t], [s0, t]], [0, -1, 0]);
+    // Sill (top of the lower wall) — windows only.
+    if (y0 > 1e-9) {
+      per.ends.quad([at(s0, y0, 1), at(s1, y0, 1), at(s1, y0, -1), at(s0, y0, -1)], [[s0, 0], [s1, 0], [s1, t], [s0, t]], [0, 1, 0]);
+    }
+  }
 
   // End caps (only where the wall end is exposed).
   const cap = (p: readonly [number, number], q: readonly [number, number], dirSign: 1 | -1) => {
@@ -95,7 +167,7 @@ export function buildWallMesh(fp: WallFootprint, elevation: number, height: numb
     if (w < 1e-9) return;
     let n: V3 = [-ez / w, 0, ex / w];
     if (n[0] * u[0] * dirSign + n[2] * u[1] * dirSign < 0) n = [-n[0], 0, -n[2]];
-    per.ends.quad([v(p, y0), v(q, y0), v(q, y1), v(p, y1)], [[0, 0], [w, 0], [w, height], [0, height]], n);
+    per.ends.quad([v(p, 0), v(q, 0), v(q, height), v(p, height)], [[0, 0], [w, 0], [w, height], [0, height]], n);
   };
   if (fp.capA) cap(aR, aL, -1);
   if (fp.capB) cap(bL, bR, 1);

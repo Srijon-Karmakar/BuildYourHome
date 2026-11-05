@@ -20,11 +20,17 @@ export function WalkControls() {
   const invalidate = useThree((s) => s.invalidate);
   const nodes = useStore(editor.store, (s) => s.scene.nodes);
   const walls = useStore(editor.store, (s) => s.scene.walls);
+  const openings = useStore(editor.store, (s) => s.scene.openings);
   const levelId = useStore(editor.store, (s) => s.activeLevelId);
 
   const colliders = useMemo(
-    () => buildColliders(nodes, Object.values(walls).filter((w) => w.levelId === levelId)),
-    [nodes, walls, levelId],
+    () =>
+      buildColliders(
+        nodes,
+        Object.values(walls).filter((w) => w.levelId === levelId),
+        Object.values(openings), // doors / arches leave gaps you can walk through
+      ),
+    [nodes, walls, openings, levelId],
   );
   const collidersRef = useRef(colliders);
   collidersRef.current = colliders;

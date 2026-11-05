@@ -1,6 +1,6 @@
 import { useStore } from 'zustand';
 import { editor, useUi } from '../plan/session';
-import { IconRedo, IconSelect, IconUndo, IconWall } from './icons';
+import { IconDoor, IconRedo, IconSelect, IconUndo, IconWall, IconWindow } from './icons';
 import { SnapMenu } from './SnapMenu';
 
 export function ToolRail() {
@@ -34,6 +34,29 @@ export function ToolRail() {
       >
         <IconWall />
         <span>Wall</span>
+      </button>
+
+      <button
+        type="button"
+        className="tool"
+        title="Add doors (D)"
+        aria-pressed={editable && tool === 'door'}
+        disabled={!editable}
+        onClick={() => setTool('door')}
+      >
+        <IconDoor />
+        <span>Door</span>
+      </button>
+      <button
+        type="button"
+        className="tool"
+        title="Add windows (N)"
+        aria-pressed={editable && tool === 'window'}
+        disabled={!editable}
+        onClick={() => setTool('window')}
+      >
+        <IconWindow />
+        <span>Window</span>
       </button>
 
       <div className="rail-sep" />

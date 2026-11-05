@@ -567,7 +567,25 @@ button {
   }
 
   .tool {
-    width: 52px;
+    width: 46px;
+    min-height: 52px;
+  }
+
+  .tool span {
+    font-size: 10px;
+    letter-spacing: 0.02em;
+  }
+
+  .context {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .context .pill {
+    min-height: 38px;
+    padding: 0 13px;
+    font-size: 12.5px;
   }
 
   .popover {

@@ -1,8 +1,7 @@
 import type { Scene } from '@hd/scene-schema';
+import { OPENING_END_MARGIN_M } from '@hd/geometry';
+import { OPENING_GAP_M, OPENING_HEAD_CLEARANCE_M, wallLength } from './openings';
 import { syncRooms } from './rooms';
-
-/** Opening must keep at least this distance from a wall end. */
-const MIN_END_MARGIN_M = 0.05;
 
 /**
  * Run after every command to restore invariants, so commands stay simple.
@@ -22,22 +21,38 @@ export function postProcess(d: Scene): void {
   }
   for (const id of Object.keys(d.nodes)) if (!used.has(id)) delete d.nodes[id];
 
-  // 3. Openings: drop orphans, clamp onto the wall, drop if wall is too short.
+  // 3. Openings: drop orphans; per wall, sweep left → right keeping each one clear of the wall ends and of
+  //    its neighbour (pushing it along, or dropping it when the wall has become too short).
+  const perWall = new Map<string, Array<(typeof d.openings)[string]>>();
   for (const [id, o] of Object.entries(d.openings)) {
-    const w = d.walls[o.wallId];
-    const a = w && d.nodes[w.a];
-    const b = w && d.nodes[w.b];
-    if (!w || !a || !b) {
+    if (!d.walls[o.wallId]) {
       delete d.openings[id];
       continue;
     }
-    const len = Math.hypot(b.p[0] - a.p[0], b.p[1] - a.p[1]);
-    const half = o.width / 2 + MIN_END_MARGIN_M;
-    if (len < 2 * half) {
-      delete d.openings[id];
-      continue;
+    const list = perWall.get(o.wallId) ?? [];
+    list.push(o);
+    perWall.set(o.wallId, list);
+  }
+  for (const [wallId, list] of perWall) {
+    const wall = d.walls[wallId]!;
+    const len = wallLength(d, wall);
+    list.sort((p, q) => p.offset - q.offset || (p.id < q.id ? -1 : 1));
+    let prevEnd = -Infinity;
+    for (const o of list) {
+      const half = o.width / 2;
+      const lo = Math.max(OPENING_END_MARGIN_M + half, prevEnd + OPENING_GAP_M + half);
+      const hi = len === null ? -Infinity : len - OPENING_END_MARGIN_M - half;
+      if (lo > hi + 1e-9) {
+        delete d.openings[o.id];
+        continue;
+      }
+      const c = Math.min(hi, Math.max(lo, o.offset));
+      if (Math.abs(c - o.offset) > 1e-9) o.offset = c;
+      prevEnd = c + half;
+      // A lintel must remain above the opening (wall height may have changed).
+      const maxTop = wall.height - OPENING_HEAD_CLEARANCE_M;
+      if (o.sill + o.height > maxTop + 1e-9) o.height = Math.max(0.2, maxTop - o.sill);
     }
-    o.offset = Math.min(Math.max(o.offset, half), len - half);
   }
 
   // 4. Items on missing levels.

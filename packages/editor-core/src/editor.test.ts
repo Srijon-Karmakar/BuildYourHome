@@ -170,7 +170,7 @@ describe('postProcess invariants', () => {
     e.execute(moveNode(far, far === n1 ? [2, 0] : [-2, 0]));
     const o = e.getState().scene.openings.o1;
     expect(o).toBeDefined();
-    expect(o!.offset).toBeLessThanOrEqual(2 - 0.5 - 0.05 + 1e-9);
+    expect(o!.offset).toBeLessThanOrEqual(2 - 0.5 - 0.15 + 1e-9);
     e.execute(moveNode(far, far === n1 ? [0.8, 0] : [-0.8, 0]));
     expect(e.getState().scene.openings.o1).toBeUndefined();
   });

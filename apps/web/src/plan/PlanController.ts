@@ -1,8 +1,21 @@
 import type { Id, Vec2 } from '@hd/scene-schema';
-import { moveNode, niceGridStep, removeWalls, snapPoint, type SnapResult } from '@hd/editor-core';
+import {
+  addOpening,
+  defaultSize,
+  freeOffset,
+  moveNode,
+  moveOpening,
+  nearestWallPoint,
+  niceGridStep,
+  removeOpenings,
+  removeWalls,
+  snapPoint,
+  type SnapResult,
+} from '@hd/editor-core';
 import { editor, finishDrawing, useUi, wallTool } from './session';
-import { drawPlan } from './render';
+import { drawPlan, type OpeningPreview } from './render';
 import { levelRooms } from './rooms';
+import { levelGeometry } from './wallGeom';
 import { walkPose } from '../walk/walkState';
 import { toWorld, zoomAt, type View } from './viewport';
 
@@ -11,7 +24,7 @@ const NODE_HIT_PX = 16;
 const WALL_HIT_PX = 10;
 const TAP_SLOP_PX = 5;
 
-type Mode = 'none' | 'pan' | 'place' | 'select' | 'dragNode' | 'gesture';
+type Mode = 'none' | 'pan' | 'place' | 'placeOpening' | 'select' | 'dragNode' | 'dragOpening' | 'gesture';
 
 /**
  * Owns the 2D plan canvas: view transform, pointer/touch/keyboard handling, rendering on demand.
@@ -20,13 +33,17 @@ type Mode = 'none' | 'pan' | 'place' | 'select' | 'dragNode' | 'gesture';
  * Input model (mouse + touch are equal citizens):
  *  - Wall tool: press shows the snapped preview, release places the point (so touch users can
  *    slide a finger to the exact spot). Esc / double-click / right-click / Done ends the chain.
- *  - Select tool: tap a wall to select, drag a corner point to move it (one undo step).
+ *  - Door / Window tools: a ghost follows the pointer along the nearest wall (snapped to a free spot, door
+ *    swings toward the pointer side); release places it.
+ *  - Select tool: tap a wall or opening to select, drag a corner point to move it, drag an opening to slide
+ *    it along (or onto another) wall. Each gesture is one undo step.
  *  - Pan: middle/right mouse drag, Space+drag, one-finger drag on empty space (select tool),
  *    or two fingers. Zoom: wheel / pinch.
  */
 export class PlanController {
   view: View = { scale: 60, ox: 0, oy: 0 };
   hover: SnapResult | null = null;
+  preview: OpeningPreview | null = null;
 
   private ctx: CanvasRenderingContext2D;
   private cssW = 0;
@@ -42,6 +59,8 @@ export class PlanController {
   private moved = false;
   private spaceDown = false;
   private dragNodeId: Id | null = null;
+  private dragOpeningId: Id | null = null;
+  private dragStarted = false;
   private gesture: { dist: number; scale: number; wx: number; wz: number } | null = null;
 
   private cleanup: Array<() => void> = [];
@@ -93,6 +112,7 @@ export class PlanController {
           prevTool = s.tool;
           this.endChain();
           this.hover = null;
+          this.preview = null;
           this.updateCursor();
         }
         this.invalidate();
@@ -106,7 +126,8 @@ export class PlanController {
   }
 
   private updateCursor(): void {
-    this.canvas.style.cursor = useUi.getState().tool === 'wall' ? 'crosshair' : 'default';
+    const t = useUi.getState().tool;
+    this.canvas.style.cursor = t === 'select' ? 'default' : 'crosshair';
   }
 
   dispose(): void {
@@ -180,6 +201,8 @@ export class PlanController {
     const ui = useUi.getState();
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     drawPlan(this.ctx, {
+      geom: levelGeometry(st.scene, st.activeLevelId),
+      preview: this.preview,
       rooms: levelRooms(st.scene, st.activeLevelId).map((r) => ({
         polygon: r.polygon,
         centroid: r.centroid,
@@ -260,6 +283,47 @@ export class PlanController {
     return best;
   }
 
+  /** Ghost opening for the Door/Window tools at a screen position (null when no wall is near or it can't fit). */
+  private previewAt(sx: number, sy: number): OpeningPreview | null {
+    const tool = useUi.getState().tool;
+    if (tool !== 'door' && tool !== 'window') return null;
+    const st = editor.getState();
+    const world = toWorld(this.view, sx, sy) as Vec2;
+    const hit = nearestWallPoint(st.scene, st.activeLevelId, world, Math.max(0.35, 30 / this.view.scale));
+    const wall = hit && st.scene.walls[hit.wallId];
+    if (!hit || !wall) return null;
+    const size = defaultSize(tool, wall);
+    const offset = freeOffset(st.scene, hit.wallId, hit.offset, size.width);
+    if (offset === null) return null;
+    // Doors open toward the side the pointer is on.
+    return { type: tool, wallId: hit.wallId, offset, width: size.width, swing: hit.side < 0 };
+  }
+
+  private hitOpening(sx: number, sy: number): Id | null {
+    const st = editor.getState();
+    const geom = levelGeometry(st.scene, st.activeLevelId);
+    const [px, pz] = toWorld(this.view, sx, sy);
+    let best: Id | null = null;
+    let bestD = Infinity;
+    for (const o of Object.values(st.scene.openings)) {
+      const w = st.scene.walls[o.wallId];
+      const fp = geom.footprints[o.wallId];
+      if (!w || !fp || w.levelId !== st.activeLevelId) continue;
+      const dx = px - fp.origin[0];
+      const dz = pz - fp.origin[1];
+      const along = dx * fp.dir[0] + dz * fp.dir[1];
+      const perp = -dx * fp.dir[1] + dz * fp.dir[0];
+      const reachAlong = o.width / 2 + 6 / this.view.scale;
+      const reachPerp = Math.max(w.thickness / 2, 10 / this.view.scale);
+      const d = Math.abs(along - o.offset);
+      if (d <= reachAlong && Math.abs(perp) <= reachPerp && d < bestD) {
+        best = o.id;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
   private endChain(): void {
     finishDrawing();
     this.invalidate();
@@ -274,8 +338,10 @@ export class PlanController {
 
     if (this.pointers.size === 2) {
       // Second finger: abandon whatever the first one started and switch to pinch/pan.
-      if (this.mode === 'dragNode' && editor.getState().inTransaction) editor.cancelTransaction();
+      if ((this.mode === 'dragNode' || this.mode === 'dragOpening') && editor.getState().inTransaction) editor.cancelTransaction();
       this.dragNodeId = null;
+      this.dragOpeningId = null;
+      this.dragStarted = false;
       this.beginGesture();
       this.mode = 'gesture';
       this.hover = null;
@@ -295,12 +361,21 @@ export class PlanController {
     if (tool === 'wall') {
       this.mode = 'place';
       this.hover = this.snapAt(p.x, p.y);
+    } else if (tool === 'door' || tool === 'window') {
+      this.mode = 'placeOpening';
+      this.preview = this.previewAt(p.x, p.y);
     } else {
       const nodeId = this.hitNode(p.x, p.y);
+      const openingId = nodeId ? null : this.hitOpening(p.x, p.y);
       if (nodeId) {
         this.mode = 'dragNode';
         this.dragNodeId = nodeId;
         editor.beginTransaction('Move wall point');
+      } else if (openingId) {
+        // The transaction only starts once the pointer really moves, so a plain tap just selects.
+        this.mode = 'dragOpening';
+        this.dragOpeningId = openingId;
+        this.dragStarted = false;
       } else {
         this.mode = 'select';
       }
@@ -319,8 +394,12 @@ export class PlanController {
     }
     if (!prev) {
       // Hovering mouse (no button down).
-      if (useUi.getState().tool === 'wall' && e.pointerType === 'mouse') {
+      const tool = useUi.getState().tool;
+      if (tool === 'wall' && e.pointerType === 'mouse') {
         this.hover = this.snapAt(p.x, p.y);
+        this.invalidate();
+      } else if ((tool === 'door' || tool === 'window') && e.pointerType === 'mouse') {
+        this.preview = this.previewAt(p.x, p.y);
         this.invalidate();
       }
       return;
@@ -339,11 +418,27 @@ export class PlanController {
         this.hover = this.snapAt(p.x, p.y);
         this.invalidate();
         break;
+      case 'placeOpening':
+        this.preview = this.previewAt(p.x, p.y);
+        this.invalidate();
+        break;
       case 'dragNode':
         if (this.dragNodeId) {
           const s = this.snapAt(p.x, p.y, [this.dragNodeId]);
           this.hover = s;
           editor.preview(moveNode(this.dragNodeId, s.point));
+        }
+        break;
+      case 'dragOpening':
+        if (this.dragOpeningId && this.moved) {
+          if (!this.dragStarted) {
+            editor.beginTransaction('Move opening');
+            this.dragStarted = true;
+          }
+          const st = editor.getState();
+          const world = toWorld(this.view, p.x, p.y) as Vec2;
+          const hit = nearestWallPoint(st.scene, st.activeLevelId, world, Math.max(0.6, 40 / this.view.scale));
+          if (hit) editor.preview(moveOpening(this.dragOpeningId, hit.wallId, hit.offset));
         }
         break;
       default:
@@ -368,10 +463,25 @@ export class PlanController {
       wallTool.click(s.point, s.kind);
       useUi.getState().setDrawing(wallTool.last !== null);
       this.hover = e.pointerType === 'mouse' ? this.snapAt(p.x, p.y) : null;
+    } else if (mode === 'placeOpening') {
+      const pv = this.previewAt(p.x, p.y);
+      if (pv) {
+        editor.execute(addOpening({ wallId: pv.wallId, type: pv.type, offset: pv.offset, swing: pv.swing }));
+      }
+      this.preview = e.pointerType === 'mouse' ? this.previewAt(p.x, p.y) : null;
     } else if (mode === 'dragNode') {
       editor.commitTransaction();
       this.dragNodeId = null;
       this.hover = null;
+    } else if (mode === 'dragOpening') {
+      const id = this.dragOpeningId;
+      if (this.dragStarted) editor.commitTransaction();
+      else if (id) {
+        const cur = editor.getState().selection;
+        editor.select(e.shiftKey ? (cur.includes(id) ? cur.filter((i) => i !== id) : [...cur, id]) : [id]);
+      }
+      this.dragOpeningId = null;
+      this.dragStarted = false;
     } else if (mode === 'select' && !this.moved) {
       const hit = this.hitWall(p.x, p.y);
       const cur = editor.getState().selection;
@@ -387,10 +497,13 @@ export class PlanController {
 
   private onCancel(e: PointerEvent): void {
     this.pointers.delete(e.pointerId);
-    if (this.mode === 'dragNode' && editor.getState().inTransaction) editor.cancelTransaction();
+    if ((this.mode === 'dragNode' || this.mode === 'dragOpening') && editor.getState().inTransaction) editor.cancelTransaction();
     this.dragNodeId = null;
+    this.dragOpeningId = null;
+    this.dragStarted = false;
     if (this.pointers.size === 0) this.mode = 'none';
     this.hover = null;
+    this.preview = null;
     this.invalidate();
   }
 
@@ -463,6 +576,7 @@ export class PlanController {
       editor.redo();
     } else if (e.key === 'Escape') {
       this.endChain();
+      this.preview = null;
       editor.select([]);
     } else if (e.key === 'Enter') {
       if (useUi.getState().tool === 'wall') this.endChain();
@@ -472,6 +586,10 @@ export class PlanController {
       useUi.getState().setTool('wall');
     } else if (!mod && key === 'v') {
       useUi.getState().setTool('select');
+    } else if (!mod && key === 'd') {
+      useUi.getState().setTool('door');
+    } else if (!mod && key === 'n') {
+      useUi.getState().setTool('window');
     } else if (!mod && key === 'f') {
       this.fitToPlan();
     }
@@ -480,6 +598,8 @@ export class PlanController {
 
 export function deleteSelection(): void {
   const st = editor.getState();
-  const ids = st.selection.filter((id) => st.scene.walls[id]);
-  if (ids.length) editor.execute(removeWalls(ids));
+  const openings = st.selection.filter((id) => st.scene.openings[id]);
+  const walls = st.selection.filter((id) => st.scene.walls[id]);
+  if (openings.length) editor.execute(removeOpenings(openings));
+  else if (walls.length) editor.execute(removeWalls(walls));
 }

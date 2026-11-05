@@ -9,6 +9,11 @@ export type Footprint = [Vec2, Vec2, Vec2, Vec2];
 
 export interface WallFootprint {
   footprint: Footprint;
+  /** Wall frame: node `a` position, unit direction a → b, centre-line length and thickness (metres). */
+  origin: Vec2;
+  dir: Vec2;
+  length: number;
+  thickness: number;
   /** End caps are only needed where the end is free or a sharp corner fell back to a bevel. */
   capA: boolean;
   capB: boolean;
@@ -126,7 +131,14 @@ export function computeFootprints(
     const ea = ends.get(`${w.id}:a`);
     const eb = ends.get(`${w.id}:b`);
     if (!ea || !eb) continue;
+    const a = nodes[w.a]!.p;
+    const b = nodes[w.b]!.p;
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
     out[w.id] = {
+      origin: [a[0], a[1]],
+      dir: [(b[0] - a[0]) / length, (b[1] - a[1]) / length],
+      length,
+      thickness: w.thickness,
       footprint: [ea.asc, eb.desc, eb.asc, ea.desc],
       capA: ea.cap,
       capB: eb.cap,

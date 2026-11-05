@@ -47,7 +47,7 @@ Priority: existing node → wall midpoint → wall perpendicular projection → 
 2. For each wall end: compute **miter points** using neighbouring wall edges (offset lines of thickness/2; intersect). Fallbacks: 1 wall = square cap; collinear = straight join; very acute angle = clamp miter length.
 3. Wall footprint polygon = left-edge points + right-edge points.
 4. Extrude to `height` → side faces, top cap (earcut), end caps.
-5. **Openings:** for each opening, subtract a box from the wall solid. Strategy: *avoid generic CSG where possible* — split wall into segments (left of opening, right of opening, lintel above, sill below) as separate boxes → cheap and robust. Use CSG (three-bvh-csg) only for arch/curved openings.
+5. **Openings (implemented, P1-01):** for each opening, subtract a box from the wall solid. Strategy: *avoid generic CSG where possible* — split wall into segments (left of opening, right of opening, lintel above, sill below) as separate boxes → cheap and robust. Use CSG (three-bvh-csg) only for arch/curved openings.
 6. UVs: world-scale (u along wall in metres / tileSize) so textures don't stretch; separate material groups for side A / side B / top / ends.
 
 ### 3.2 Room detection

@@ -1,4 +1,4 @@
-import type { Id, Vec2, Wall, WallNode } from '@hd/scene-schema';
+import type { Id, Opening, Vec2, Wall, WallNode } from '@hd/scene-schema';
 
 /** A wall as a thick 2D segment (centre line + half thickness). */
 export interface Collider {
@@ -15,17 +15,42 @@ const MAX_STEP_M = 0.1;
 const RESOLVE_ITERATIONS = 4;
 
 /**
- * Build colliders for one level's walls.
- * NOTE: doors/windows are not yet cut out (arrives with openings, P1-01): every wall blocks fully.
+ * Build colliders for one level's walls. Doors and arches leave a gap in the wall (you can walk through);
+ * windows stay solid.
  */
-export function buildColliders(nodes: Readonly<Record<Id, WallNode>>, walls: readonly Wall[]): Collider[] {
+export function buildColliders(
+  nodes: Readonly<Record<Id, WallNode>>,
+  walls: readonly Wall[],
+  openings: readonly Opening[] = [],
+): Collider[] {
   const out: Collider[] = [];
   for (const w of walls) {
     const a = nodes[w.a];
     const b = nodes[w.b];
     if (!a || !b) continue;
-    if (Math.hypot(b.p[0] - a.p[0], b.p[1] - a.p[1]) < 1e-6) continue;
-    out.push({ a: a.p, b: b.p, halfThickness: w.thickness / 2 });
+    const len = Math.hypot(b.p[0] - a.p[0], b.p[1] - a.p[1]);
+    if (len < 1e-6) continue;
+    const ux = (b.p[0] - a.p[0]) / len;
+    const uz = (b.p[1] - a.p[1]) / len;
+    const gaps = openings
+      .filter((o) => o.wallId === w.id && (o.type === 'door' || o.type === 'arch'))
+      .map((o) => [o.offset - o.width / 2, o.offset + o.width / 2] as const)
+      .sort((p, q) => p[0] - q[0]);
+
+    let pos = 0;
+    const piece = (s0: number, s1: number) => {
+      if (s1 - s0 < 1e-3) return;
+      out.push({
+        a: [a.p[0] + ux * s0, a.p[1] + uz * s0],
+        b: [a.p[0] + ux * s1, a.p[1] + uz * s1],
+        halfThickness: w.thickness / 2,
+      });
+    };
+    for (const [g0, g1] of gaps) {
+      piece(pos, Math.max(pos, g0));
+      pos = Math.max(pos, g1);
+    }
+    piece(pos, len);
   }
   return out;
 }

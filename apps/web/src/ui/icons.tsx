@@ -47,3 +47,19 @@ export const IconTrash = () =>
       <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" />
     </>,
   );
+
+export const IconDoor = () =>
+  wrap(
+    <>
+      <path d="M6 20V5a1 1 0 011-1h10a1 1 0 011 1v15M4 20h16" />
+      <circle cx="14.5" cy="12.5" r="0.9" />
+    </>,
+  );
+
+export const IconWindow = () =>
+  wrap(
+    <>
+      <rect x="5" y="4.5" width="14" height="15" rx="1" />
+      <path d="M12 4.5v15M5 12h14" />
+    </>,
+  );

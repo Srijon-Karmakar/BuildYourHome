@@ -21,7 +21,7 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 
 ## Phase 1 — MVP editor (≈ 6–8 weeks)
 **Goal:** a complete single-user local design tool.
-- [ ] P1-01 Doors/windows: placement, wall cutting, resize, swing
+- [x] P1-01 Doors/windows: placement, wall cutting, resize, swing
 - [ ] P1-02 Wall/room property inspector; delete/split/merge; multi-select
 - [ ] P1-03 Multi-level support + level switcher + cutaway modes
 - [ ] P1-04 Materials: library, paint floors/walls/ceilings, per-face walls

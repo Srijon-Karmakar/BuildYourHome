@@ -4,7 +4,7 @@ import { App } from './App';
 import { buildDemoScene } from './plan/demo';
 import { editor, useUi, type ViewMode } from './plan/session';
 import { startBenchmark } from './view3d/benchmark';
-import { walkPose } from './walk/walkState';
+import { rememberPose, walkPose } from './walk/walkState';
 import '@fontsource-variable/outfit';
 import './styles.css';
 
@@ -21,7 +21,7 @@ if (new URLSearchParams(window.location.search).has('demo')) editor.loadScene(bu
 }
 
 // Dev-only handle for automated browser tests (never shipped in production builds).
-if (import.meta.env.DEV) (window as unknown as { __hd: unknown }).__hd = { editor, useUi, walkPose };
+if (import.meta.env.DEV) (window as unknown as { __hd: unknown }).__hd = { editor, useUi, walkPose, rememberPose };
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
