@@ -11,7 +11,8 @@ HomeDesigner is a cross-platform (web + Capacitor mobile app) tool to design a h
 ## 2. Current state
 - **Phase:** Phase 0 (prototype / spike) in progress.
 - **Last completed task:** P0-03 — `@hd/editor-core` (Immer-patch undo/redo, transactions, wall/level commands, postProcess invariants; 14 tests incl. property test). Earlier: P0-02 scene-schema; P0-01 hello-cube (owner: smooth on desktop+phone, "not realistic" yet — expected, see P0-10/P1-12).
-- **Next task:** P0-04 — 2D canvas (grid, pan/zoom, wall tool with snapping) in `apps/web`; snapping logic goes in `editor-core/snapping`. See `docs/PHASES.md`.
+- **P0-04 also done in code** (2D plan editor: grid, pan/zoom, wall tool, snapping, select/move/delete, undo/redo UI) but **not yet visually verified by anyone** — awaiting owner's desktop + phone test feedback (note any bugs in progressReport).
+- **Next task:** P0-05 — `packages/geometry`: mitered wall meshes + 3D view of the drawn plan. See `docs/PHASES.md`.
 - **Commands:** `pnpm dev | typecheck | test | lint | build`.
 - **Owner profile:** solo developer, no team; region India first (global later); project name is a placeholder.
 - **Run it:** `pnpm install` then `pnpm dev` (http://localhost:5173, also on LAN for phone testing).

@@ -40,7 +40,7 @@ Format: Status · Context · Decision · Consequences. Never delete an ADR; mark
 - **Consequences:** + fast, robust. − more bespoke code and UV handling.
 
 ## ADR-008 — 2D view rendered with orthographic Three camera
-- **Status:** Accepted (revisit if text/dimension rendering is painful)
+- **Status:** **Superseded by ADR-015** (kept for history)
 - **Decision:** Reuse Three renderer for 2D; text via SDF (troika-three-text) or HTML overlay.
 
 ## ADR-009 — Assets: glTF only, Draco/Meshopt + KTX2, hard budgets
@@ -81,6 +81,13 @@ Format: Status · Context · Decision · Consequences. Never delete an ADR; mark
 ## ADR-014 — Progressive disclosure for beginner → engineer
 - **Status:** Accepted
 - **Decision:** One editor, two modes: **Simple** (default; templates, room-by-room wizard, snapping-first, minimal panels) and **Pro** (numeric fields, dimension tools, layers, scale, grid options, scaled PDF/DXF export). Same data model; Pro only exposes more controls.
+
+---
+## ADR-015 — 2D plan view uses the HTML Canvas 2D API (supersedes ADR-008)
+- **Status:** Accepted (P0-04)
+- **Context:** ADR-008 planned an orthographic Three camera. In practice the plan needs crisp 1-px lines, text labels, dashed guides and dimension annotations (Pro mode, PDF export) — all trivial in Canvas 2D, awkward in WebGL. Hit-testing is analytic (distance to segment), so no shared raycast pipeline is needed. Solo developer: simpler wins.
+- **Decision:** `PlanController` draws the plan with Canvas 2D (DPR capped at 2, redraw on demand via rAF). The 3D view stays Three/R3F. Both read the same editor store.
+- **Consequences:** + crisp text, easy SVG/PDF export later, cheap on mobile. − two renderers to maintain; the 2D↔3D camera transition (polish) must be faked with a cross-fade.
 
 ## Template
 ```

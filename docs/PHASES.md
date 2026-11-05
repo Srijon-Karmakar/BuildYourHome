@@ -7,7 +7,7 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 - [x] P0-01 Scaffold pnpm monorepo, Vite + React + TS + R3F, hello-cube; lint/format/CI skeleton
 - [x] P0-02 `scene-schema` v1 types + Zod + defaults
 - [x] P0-03 `editor-core`: store, command bus, undo/redo (Immer patches)
-- [ ] P0-04 2D canvas: grid, pan/zoom, wall tool with snapping
+- [x] P0-04 (code done; awaiting owner device test) 2D canvas: grid, pan/zoom, wall tool with snapping
 - [ ] P0-05 `geometry`: wall mesh with mitered corners → 3D view
 - [ ] P0-06 Room detection + floor mesh
 - [ ] P0-07 Orbit camera + FPS walkthrough with wall collision (desktop)

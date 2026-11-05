@@ -29,6 +29,18 @@ Planning/documentation: **Done** (2026-11-05)
 
 ## Log
 
+### [2026-11-05] P0-04 — 2D plan editor (grid, pan/zoom, wall tool, snapping)
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done in code; **NOT visually verified** (Claude-in-Chrome extension was not connected, so I could not drive the UI). Owner test needed.
+- **What was done:**
+  - `editor-core`: pure `snapPoint` (priority: existing node → 45°/90° angle from last point with length rounded to grid → grid → none; capture radius in metres so feel is zoom-independent), `niceGridStep(zoom)`, and `createWallTool` (chain walls; each wall = one undo step; landing on an existing node closes the chain). 9 new tests.
+  - `apps/web`: `PlanController` (Canvas 2D, render-on-demand, DPR ≤ 2): adaptive grid with major lines/axes; walls drawn at real thickness with length labels; node handles; snap markers (square = point, triangle = angle, dot = grid) and dashed angle guide; live length + angle readout while drawing. Input: mouse + touch + pen via Pointer Events — wheel/pinch zoom to cursor, two-finger pan/zoom, middle/right/Space+drag pan, one-finger pan on empty space in Select tool; wall tool places a point on **release** so touch users can slide to the exact spot; Select tool: tap wall to select (Shift = multi), drag corner point to move (single undo step via transaction), Delete removes. Toolbar (44 px targets): Select/Wall, Undo/Redo/Delete, Grid/Angle/Points snap toggles, Fit, Done (appears while drawing). Keys: W, V, F, Esc, Enter, Del, Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z.
+- **Verified:** typecheck, lint, production build, 31 unit tests (8 + 23) all pass; dev server serves 200.
+- **Files:** `packages/editor-core/src/{snapping/*,tools/wallTool.ts,snapping.test.ts}`; `apps/web/src/{App.tsx,main.tsx,styles.css,plan/*,ui/Toolbar.tsx}`; removed hello-cube.
+- **Decisions made:** ADR-015 (Canvas 2D for the plan; supersedes ADR-008).
+- **Known gaps / notes:** no typed exact length yet (FR-104; Pro mode P1-15); no wall splitting at T-junctions (a wall ended mid-wall is not topologically joined yet — comes with room detection P0-06); wall corners are drawn with square caps, true mitering arrives with the 3D geometry (P0-05); touch finger hides the preview point (a loupe/offset may be needed — risk R4); the 3D hello-cube is gone for now (3D returns in P0-05).
+- **Next step:** Owner tests on desktop + phone (see below). Then P0-05 — `geometry` package: wall mesh with mitered corners and a 3D view of the drawn plan.
+
 ### [2026-11-05] P0-03 — `@hd/editor-core` (store, commands, undo/redo)
 - **Model/Author:** Claude Sonnet 5.5
 - **Status:** Done
