@@ -1,0 +1,15 @@
+export const WALL_THICKNESS_INTERIOR_M = 0.115;
+export const WALL_THICKNESS_EXTERIOR_M = 0.23;
+export const LEVEL_HEIGHT_M = 3.0;
+export const DEFAULT_DOOR_WIDTH_M = 0.9;
+export const DEFAULT_DOOR_HEIGHT_M = 2.1;
+export const DEFAULT_WINDOW_WIDTH_M = 1.2;
+export const DEFAULT_WINDOW_HEIGHT_M = 1.2;
+export const DEFAULT_WINDOW_SILL_M = 0.9;
+export const DEFAULT_ROOF_PITCH_DEG = 25;
+export const DEFAULT_ROOF_OVERHANG_M = 0.4;
+export const DEFAULT_TERRAIN_SIZE_M = 60;
+export const DEFAULT_MATERIAL_WALL = 'paint-white';
+export const DEFAULT_MATERIAL_FLOOR = 'floor-wood-oak';
+export const DEFAULT_MATERIAL_GROUND = 'ground-grass';
+export const DEFAULT_MATERIAL_ROOF = 'roof-tile-terracotta';
