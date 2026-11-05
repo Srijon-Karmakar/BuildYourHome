@@ -20,6 +20,15 @@ interface UiState {
   /** Characters typed while drawing a wall (an exact length, e.g. 3.5 or 12'6"). */
   lengthInput: string;
   setLengthInput(s: string): void;
+  /** Opening curtain: full (first visit, with button), brief (returning) or off. */
+  curtain: 'full' | 'brief' | 'off';
+  setCurtain(c: 'full' | 'brief' | 'off'): void;
+  /** Quick tour: current step, or null when not running. */
+  tourStep: number | null;
+  setTourStep(s: number | null): void;
+  /** The tour starts after the chooser only when the curtain introduced this session (or ?tour=1). */
+  tourPending: boolean;
+  setTourPending(p: boolean): void;
   /** First-run welcome / "New home" chooser. */
   welcomeOpen: boolean;
   setWelcomeOpen(open: boolean): void;
@@ -105,6 +114,12 @@ export const useUi = create<UiState>((set) => ({
   },
   lengthInput: '',
   setLengthInput: (lengthInput) => set({ lengthInput }),
+  curtain: 'off',
+  setCurtain: (curtain) => set({ curtain }),
+  tourStep: null,
+  setTourStep: (tourStep) => set({ tourStep }),
+  tourPending: false,
+  setTourPending: (tourPending) => set({ tourPending }),
   welcomeOpen: false,
   setWelcomeOpen: (welcomeOpen) => set({ welcomeOpen }),
   tipsOn: false,

@@ -1786,3 +1786,259 @@ a.pill.solid {
   gap: 6px;
   margin-top: 10px;
 }
+
+/* ---------- Opening curtain ---------- */
+.curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+  transition: transform 0.85s cubic-bezier(0.7, 0, 0.25, 1);
+  will-change: transform;
+}
+
+/* A brick-coloured hem along the lower edge, like the bottom of a curtain. */
+.curtain::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -10px;
+  height: 10px;
+  background: var(--brick);
+}
+
+.curtain.lifting {
+  transform: translateY(-104%);
+  pointer-events: none;
+}
+
+.curtain-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+}
+
+.curtain-house {
+  width: 132px;
+  height: auto;
+  margin-bottom: 8px;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.curtain-house path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: curtain-draw 1s cubic-bezier(0.5, 0, 0.2, 1) forwards;
+}
+
+.curtain-house .c2 {
+  stroke: var(--brick);
+  animation-delay: 0.55s;
+}
+
+.curtain-house .c3 {
+  stroke: var(--brick);
+  animation-delay: 0.8s;
+}
+
+.curtain-house .c4 {
+  animation-delay: 0.95s;
+}
+
+.curtain-house .c5 {
+  stroke: var(--ink-3);
+  animation-delay: 0.2s;
+}
+
+@keyframes curtain-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.curtain-title {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 300;
+  letter-spacing: 0.01em;
+  opacity: 0;
+  animation: curtain-rise 0.7s 0.5s ease forwards;
+}
+
+.curtain-sub {
+  margin: 0;
+  max-width: 300px;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.45;
+  opacity: 0;
+  animation: curtain-rise 0.7s 0.7s ease forwards;
+}
+
+@keyframes curtain-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.curtain-cta {
+  margin-top: 18px;
+  min-height: 48px;
+  padding: 0 30px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper-2);
+  font-size: 15px;
+  cursor: pointer;
+  opacity: 0.35;
+  transform: translateY(6px);
+  transition: opacity 0.5s ease, transform 0.5s ease, background 0.2s ease;
+}
+
+.curtain.ready .curtain-cta,
+.curtain.lifting .curtain-cta {
+  opacity: 1;
+  transform: none;
+}
+
+.curtain-cta:hover:not(:disabled) {
+  background: var(--brick);
+}
+
+.curtain-cta:disabled {
+  cursor: default;
+}
+
+.curtain-line {
+  width: 140px;
+  height: 2px;
+  margin-top: 16px;
+  background: var(--line);
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+.curtain-line span {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  transform-origin: left;
+  animation: curtain-load 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.curtain.brief .curtain-line span {
+  animation-duration: 0.85s;
+}
+
+.curtain-line.done {
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+@keyframes curtain-load {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .curtain,
+  .curtain-house path,
+  .curtain-title,
+  .curtain-sub,
+  .curtain-line span,
+  .curtain-cta {
+    animation-duration: 0.01s !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.2s !important;
+  }
+  .curtain.lifting {
+    transform: none;
+    opacity: 0;
+  }
+}
+
+/* ---------- Quick tour ---------- */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+
+.tour-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 17, 17, 0.45);
+}
+
+.tour-spot {
+  position: absolute;
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(17, 17, 17, 0.45), 0 0 0 2px var(--paper-2);
+  transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, height 0.3s ease;
+  pointer-events: none;
+}
+
+.tour-card {
+  position: absolute;
+  padding: 16px 18px 14px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 40px rgba(17, 17, 17, 0.22);
+}
+
+.tour-card h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.tour-card p {
+  margin: 0 0 14px;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.tour-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tour-dots {
+  display: flex;
+  gap: 5px;
+  margin-right: auto;
+}
+
+.tour-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line);
+}
+
+.tour-dots i.on {
+  background: var(--brick);
+}

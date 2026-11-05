@@ -18,7 +18,10 @@ const browser = await chromium.launch({ channel: process.env.E2E_CHANNEL ?? 'mse
   const newContext = browser.newContext.bind(browser);
   browser.newContext = async (opts) => {
     const c = await newContext(opts);
-    await c.addInitScript(() => localStorage.setItem('hd.backend', 'local'));
+    await c.addInitScript(() => {
+      localStorage.setItem('hd.backend', 'local');
+      localStorage.setItem('hd.nocurtain', '1'); // the opening curtain is tested on its own below
+    });
     return c;
   };
   browser.newPage = async (opts) => (await browser.newContext(opts)).newPage();
@@ -1408,6 +1411,84 @@ try {
     check('windows offer Louvered', (await style(winId)) === 'louvered');
     check('no page errors with the new catalog and styles', errors.length === 0, errors.slice(0, 2).join(' | '));
     await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2p. opening curtain + quick tour
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?curtain=1');
+    const curtain = page.getByRole('dialog', { name: 'Home Designer' });
+    await curtain.waitFor();
+    check('a first visit opens with the curtain', await curtain.isVisible());
+    const cta = curtain.getByRole('button', { name: 'Start designing' });
+    check('the button waits until loading has finished', await cta.isDisabled());
+    await page.screenshot({ path: `${SP}/e2e-curtain-loading.png` });
+    await page.waitForFunction(() => !document.querySelector('.curtain-cta')?.disabled, null, { timeout: 8000 });
+    await page.screenshot({ path: `${SP}/e2e-curtain-ready.png` });
+    await cta.click();
+    await curtain.waitFor({ state: 'detached', timeout: 5000 });
+    check('Start designing lifts the curtain', true);
+    const choose = page.getByRole('dialog', { name: /design your home/ });
+    check('…and shows the "design your home" chooser', await choose.isVisible());
+    await choose.getByRole('button', { name: /Family home|Studio/ }).first().click();
+    const tour = page.getByRole('dialog', { name: 'Quick tour' });
+    await tour.waitFor({ timeout: 5000 });
+    check('the quick tour starts after choosing a starting point', await tour.isVisible());
+    await tour.getByRole('button', { name: 'Start' }).click();
+    await page.waitForTimeout(450);
+    const spot = await page.locator('.tour-spot').boundingBox();
+    const wallBtn = await page.locator('.rail button[title^="Draw walls"]').boundingBox();
+    check('step 1 highlights the Wall tool', !!spot && !!wallBtn && Math.abs(spot.x + spot.width / 2 - (wallBtn.x + wallBtn.width / 2)) < 4);
+    await page.screenshot({ path: `${SP}/e2e-tour.png` });
+    let n = 1;
+    while (n < 6) {
+      await tour.getByRole('button', { name: 'Next' }).click();
+      n++;
+    }
+    check('the tour has six steps and ends with Done', await tour.getByRole('button', { name: 'Done' }).isVisible());
+    await tour.getByRole('button', { name: 'Back' }).click();
+    await tour.getByRole('button', { name: 'Next' }).click();
+    await tour.getByRole('button', { name: 'Done' }).click();
+    check('Done closes the tour', (await tour.count()) === 0);
+
+    // Second visit: brief loader that opens by itself, no button, no tour.
+    await page.reload();
+    await curtain.waitFor();
+    check('a returning visit shows a brief loader without a button', (await curtain.getByRole('button', { name: 'Start designing' }).count()) === 0);
+    await curtain.waitFor({ state: 'detached', timeout: 6000 });
+    check('…which lifts by itself', true);
+    check('the tour does not repeat', (await page.getByRole('dialog', { name: 'Quick tour' }).count()) === 0);
+
+    // Replay from Help; Esc skips.
+    await page.keyboard.press('?');
+    await page.getByRole('button', { name: 'Replay the quick tour' }).click();
+    await tour.waitFor();
+    check('Help can replay the tour', await tour.isVisible());
+    await page.keyboard.press('Escape');
+    check('Esc skips the tour', (await tour.count()) === 0);
+    check('no page errors in the first-run flow', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await ctx.close();
+
+    // Phone width: the card stays inside the screen.
+    const ph = await browser.newPage({ viewport: { width: 390, height: 780 }, hasTouch: true });
+    await ph.goto(BASE + '?curtain=full&tour=1');
+    await ph.waitForFunction(() => !document.querySelector('.curtain-cta')?.disabled, null, { timeout: 8000 });
+    await ph.getByRole('button', { name: 'Start designing' }).click();
+    const choosePh = ph.getByRole('dialog', { name: /design your home/ });
+    await choosePh.waitFor();
+    await choosePh.getByRole('button', { name: 'Skip' }).click().catch(() => {});
+    await ph.waitForFunction(() => !document.querySelector('.curtain'), null, { timeout: 5000 });
+    await ph.evaluate(() => { window.__hd.useUi.getState().setWelcomeOpen(false); window.__hd.useUi.getState().setTourStep(3); });
+    await ph.waitForTimeout(500);
+    const card = await ph.locator('.tour-card').boundingBox();
+    check('on a phone the tour card fits the screen', !!card && card.x >= 0 && card.x + card.width <= 390 && card.y >= 0 && card.y + card.height <= 780, JSON.stringify(card));
+    await ph.screenshot({ path: `${SP}/e2e-tour-phone.png` });
+    await ph.close();
   }
 
   // ---------------------------------------------------------------- 3. benchmark

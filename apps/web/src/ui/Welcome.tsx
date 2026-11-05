@@ -44,6 +44,11 @@ export function Welcome() {
     store('hd.welcomed', '1');
     useUi.getState().setTipsOn(start && tips);
     setOpen(false);
+    const ui = useUi.getState();
+    if (ui.tourPending) {
+      ui.setTourPending(false);
+      window.setTimeout(() => useUi.getState().setTourStep(0), 400);
+    }
   }
 
   const begin = (id: TemplateId, opts?: { width: number; depth: number }) => {

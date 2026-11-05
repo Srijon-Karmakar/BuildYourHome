@@ -56,3 +56,7 @@ RLS on every table; secrets only in env/CI, never in repo; validate imported JSO
 2. End every task: update `progressReport.md` + `CONTEXT.md` §2 + checkboxes in `docs/PHASES.md`.
 3. Decisions go to ADRs the moment they're made; nothing important lives only in chat.
 4. When switching models/people mid-task, write a "Partial" entry in `progressReport.md` with exact next step and any uncommitted assumptions.
+
+
+## First-run flags
+`?curtain=1` (force curtain), `?curtain=full` (first-visit version), `?tour=1` (force the tour after the chooser). Links with `view/walk/perf/persist/demo/bench/fresh/welcome` skip the curtain. Dev builds honour `localStorage hd.nocurtain=1` (set by `pnpm e2e`).

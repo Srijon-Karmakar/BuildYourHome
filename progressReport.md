@@ -29,6 +29,14 @@ Planning/documentation: **Done** (2026-11-05)
 
 ## Log
 
+### [2026-11-05] UI/UX: opening curtain + first-run quick tour
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified (262/262 browser checks incl. phone width; typecheck, lint clean).
+- **What was done:** **Curtain** (`ui/Curtain.tsx`): paper-coloured screen where a small house draws itself (ink lines, brick roof/door), wordmark, tagline and a thin progress line. First visit: a "Start designing" button (enabled after ~1.5 s) lifts the curtain (brick hem on its lower edge) and opens the existing "design your home" chooser. Returning visits: a brief ~0.9 s loader that lifts by itself. Reduced-motion users get a quick fade. **Quick tour** (`ui/Tour.tsx`): 7 cards (intro + Wall, Door/Window, Furniture, Plan/Split/3D, Walk, Home/save) with a spotlight on the real control, Back / Next / Skip, arrow keys, Esc; starts after the chooser on a first visit, never repeats, replay from Help › "Replay the quick tour". Card placement is clamped to the screen (phone checked).
+- **Flags:** `?curtain=1` forces the curtain, `?curtain=full` forces the first-visit version, `?tour=1` forces the tour. Test/demo links (`view`, `walk`, `demo`, `fresh`, …) skip both, as does the dev-only `hd.nocurtain=1` that the e2e harness sets. Storage keys: `hd.visited`, `hd.toured`.
+- **Notes:** the curtain is mounted inside the app, so it appears once the saved home has loaded (a few hundred ms of blank page before it on slow devices; a static splash in index.html is a later option).
+- **Next step:** balcony / porch (finish P3-02), then export, sun, garden.
+
 ### [2026-11-05] Owner feedback round: select in 3D, 3D pane not covered by the edit card, more assets
 - **Model/Author:** Claude Sonnet 5.5
 - **Status:** Done and verified (297 unit tests: geometry 68, editor-core 138, web 74, assets 9, schema 8; 247/247 browser checks; typecheck, lint and build clean).

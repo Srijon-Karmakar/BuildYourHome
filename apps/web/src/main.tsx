@@ -70,6 +70,30 @@ async function startEditor(): Promise<void> {
   const v = params.get('view');
   if (v === '2d' || v === 'split' || v === '3d') useUi.getState().setView(v as ViewMode);
   if (params.has('walk')) useUi.getState().setWalk(true);
+  // Opening curtain: never in test / demo links (unless `?curtain=1`). First visit = full with a button, later = brief.
+  {
+    const plain = ['view', 'walk', 'perf', 'persist', 'demo', 'bench', 'fresh', 'welcome'].some((k) => params.has(k));
+    let visited = false;
+    let toured = false;
+    // Development builds only: the browser tests switch the curtain off with this flag.
+    let optOut = false;
+    try {
+      optOut = import.meta.env.DEV && localStorage.getItem('hd.nocurtain') === '1';
+      visited = localStorage.getItem('hd.visited') === '1';
+      toured = localStorage.getItem('hd.toured') === '1';
+    } catch {
+      /* treat as a first visit */
+    }
+    if (params.has('curtain') || (!plain && !optOut)) {
+      const first = params.get('curtain') === 'full' || !visited;
+      useUi.setState({ curtain: first ? 'full' : 'brief', tourPending: params.has('tour') || (first && !toured) });
+      try {
+        localStorage.setItem('hd.visited', '1');
+      } catch {
+        /* ignore */
+      }
+    }
+  }
   if (params.has('bench')) startBenchmark(); // open the link on a device to run the benchmark straight away
 
   void useCloud.getState().init(); // account, saved homes and entitlements load in the background

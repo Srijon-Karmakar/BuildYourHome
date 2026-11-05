@@ -89,6 +89,18 @@ export function Help() {
             </section>
           ))}
         </div>
+        <div className="fa-row" style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            className="pill small"
+            onClick={() => {
+              setOpen(false);
+              useUi.getState().setTourStep(0);
+            }}
+          >
+            Replay the quick tour
+          </button>
+        </div>
         <AdBanner />
         <p className="welcome-sub">On a phone: tap to place, pinch to zoom, two fingers to pan, and drag with your left thumb to walk.</p>
       </div>

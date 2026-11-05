@@ -4,9 +4,11 @@ import { editor, useUi } from './plan/session';
 import { BottomBar } from './ui/BottomBar';
 import { FurniturePanel } from './ui/FurniturePanel';
 import { ConflictDialog, RecoveryDialog } from './ui/AccountDialogs';
+import { Curtain } from './ui/Curtain';
 import { Help } from './ui/Help';
 import { Inspector } from './ui/Inspector';
 import { LevelSwitcher } from './ui/LevelSwitcher';
+import { Tour } from './ui/Tour';
 import { Upsell } from './ui/Upsell';
 import { Welcome } from './ui/Welcome';
 import { PerfPanel } from './ui/PerfPanel';
@@ -50,6 +52,8 @@ export function App() {
       <RecoveryDialog />
       <ConflictDialog />
       <PerfPanel />
+      <Tour />
+      <Curtain />
     </div>
   );
 }
