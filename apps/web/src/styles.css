@@ -1533,3 +1533,28 @@ button.w-card:hover {
     padding: 8px 8px 8px 14px;
   }
 }
+
+.w-units {
+  display: inline-flex;
+  gap: 2px;
+  margin: 0 0 14px;
+  padding: 3px;
+  background: rgba(17, 17, 17, 0.06);
+  border-radius: 999px;
+}
+
+.w-units button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.w-units button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper-2);
+}

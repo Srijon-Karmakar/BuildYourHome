@@ -29,6 +29,18 @@ Planning/documentation: **Done** (2026-11-05)
 
 ## Log
 
+### [2026-11-05] P1-15 — Pro tools: units, exact wall lengths, dimensions
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done; 4 new unit tests + 151/151 browser checks; screenshots in metric and feet & inches.
+- **What was done (FR-104, FR-902, FR-903, FR-906, ADR-014):**
+  - **Units (Home › Units, also on the welcome screen):** Metres or **Feet & inches**. Storage stays metres (ADR-006); only display and the meaning of a bare typed number change. Applies to plan wall labels, room areas (m² ↔ ft²), the live length readout, every inspector field (feet mode shows `11'6.1"` with no suffix; typing `8'6"`, `8`, `350cm` all work), inspector subtitles, the quick-room size inputs. Templates inherit the chosen units. Command `setUnits` (undoable, round-trips through save/load).
+  - **Exact wall length while drawing (FR-104, for everyone):** after the first point, type `3.5`, `350cm` or `10'6"` and press Enter — the next point is placed exactly that far along the aimed (angle-snapped) direction and the chain continues. Backspace edits, the first Esc clears the typed text, the next Esc finishes the chain, nonsense is ignored. The typed text shows in the live readout next to the pointer.
+  - **Pro tools (Home › Pro tools, remembered):** **overall building width and depth** as dimension lines outside the plan, **room width × depth** under each room's area, and **every wall length** shown at any zoom. Fit leaves room for the dimension lines.
+- **Verified:** `formatFeetInches/formatLength/formatFieldLength/formatArea` (rounding, round trip within 0.1 in, bare number = feet in feet mode); browser — typed `3.5` gives a 3.5 m wall, Backspace edit, chain continues, switch to feet then `10'6"` = 3.2004 m and bare `8` = 2.4384 m, Esc order, `.` ignored, wall-height field shows feet & inches and accepts `8'6"`, Pro toggle on/off/remembered.
+- **Files:** `lib/units.ts(+test)`, `plan/{render,PlanController,session}.ts`, `ui/{fields,Inspector,HomeMenu,Welcome,BottomBar}.tsx`, `editor-core/src/commands/scene.ts`, `customise.test.ts`, `e2e/smoke.mjs`, `styles.css`.
+- **Known gaps:** typing a length needs a hardware keyboard (phones: use grid snapping or edit the wall length afterwards — an on-screen length pad is a follow-up); wall *length* can't yet be edited in the inspector (only thickness/height); no continuous dimension chains, angle dimensions, layers, or DXF/PDF export (P3-05); feet display rounds to 1 inch on the plan (0.1 in in fields).
+- **Next step:** owner's benchmark with the furnished + roofed sample (Phase 1 exit check), P1-07 plot/ground, P1-11 coverage review; then Phase 2.
+
 ### [2026-11-05] P1-10 (guided start) — Welcome screen, templates, next-step tips, help
 - **Model/Author:** Claude Sonnet 5.5
 - **Status:** Done; 235 unit tests, **136/136 browser checks**, screenshots on desktop and a 390-px phone.

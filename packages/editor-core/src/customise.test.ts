@@ -9,6 +9,7 @@ import {
   setGround,
   setOpeningProps,
   setSceneName,
+  setUnits,
   setWallsProps,
   type Editor,
 } from './index';
@@ -114,5 +115,20 @@ describe('wall tool kind', () => {
     t.click([4, 3], 'grid');
     expect(Object.values(scene(e).walls).map((w) => w.kind)).toEqual(['interior', 'exterior']);
     expect(Object.values(scene(e).walls)[1]!.thickness).toBe(0.23);
+  });
+});
+
+describe('units', () => {
+  it('switches the display units without touching any stored length', () => {
+    const e = mk();
+    e.execute(addWall({ levelId: L(e), from: [0, 0], to: [3.81, 0] }));
+    const before = JSON.stringify(scene(e).nodes);
+    e.execute(setUnits('ft'));
+    expect(scene(e).meta.units).toBe('ft');
+    expect(JSON.stringify(scene(e).nodes)).toBe(before);
+    expect(e.execute(setUnits('ft'))).toBe(false);
+    e.undo();
+    expect(scene(e).meta.units).toBe('m');
+    expect(loadScene(JSON.parse(JSON.stringify(scene(e)))).ok).toBe(true);
   });
 });

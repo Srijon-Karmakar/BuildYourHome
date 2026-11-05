@@ -4,6 +4,7 @@ import { getAsset, CATEGORIES } from '@hd/assets';
 import type { Item, Opening, Room, RoomType, Wall } from '@hd/scene-schema';
 import { DOOR_STYLES, FRAME_COLORS, LEAF_COLORS, WINDOW_STYLES } from '@hd/scene-schema';
 import { batch, duplicateItems, rotateItems, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
+import { formatArea, formatLength } from '../lib/units';
 import { deleteSelection } from '../plan/PlanController';
 import { levelRooms } from '../plan/rooms';
 import { editor, useUi } from '../plan/session';
@@ -92,20 +93,20 @@ export function Inspector() {
   if (total === 1 && rooms[0]) {
     title = rooms[0].name;
     const a = levelRooms(scene, levelId).find((r) => r.room?.id === rooms[0]!.id)?.area;
-    subtitle = a ? `${a.toFixed(1)} m²` : 'Room';
+    subtitle = a ? formatArea(a, scene.meta.units) : 'Room';
   } else if (total === 1 && walls[0]) {
     const w = walls[0];
     const a = scene.nodes[w.a]?.p;
     const b = scene.nodes[w.b]?.p;
     title = 'Wall';
-    subtitle = a && b ? `${Math.hypot(b[0] - a[0], b[1] - a[1]).toFixed(2)} m long` : '';
+    subtitle = a && b ? `${formatLength(Math.hypot(b[0] - a[0], b[1] - a[1]), scene.meta.units)} long` : '';
   } else if (total === 1 && items[0]) {
     const asset = getAsset(items[0].assetId);
     title = asset?.name ?? 'Item';
-    subtitle = asset ? `${CATEGORIES.find((c) => c.id === asset.category)?.name ?? ''} · ${(asset.size[0] * items[0].scale[0]).toFixed(2)} × ${(asset.size[1] * items[0].scale[2]).toFixed(2)} m` : '';
+    subtitle = asset ? `${CATEGORIES.find((c) => c.id === asset.category)?.name ?? ''} · ${formatLength(asset.size[0] * items[0].scale[0], scene.meta.units)} × ${formatLength(asset.size[1] * items[0].scale[2], scene.meta.units)}` : '';
   } else if (total === 1 && openings[0]) {
     title = openingName(openings[0]);
-    subtitle = `${openings[0].width.toFixed(2)} × ${openings[0].height.toFixed(2)} m`;
+    subtitle = `${formatLength(openings[0].width, scene.meta.units)} × ${formatLength(openings[0].height, scene.meta.units)}`;
   } else {
     title = plural(total, 'item');
     subtitle = [walls.length && plural(walls.length, 'wall'), openings.length && plural(openings.length, 'opening'), rooms.length && plural(rooms.length, 'room'), items.length && plural(items.length, 'furnishing')]

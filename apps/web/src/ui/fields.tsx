@@ -1,5 +1,7 @@
 import { useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { formatMetres, parseLength } from '../lib/units';
+import { useStore } from 'zustand';
+import { defaultInputUnit, formatFieldLength, parseLength } from '../lib/units';
+import { editor } from '../plan/session';
 import type { CatalogMaterial } from '../view3d/placeholderMaterials';
 
 /** Label + control row used throughout the inspector. */
@@ -48,14 +50,17 @@ export function LengthField({
   hint?: string;
 }) {
   const id = useId();
+  const units = useStore(editor.store, (s) => s.scene.meta.units);
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const fmt = (m: number) => formatFieldLength(m, units);
+  const parse = (t: string) => parseLength(t, defaultInputUnit(units));
 
-  const shown = draft ?? (value === null ? '' : formatMetres(value));
+  const shown = draft ?? (value === null ? '' : fmt(value));
 
   const apply = (text: string): boolean => {
-    const m = parseLength(text);
+    const m = parse(text);
     if (m === null || m < min || m > max) {
       setInvalid(true);
       window.setTimeout(() => setInvalid(false), 600);
@@ -78,7 +83,7 @@ export function LengthField({
           placeholder="–"
           value={shown}
           onFocus={(e) => {
-            setDraft(value === null ? '' : formatMetres(value));
+            setDraft(value === null ? '' : fmt(value));
             e.currentTarget.select();
           }}
           onChange={(e) => setDraft(e.target.value)}
@@ -94,14 +99,14 @@ export function LengthField({
               e.stopPropagation();
             } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
               e.preventDefault();
-              const base = parseLength(draft ?? '') ?? value ?? 0;
+              const base = parse(draft ?? '') ?? value ?? 0;
               const next = Math.min(max, Math.max(min, base + (e.key === 'ArrowUp' ? 1 : -1) * step * (e.shiftKey ? 10 : 1)));
-              setDraft(formatMetres(next));
+              setDraft(fmt(next));
               onCommit(next);
             }
           }}
         />
-        <span>m</span>
+        {units === 'm' && <span>m</span>}
       </label>
     </Row>
   );

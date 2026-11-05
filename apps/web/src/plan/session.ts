@@ -13,6 +13,12 @@ export type { FloorView } from '../view3d/floors';
 const wide = typeof window !== 'undefined' && window.matchMedia('(min-width: 900px)').matches;
 
 interface UiState {
+  /** Pro tools: overall dimensions, room width x depth, all wall lengths. Remembered. */
+  pro: boolean;
+  setPro(on: boolean): void;
+  /** Characters typed while drawing a wall (an exact length, e.g. 3.5 or 12'6"). */
+  lengthInput: string;
+  setLengthInput(s: string): void;
   /** First-run welcome / "New home" chooser. */
   welcomeOpen: boolean;
   setWelcomeOpen(open: boolean): void;
@@ -70,6 +76,23 @@ interface UiState {
 export const useUi = create<UiState>((set) => ({
   showRoof: true,
   toggleRoof: () => set((s) => ({ showRoof: !s.showRoof })),
+  pro: (() => {
+    try {
+      return localStorage.getItem('hd.pro') === 'on';
+    } catch {
+      return false;
+    }
+  })(),
+  setPro: (pro) => {
+    try {
+      localStorage.setItem('hd.pro', pro ? 'on' : 'off');
+    } catch {
+      /* ignore */
+    }
+    set({ pro });
+  },
+  lengthInput: '',
+  setLengthInput: (lengthInput) => set({ lengthInput }),
   welcomeOpen: false,
   setWelcomeOpen: (welcomeOpen) => set({ welcomeOpen }),
   tipsOn: false,
@@ -121,5 +144,6 @@ export const useUi = create<UiState>((set) => ({
 
 export function finishDrawing(): void {
   wallTool.finish();
+  useUi.getState().setLengthInput('');
   useUi.getState().setDrawing(false);
 }

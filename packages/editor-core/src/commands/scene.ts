@@ -43,3 +43,14 @@ export function setDefaults(input: SceneDefaultsInput): Command {
     },
   };
 }
+
+/** How lengths are shown (the scene always stores metres). */
+export function setUnits(units: 'm' | 'ft'): Command {
+  return {
+    type: 'SetUnits',
+    label: 'Change units',
+    apply(d) {
+      d.meta.units = units;
+    },
+  };
+}

@@ -3,7 +3,7 @@ import { editor, finishDrawing, useUi } from '../plan/session';
 import { nextTip } from './tipsLogic';
 
 const CAPTION = {
-  wall: 'Click or tap to place points · Esc to finish',
+  wall: 'Click to place points · type a length + Enter for an exact wall · Esc to finish',
   door: 'Move over a wall and click to add a door · it opens toward your side',
   window: 'Move over a wall and click to add a window',
   place: 'Click to place · R turns it · Esc to stop',

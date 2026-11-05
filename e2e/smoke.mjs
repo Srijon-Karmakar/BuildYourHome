@@ -776,6 +776,92 @@ try {
     await page3.close();
   }
 
+  // ---------------------------------------------------------------- 2j. pro tools: exact lengths, units
+  {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?view=2d&fresh=1');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForTimeout(500);
+    const box = await page.locator('canvas.plan-canvas').boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    const lengths = () =>
+      page.evaluate(() => {
+        const sc = window.__hd.editor.getState().scene;
+        return Object.values(sc.walls).map((w) => Math.hypot(sc.nodes[w.b].p[0] - sc.nodes[w.a].p[0], sc.nodes[w.b].p[1] - sc.nodes[w.a].p[1]));
+      });
+    const typed = () => page.evaluate(() => window.__hd.useUi.getState().lengthInput);
+
+    // Metric: start a wall, aim east, type 3.5, Enter.
+    await page.mouse.click(cx - 120, cy);
+    await page.mouse.move(cx + 40, cy);
+    await page.keyboard.type('3.5');
+    check('typed characters show up as the length being entered', (await typed()) === '3.5');
+    await page.keyboard.press('Backspace');
+    check('Backspace edits the typed length', (await typed()) === '3.');
+    await page.keyboard.type('5');
+    await page.keyboard.press('Enter');
+    let l = await lengths();
+    check('Enter places a wall of exactly 3.5 m in the aimed direction', l.length === 1 && Math.abs(l[0] - 3.5) < 1e-9, JSON.stringify(l));
+    check('the chain continues after a typed length', (await page.evaluate(() => window.__hd.useUi.getState().drawing)) === true);
+
+    // Units: switch to feet & inches; a bare number now means feet, and apostrophes work.
+    await page.getByRole('button', { name: 'Home' }).click();
+    await page.getByRole('button', { name: 'Feet & inches' }).click();
+    await page.keyboard.press('Escape'); // closes the menu (and ends the chain)
+    await page.mouse.click(cx - 120, cy - 160);
+    await page.mouse.move(cx + 40, cy - 160);
+    await page.keyboard.type("10'6\"");
+    await page.keyboard.press('Enter');
+    l = await lengths();
+    check('feet & inches: 10\'6" becomes 3.2004 m', l.length === 2 && Math.abs(l[1] - 3.2004) < 1e-6, JSON.stringify(l));
+    await page.keyboard.type('8');
+    await page.keyboard.press('Enter');
+    l = await lengths();
+    check('a bare number means feet in feet mode (8 → 2.4384 m)', l.length === 3 && Math.abs(l[2] - 2.4384) < 1e-6, JSON.stringify(l));
+
+    // Esc clears the typed text first and only then finishes the chain.
+    await page.keyboard.type('12');
+    await page.keyboard.press('Escape');
+    check('Esc first clears the typed length', (await typed()) === '' && (await page.evaluate(() => window.__hd.useUi.getState().drawing)) === true);
+    await page.keyboard.press('Escape');
+    check('a second Esc finishes the chain', (await page.evaluate(() => window.__hd.useUi.getState().drawing)) === false);
+    // garbage lengths are ignored
+    await page.mouse.click(cx - 300, cy + 200);
+    await page.keyboard.type('.');
+    await page.keyboard.press('Enter');
+    check('a nonsense length places nothing', (await lengths()).length === 3);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+
+    // Inspector fields follow the units (feet & inches, no "m" suffix).
+    await page.getByRole('button', { name: 'Select' }).click();
+    await page.evaluate(() => window.__hd.editor.select([Object.keys(window.__hd.editor.getState().scene.walls)[0]]));
+    const inspector = page.getByRole('complementary', { name: 'Properties' });
+    const height = inspector.locator('.f-row', { hasText: 'Height' }).locator('input');
+    check('wall height shows in feet and inches', /^9'\d/.test(await height.inputValue()), await height.inputValue());
+    await height.fill("8'6\"");
+    await height.press('Enter');
+    check('typed feet & inches set the height (8\'6" = 2.5908 m)', Math.abs((await page.evaluate(() => Object.values(window.__hd.editor.getState().scene.walls)[0].height)) - 2.5908) < 1e-6);
+    await page.keyboard.press('Escape');
+
+    // Pro tools: a switch in the Home menu, remembered.
+    await page.getByRole('button', { name: 'Home' }).click();
+    await page.getByRole('switch', { name: /Pro tools/ }).click();
+    check('Pro tools turn on', (await page.evaluate(() => window.__hd.useUi.getState().pro)) === true);
+    check('and are remembered', (await page.evaluate(() => localStorage.getItem('hd.pro'))) === 'on');
+    await page.keyboard.press('Escape');
+    await page.screenshot({ path: `${SP}/e2e-pro.png` });
+    await page.getByRole('button', { name: 'Home' }).click();
+    await page.getByRole('switch', { name: /Pro tools/ }).click();
+    check('and can be turned off again', (await page.evaluate(() => window.__hd.useUi.getState().pro)) === false);
+    check('no page errors in pro tools', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
   // ---------------------------------------------------------------- 3. benchmark
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });

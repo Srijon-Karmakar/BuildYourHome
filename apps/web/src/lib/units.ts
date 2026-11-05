@@ -44,3 +44,44 @@ export function parseLength(input: string, defaultUnit: LengthUnit = 'm'): numbe
 export function formatMetres(m: number, maxDecimals = 3): string {
   return String(Number(m.toFixed(maxDecimals)));
 }
+
+// ------------------------------------------------------------------------------------------------
+// Display units. The scene always stores metres (ADR-006); `meta.units` only chooses how lengths are shown
+// and what a bare typed number means.
+// ------------------------------------------------------------------------------------------------
+export type DisplayUnits = 'm' | 'ft';
+
+const M_PER_IN = 0.0254;
+const FT2_PER_M2 = 10.763910417;
+
+/** Feet and inches, rounded to `step` inches: 3.81 m → 12'6", 0.1524 → 6", 3.6576 → 12'. */
+export function formatFeetInches(m: number, stepIn = 1): string {
+  const total = Math.round(m / M_PER_IN / stepIn) * stepIn;
+  const ft = Math.floor(total / 12 + 1e-9);
+  const inch = total - ft * 12;
+  const inchText = String(Number(inch.toFixed(2)));
+  if (ft === 0) return `${inchText}"`;
+  return inch < 1e-9 ? `${ft}'` : `${ft}'${inchText}"`;
+}
+
+/** A length for labels: "3.50 m" or `11'6"`. */
+export function formatLength(m: number, units: DisplayUnits): string {
+  return units === 'ft' ? formatFeetInches(m) : `${m.toFixed(2)} m`;
+}
+
+/** A length for an editable field (no unit suffix in metric): "3.5" or `11'6.1"`. */
+export function formatFieldLength(m: number, units: DisplayUnits): string {
+  return units === 'ft' ? formatFeetInches(m, 0.1) : formatMetres(m);
+}
+
+/** An area: "12.7 m²" or "137 ft²". */
+export function formatArea(m2: number, units: DisplayUnits): string {
+  return units === 'ft' ? `${Math.round(m2 * FT2_PER_M2)} ft²` : `${m2.toFixed(1)} m²`;
+}
+
+/** What a bare number typed by the user means in each mode. */
+export const defaultInputUnit = (units: DisplayUnits): LengthUnit => (units === 'ft' ? 'ft' : 'm');
+
+/** Characters that can start/continue a typed length (used for typing a wall length while drawing). */
+export const LENGTH_CHARS = /^[0-9.,'"]$/;
+export const LENGTH_UNIT_CHARS = /^[a-zA-Z]$/;

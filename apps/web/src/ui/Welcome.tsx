@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { activePlan } from '../plan/PlanCanvas';
+import { useStore } from 'zustand';
+import { setUnits } from '@hd/editor-core';
 import { editor, useUi } from '../plan/session';
+import { defaultInputUnit, parseLength as parseLen } from '../lib/units';
 import { buildTemplate, QUICK_ROOM_MAX_M, QUICK_ROOM_MIN_M, type TemplateId } from '../plan/templates';
-import { parseLength } from '../lib/units';
 import { MAX_FILE_BYTES, parseSceneFile } from '../lib/persistence';
 
 const store = (k: string, v: string) => {
@@ -23,6 +25,7 @@ export function Welcome() {
   const [error, setError] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const first = useRef<HTMLButtonElement>(null);
+  const units = useStore(editor.store, (s) => s.scene.meta.units);
 
   useEffect(() => {
     if (!open) return;
@@ -42,7 +45,8 @@ export function Welcome() {
   }
 
   const begin = (id: TemplateId, opts?: { width: number; depth: number }) => {
-    editor.loadScene(buildTemplate(id, opts));
+    const built = buildTemplate(id, opts);
+    editor.loadScene({ ...built, meta: { ...built.meta, units } });
     finish(true);
     window.setTimeout(() => {
       activePlan?.fitToPlan();
@@ -51,8 +55,8 @@ export function Welcome() {
   };
 
   const quickRoom = () => {
-    const width = parseLength(w);
-    const depth = parseLength(d);
+    const width = parseLen(w, defaultInputUnit(units));
+    const depth = parseLen(d, defaultInputUnit(units));
     if (width === null || depth === null || width < QUICK_ROOM_MIN_M || depth < QUICK_ROOM_MIN_M || width > QUICK_ROOM_MAX_M || depth > QUICK_ROOM_MAX_M) {
       return setError(`Sizes must be between ${QUICK_ROOM_MIN_M} and ${QUICK_ROOM_MAX_M} m. You can type 4, 350cm or 12'6".`);
     }
@@ -76,6 +80,14 @@ export function Welcome() {
         <h1 id="welcome-title">Let’s design your home</h1>
         <p className="welcome-sub">Start with a room, or pick a ready-made layout. You can change everything afterwards.</p>
 
+        <div className="w-units" role="group" aria-label="Units">
+          {(['m', 'ft'] as const).map((u) => (
+            <button key={u} type="button" aria-pressed={units === u} onClick={() => editor.execute(setUnits(u))}>
+              {u === 'm' ? 'Metres' : 'Feet & inches'}
+            </button>
+          ))}
+        </div>
+
         <div className="w-grid">
           <section className="w-card wide">
             <h3>A single room</h3>
@@ -90,7 +102,7 @@ export function Welcome() {
                 Depth
                 <input value={d} onChange={(e) => setD(e.target.value)} inputMode="decimal" aria-label="Room depth in metres" />
               </label>
-              <span className="unit">m</span>
+              <span className="unit">{units === 'ft' ? 'ft' : 'm'}</span>
               <button type="button" ref={first} className="pill solid" onClick={quickRoom}>
                 Create room
               </button>

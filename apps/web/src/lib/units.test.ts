@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatMetres, parseLength } from './units';
+import { defaultInputUnit, formatArea, formatFeetInches, formatFieldLength, formatLength, formatMetres, parseLength } from './units';
 
 describe('parseLength', () => {
   it('reads plain numbers as metres', () => {
@@ -45,5 +45,37 @@ describe('formatMetres', () => {
     expect(formatMetres(0.115)).toBe('0.115');
     expect(formatMetres(2.1000001)).toBe('2.1');
     expect(formatMetres(0.30479999)).toBe('0.305');
+  });
+});
+
+describe('display units', () => {
+  it('formats feet and inches the way people write them', () => {
+    expect(formatFeetInches(3.81)).toBe("12'6\"");
+    expect(formatFeetInches(3.6576)).toBe("12'");
+    expect(formatFeetInches(0.1524)).toBe('6"');
+    expect(formatFeetInches(0)).toBe('0"');
+    expect(formatFeetInches(2.1)).toBe("6'11\"");
+    expect(formatFeetInches(0.3048 * 11.99)).toBe("12'"); // rounds up into the next foot
+  });
+
+  it('labels, fields and areas follow the unit', () => {
+    expect(formatLength(3.5, 'm')).toBe('3.50 m');
+    expect(formatLength(3.5, 'ft')).toBe("11'6\"");
+    expect(formatFieldLength(3.5, 'm')).toBe('3.5');
+    expect(formatFieldLength(2.1, 'ft')).toBe("6'10.7\"");
+    expect(formatArea(12.7, 'm')).toBe('12.7 m²');
+    expect(formatArea(10, 'ft')).toBe('108 ft²');
+  });
+
+  it('what is typed round-trips through the display format', () => {
+    for (const m of [0.115, 0.9, 2.1, 3.5, 7.25]) {
+      const back = parseLength(formatFieldLength(m, 'ft'), 'ft')!;
+      expect(Math.abs(back - m)).toBeLessThan(0.0026); // 0.1 inch
+    }
+  });
+
+  it('a bare number means feet in feet mode', () => {
+    expect(parseLength('12', defaultInputUnit('ft'))).toBeCloseTo(3.6576);
+    expect(parseLength('12', defaultInputUnit('m'))).toBe(12);
   });
 });

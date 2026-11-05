@@ -2,6 +2,7 @@ import { getAsset, itemFootprint, frontOf } from '@hd/assets';
 import type { Opening, Scene, Vec2, Vec3 } from '@hd/scene-schema';
 import type { SnapResult } from '@hd/editor-core';
 import { facePoint, leftNormal, type WallFootprint } from '@hd/geometry';
+import { formatArea, formatLength, type DisplayUnits } from '../lib/units';
 import { toScreen, toWorld, type View } from './viewport';
 import type { LevelGeometry } from './wallGeom';
 
@@ -51,6 +52,11 @@ export interface OpeningPreview {
 }
 
 export interface RenderState {
+  units: DisplayUnits;
+  /** Pro tools: overall dimensions, room width x depth, every wall length. */
+  pro: boolean;
+  /** Digits typed while drawing a wall (replaces the live length readout). */
+  lengthInput: string;
   itemGhost: ItemGhost | null;
   /** Walls of the floor below, drawn faintly as a tracing reference. */
   ghost: readonly Vec2[][];
@@ -151,7 +157,17 @@ function drawRooms(ctx: CanvasRenderingContext2D, s: RenderState, part: 'fills' 
     ctx.font = `400 14px ${FONT}`;
     halo(ctx, r.name, cx, cy - 8);
     ctx.font = `300 12.5px ${FONT}`;
-    halo(ctx, `${r.area.toFixed(1)} m²`, cx, cy + 9);
+    halo(ctx, formatArea(r.area, s.units), cx, cy + 9);
+    if (s.pro) {
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      for (const p of r.polygon) {
+        x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]);
+        z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]);
+      }
+      ctx.font = `300 11.5px ${FONT}`;
+      ctx.fillStyle = C.textSoft;
+      halo(ctx, `${formatLength(x1 - x0, s.units)} × ${formatLength(z1 - z0, s.units)}`, cx, cy + 25);
+    }
   }
 }
 
@@ -186,14 +202,14 @@ function drawWalls(ctx: CanvasRenderingContext2D, s: RenderState): void {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (const w of walls) {
-    if (v.scale < 30 && !sel.has(w.id)) continue;
+    if (v.scale < 30 && !s.pro && !sel.has(w.id)) continue;
     const a = scene.nodes[w.a];
     const b = scene.nodes[w.b];
     if (!a || !b) continue;
     const [ax, ay] = toScreen(v, a.p[0], a.p[1]);
     const [bx, by] = toScreen(v, b.p[0], b.p[1]);
     const len = Math.hypot(b.p[0] - a.p[0], b.p[1] - a.p[1]);
-    const text = `${len.toFixed(2)} m`;
+    const text = formatLength(len, s.units);
     const dx = bx - ax;
     const dy = by - ay;
     const n = Math.hypot(dx, dy) || 1;
@@ -481,6 +497,55 @@ function drawItems(ctx: CanvasRenderingContext2D, s: RenderState): void {
   if (s.itemGhost) drawItem(ctx, s, s.itemGhost, { fill: 'rgba(122,66,54,0.18)', stroke: C.brick, width: 2, ghost: true });
 }
 
+/** Pro: overall width and depth of the building, drawn as dimension lines outside the plan. */
+function drawOverall(ctx: CanvasRenderingContext2D, s: RenderState): void {
+  if (!s.pro) return;
+  const nodes = Object.values(s.scene.nodes).filter((n) => n.levelId === s.levelId);
+  if (nodes.length < 2) return;
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const n of nodes) {
+    x0 = Math.min(x0, n.p[0]); x1 = Math.max(x1, n.p[0]);
+    z0 = Math.min(z0, n.p[1]); z1 = Math.max(z1, n.p[1]);
+  }
+  const v = s.view;
+  const off = 0.75; // metres outside the centre lines
+  const tick = 6;
+  ctx.strokeStyle = C.textSoft;
+  ctx.fillStyle = C.textSoft;
+  ctx.lineWidth = 1;
+  ctx.font = `400 12px ${FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const line = (ax: number, ay: number, bx: number, by: number) => {
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+  };
+  // Horizontal, below the plan.
+  if (x1 - x0 > 0.01) {
+    const [ax, ay] = toScreen(v, x0, z1 + off);
+    const [bx] = toScreen(v, x1, z1 + off);
+    line(ax, ay, bx, ay);
+    line(ax, ay - tick, ax, ay + tick);
+    line(bx, ay - tick, bx, ay + tick);
+    halo(ctx, formatLength(x1 - x0, s.units), (ax + bx) / 2, ay - 11);
+  }
+  // Vertical, right of the plan.
+  if (z1 - z0 > 0.01) {
+    const [ax, ay] = toScreen(v, x1 + off, z0);
+    const [, by] = toScreen(v, x1 + off, z1);
+    line(ax, ay, ax, by);
+    line(ax - tick, ay, ax + tick, ay);
+    line(ax - tick, by, ax + tick, by);
+    ctx.save();
+    ctx.translate(ax + 14, (ay + by) / 2);
+    ctx.rotate(Math.PI / 2);
+    halo(ctx, formatLength(z1 - z0, s.units), 0, 0);
+    ctx.restore();
+  }
+}
+
 function drawWalker(ctx: CanvasRenderingContext2D, s: RenderState): void {
   if (!s.walker) return;
   const { x, z, yaw } = s.walker;
@@ -541,7 +606,7 @@ function drawOverlay(ctx: CanvasRenderingContext2D, s: RenderState): void {
       ctx.font = `400 13px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      halo(ctx, `${len.toFixed(2)} m   ${deg.toFixed(0)}°`, px, py - 22);
+      halo(ctx, s.lengthInput ? `${s.lengthInput}▏  ${deg.toFixed(0)}°` : `${formatLength(len, s.units)}   ${deg.toFixed(0)}°`, px, py - 22);
     }
   }
 
@@ -593,6 +658,7 @@ export function drawPlan(ctx: CanvasRenderingContext2D, s: RenderState): void {
   drawWalls(ctx, s);
   drawPaintSide(ctx, s);
   drawOpenings(ctx, s);
+  drawOverall(ctx, s);
   drawRooms(ctx, s, 'labels');
   drawWalker(ctx, s);
   drawOverlay(ctx, s);

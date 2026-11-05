@@ -25,6 +25,7 @@ import { drawPlan, pointInPolygon, type ItemGhost, type OpeningPreview } from '.
 import { levelRooms } from './rooms';
 import { levelGeometry } from './wallGeom';
 import { walkPose } from '../walk/walkState';
+import { defaultInputUnit, LENGTH_CHARS, LENGTH_UNIT_CHARS, parseLength } from '../lib/units';
 import { toWorld, zoomAt, type View } from './viewport';
 
 const SNAP_PX = 14;
@@ -166,9 +167,11 @@ export class PlanController {
       // Keep clear of the floating chrome: tool rail on the left (bottom on phones), top bar, caption.
       const phone = window.matchMedia('(max-width: 699px)').matches;
       const padL = phone ? 28 : 120;
-      const padR = 40;
+      // Pro mode draws overall dimension lines outside the plan: leave room for them.
+      const proExtra = useUi.getState().pro ? 90 : 0;
+      const padR = 40 + proExtra;
       const padT = phone ? 190 : 90;
-      const padB = phone && useUi.getState().view === '2d' ? 200 : 110;
+      const padB = (phone && useUi.getState().view === '2d' ? 200 : 110) + proExtra;
       const availW = Math.max(this.cssW - padL - padR, 50);
       const availH = Math.max(this.cssH - padT - padB, 50);
       const w = Math.max(maxX - minX, 1);
@@ -220,6 +223,9 @@ export class PlanController {
       preview: this.preview,
       itemGhost: this.itemGhost,
       paintSide: ui.paintSide,
+      units: st.scene.meta.units,
+      pro: ui.pro,
+      lengthInput: ui.lengthInput,
       rooms: levelRooms(st.scene, st.activeLevelId).map((r) => ({
         polygon: r.polygon,
         centroid: r.centroid,
@@ -400,6 +406,28 @@ export class PlanController {
       if (!additive) editor.select([]);
     } else if (additive) editor.select(cur.includes(id) ? cur.filter((i) => i !== id) : [...cur, id]);
     else editor.select([id]);
+  }
+
+  /** Place the next wall point `text` away from the last one, along the pointer's (snapped) direction. */
+  private commitTypedLength(text: string): void {
+    const ui = useUi.getState();
+    const last = wallTool.last;
+    const len = parseLength(text, defaultInputUnit(editor.getState().scene.meta.units));
+    if (!last || len === null || len < 0.05 || len > 100) {
+      ui.setLengthInput('');
+      return;
+    }
+    const target = this.hover?.point;
+    let dx = target ? target[0] - last[0] : 1;
+    let dz = target ? target[1] - last[1] : 0;
+    const n = Math.hypot(dx, dz);
+    if (n < 1e-6) [dx, dz] = [1, 0];
+    else [dx, dz] = [dx / n, dz / n];
+    const to: Vec2 = [last[0] + dx * len, last[1] + dz * len];
+    wallTool.click(to, 'none');
+    ui.setDrawing(wallTool.last !== null);
+    ui.setLengthInput('');
+    this.invalidate();
   }
 
   private selectedItemIds(): Id[] {
@@ -583,6 +611,7 @@ export class PlanController {
 
     if (mode === 'place') {
       const s = this.snapAt(p.x, p.y);
+      useUi.getState().setLengthInput('');
       wallTool.click(s.point, s.kind);
       useUi.getState().setDrawing(wallTool.last !== null);
       this.hover = e.pointerType === 'mouse' ? this.snapAt(p.x, p.y) : null;
@@ -698,6 +727,36 @@ export class PlanController {
 
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
+
+    // Exact wall length: while a wall is being drawn, typing a length and pressing Enter places the next
+    // point that far along the current direction (e.g. 3.5  ·  350cm  ·  12'6").
+    if (!mod && useUi.getState().tool === 'wall' && wallTool.last) {
+      const ui = useUi.getState();
+      const buf = ui.lengthInput;
+      if (LENGTH_CHARS.test(e.key) || (buf !== '' && LENGTH_UNIT_CHARS.test(e.key))) {
+        e.preventDefault();
+        ui.setLengthInput(buf + e.key);
+        this.invalidate();
+        return;
+      }
+      if (buf !== '' && e.key === 'Backspace') {
+        e.preventDefault();
+        ui.setLengthInput(buf.slice(0, -1));
+        this.invalidate();
+        return;
+      }
+      if (buf !== '' && e.key === 'Escape') {
+        ui.setLengthInput('');
+        this.invalidate();
+        return;
+      }
+      if (buf !== '' && e.key === 'Enter') {
+        e.preventDefault();
+        this.commitTypedLength(buf);
+        return;
+      }
+    }
+
     if (mod && key === 'z') {
       e.preventDefault();
       if (e.shiftKey) editor.redo();

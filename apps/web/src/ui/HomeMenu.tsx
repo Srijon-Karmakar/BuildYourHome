@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { WALL_THICKNESS_EXTERIOR_M, WALL_THICKNESS_INTERIOR_M } from '@hd/scene-schema';
-import { batch, setDefaults, setGround, setSceneName } from '@hd/editor-core';
-import { editor } from '../plan/session';
+import { batch, setDefaults, setGround, setSceneName, setUnits } from '@hd/editor-core';
+import { editor, useUi } from '../plan/session';
 import { materialsFor } from '../view3d/placeholderMaterials';
 import { FileActions } from './FileActions';
-import { LengthField, Section, Swatches, TextField } from './fields';
+import { LengthField, Section, Segmented, Swatches, TextField, Toggle } from './fields';
 
 /** Project-level settings: name, the ground around the house, and thickness for newly drawn walls. */
 export function HomeMenu() {
   const [open, setOpen] = useState(false);
   const scene = useStore(editor.store, (s) => s.scene);
+  const pro = useUi((s) => s.pro);
+  const setPro = useUi((s) => s.setPro);
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -49,6 +51,18 @@ export function HomeMenu() {
               value={scene.terrain.groundMaterial.id}
               onPick={(id) => editor.execute(setGround({ id }))}
             />
+          </Section>
+          <Section title="Units & tools">
+            <Segmented
+              label="Units"
+              value={scene.meta.units}
+              options={[
+                { id: 'm', label: 'Metres' },
+                { id: 'ft', label: 'Feet & inches' },
+              ]}
+              onChange={(u) => editor.execute(setUnits(u))}
+            />
+            <Toggle label="Pro tools" hint="Overall dimensions, room sizes and every wall length" checked={pro} onChange={setPro} />
           </Section>
           <Section title="File">
             <FileActions onDone={() => setOpen(false)} />

@@ -35,7 +35,7 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 - [ ] P1-12 Realistic rendering baseline (PBR, HDRI lighting, soft shadows, SSAO, tone mapping, color management) — ADR-010
 - [ ] P1-13 Adaptive quality: FPS governor, progressive rendering, Low/Med/High setting (moved up from P3)
 - [ ] P1-14 Placeholder asset set (procedural furniture/doors/windows + a few CC0) with `tier` field in catalog — ADR-013
-- [ ] P1-15 Simple vs Pro mode: numeric inputs, dimension annotations, unit parsing (m / ft-in) — ADR-014
+- [x] P1-15 Simple vs Pro mode: numeric inputs, dimension annotations, unit parsing (m / ft-in) — ADR-014
 - [x] P1-16 (welcome + templates + next-step tips) Guided start (template or room-by-room) + onboarding tutorial
 **Exit criteria:** testers can design a 2-floor house with furniture and roof in < 30 min without help, survive reload, no data loss.
 
