@@ -5,6 +5,7 @@ import type { Item, Opening, Room, RoomType, Wall } from '@hd/scene-schema';
 import { DOOR_STYLES, FRAME_COLORS, LEAF_COLORS, WINDOW_STYLES } from '@hd/scene-schema';
 import { batch, duplicateItems, rotateItems, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
 import { formatArea, formatLength } from '../lib/units';
+import { requireAccess } from '../cloud/store';
 import { deleteSelection } from '../plan/PlanController';
 import { levelRooms } from '../plan/rooms';
 import { editor, useUi } from '../plan/session';
@@ -273,7 +274,7 @@ export function Inspector() {
               <Chips items={SCALE_PRESETS} current={common(items.map((i) => i.scale[0]), near)} onPick={(scale) => editItems({ scale })} />
               <Toggle label="Lock in place" hint="Stops it being moved by accident" checked={items.every((i) => i.locked)} onChange={(locked) => editItems({ locked })} />
               <div className="ins-footer" style={{ paddingTop: 4 }}>
-                <button type="button" className="pill" title="Copy (Ctrl+D)" onClick={() => editor.execute(duplicateItems(itemIds))}>
+                <button type="button" className="pill" title="Copy (Ctrl+D)" onClick={() => requireAccess(items.map((i) => i.assetId), 'copy') && editor.execute(duplicateItems(itemIds))}>
                   Duplicate
                 </button>
               </div>

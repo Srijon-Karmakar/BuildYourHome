@@ -82,10 +82,12 @@ export function startAutosave(
   getScene: () => Scene,
   save: (s: Scene) => Promise<unknown> = saveLocal,
   delay = AUTOSAVE_DELAY_MS,
+  /** The local autosave drives the top-bar "Saved" indicator; secondary ones (cloud sync) stay quiet. */
+  reportStatus = true,
 ): { stop: () => void; flush: () => Promise<void> } {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let last = getScene();
-  const set = (status: SaveStatus) => useSaveStatus.setState({ status, at: status === 'saved' ? Date.now() : useSaveStatus.getState().at });
+  const set = (status: SaveStatus) => reportStatus && useSaveStatus.setState({ status, at: status === 'saved' ? Date.now() : useSaveStatus.getState().at });
 
   const flush = async () => {
     clearTimeout(timer);

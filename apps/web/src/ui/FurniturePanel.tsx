@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { CATEGORIES, searchCatalog, type Asset, type AssetCategory } from '@hd/assets';
+import { accessFor, lockLabel } from '../cloud';
+import { requireAccess, useCloud } from '../cloud/store';
 import { useUi } from '../plan/session';
 import { getThumbnail, requestThumbnails, subscribeThumbnails } from '../view3d/furniture/thumbnails';
 
-const TIER_LABEL: Record<Asset['tier'], string | null> = { free: null, premium: 'Premium', rewarded: 'Watch ad' };
-
 function Card({ asset, onPick }: { asset: Asset; onPick: (a: Asset) => void }) {
   const src = useSyncExternalStore(subscribeThumbnails, () => getThumbnail(asset.id));
-  const tag = TIER_LABEL[asset.tier];
+  const ent = useCloud((s) => s.ent);
+  const tag = lockLabel(accessFor(asset, ent));
   return (
     <button type="button" className="card" onClick={() => onPick(asset)} title={`${asset.name} — ${asset.size[0]} × ${asset.size[1]} m`}>
       <span className="card-thumb">{src ? <img src={src} alt="" draggable={false} /> : <span className="card-skel" />}</span>
@@ -75,7 +76,7 @@ export function FurniturePanel() {
       </div>
       <div className="fp-grid">
         {results.map((a) => (
-          <Card key={a.id} asset={a} onPick={(x) => startPlacing(x.id)} />
+          <Card key={a.id} asset={a} onPick={(x) => requireAccess([x.id], 'place') && startPlacing(x.id)} />
         ))}
         {results.length === 0 && <p className="fp-empty">Nothing matches “{query}”. Try “chair”, “bed” or “light”.</p>}
       </div>

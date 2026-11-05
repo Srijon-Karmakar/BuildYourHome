@@ -25,6 +25,7 @@ import { drawPlan, pointInPolygon, type ItemGhost, type OpeningPreview } from '.
 import { levelRooms } from './rooms';
 import { levelGeometry } from './wallGeom';
 import { walkPose } from '../walk/walkState';
+import { requireAccess } from '../cloud/store';
 import { defaultInputUnit, LENGTH_CHARS, LENGTH_UNIT_CHARS, parseLength } from '../lib/units';
 import { toWorld, zoomAt, type View } from './viewport';
 
@@ -783,7 +784,8 @@ export class PlanController {
     } else if (mod && key === 'd') {
       e.preventDefault();
       const ids = this.selectedItemIds();
-      if (ids.length) editor.execute(duplicateItems(ids));
+      const assets = ids.map((id) => editor.getState().scene.items[id]?.assetId ?? '');
+      if (ids.length && requireAccess(assets, 'copy')) editor.execute(duplicateItems(ids));
     } else if (!mod && key === 'r') {
       // Turn the item being placed, or the selected items, by 90° (Shift = the other way).
       const delta = (e.shiftKey ? -1 : 1) * (Math.PI / 2);

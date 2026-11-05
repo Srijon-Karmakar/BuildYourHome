@@ -1,0 +1,136 @@
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { loadScene, type Scene } from '@hd/scene-schema';
+import { pruneUnlocks } from './entitlements';
+import type { Backend, Entitlements, ProjectMeta, Result, Session } from './types';
+
+/**
+ * Real accounts + storage on Supabase (ADR-004). Table layout, row-level security and the public
+ * `get_shared_project` function live in services/supabase/migrations/0001_init.sql.
+ *
+ * STATUS: written against the supabase-js v2 API and type-checked, but NOT yet exercised against a live
+ * project — run the migration, set VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY in apps/web/.env.local, and test.
+ * Entitlements are READ-ONLY here: subscriptions and ad unlocks may only be written by trusted server code
+ * (billing webhooks / ad verification), so a browser can never grant itself premium access.
+ */
+const ok = <T>(value: T): Result<T> => ({ ok: true, value });
+const fail = (error: string): Result<never> => ({ ok: false, error });
+
+/** Turn Supabase's technical errors into something a person can act on. */
+function friendly(message: string | undefined): string {
+  const m = (message ?? '').toLowerCase();
+  if (m.includes('invalid login')) return 'Email or password is not right.';
+  if (m.includes('already registered') || m.includes('already been registered')) return 'An account with this email already exists. Try signing in.';
+  if (m.includes('password')) return 'Use a stronger password (at least 8 characters).';
+  if (m.includes('email')) return 'Enter a valid email address.';
+  if (m.includes('rate limit') || m.includes('too many')) return 'Too many attempts. Wait a minute and try again.';
+  if (m.includes('failed to fetch') || m.includes('network')) return 'Could not reach the server. Check your connection.';
+  return 'Something went wrong. Please try again.';
+}
+
+export class SupabaseBackend implements Backend {
+  readonly mode = 'supabase' as const;
+  private sb: SupabaseClient;
+
+  constructor(url: string, anonKey: string) {
+    this.sb = createClient(url, anonKey, { auth: { persistSession: true, autoRefreshToken: true } });
+  }
+
+  private toSession(u: { id: string; email?: string | null } | null | undefined): Session | null {
+    return u ? { userId: u.id, email: u.email ?? '' } : null;
+  }
+
+  async getSession(): Promise<Session | null> {
+    const { data } = await this.sb.auth.getSession();
+    return this.toSession(data.session?.user);
+  }
+
+  onSession(cb: (s: Session | null) => void): () => void {
+    const { data } = this.sb.auth.onAuthStateChange((_e, session) => cb(this.toSession(session?.user)));
+    return () => data.subscription.unsubscribe();
+  }
+
+  async signUp(email: string, password: string): Promise<Result<Session>> {
+    const { data, error } = await this.sb.auth.signUp({ email: email.trim(), password });
+    if (error) return fail(friendly(error.message));
+    const s = this.toSession(data.session?.user);
+    // With email confirmation enabled there is no session until the link in the email is opened.
+    return s ? ok(s) : fail('Check your email to confirm your account, then sign in.');
+  }
+
+  async signIn(email: string, password: string): Promise<Result<Session>> {
+    const { data, error } = await this.sb.auth.signInWithPassword({ email: email.trim(), password });
+    const s = this.toSession(data.session?.user);
+    return error || !s ? fail(friendly(error?.message)) : ok(s);
+  }
+
+  async signOut(): Promise<void> {
+    await this.sb.auth.signOut();
+  }
+
+  async listProjects(): Promise<ProjectMeta[]> {
+    const { data, error } = await this.sb.from('projects').select('id, name, updated_at').order('updated_at', { ascending: false }).limit(100);
+    if (error || !data) return [];
+    return data.map((r) => ({ id: r.id as string, name: r.name as string, updatedAt: r.updated_at as string }));
+  }
+
+  async loadProject(id: string): Promise<Scene | null> {
+    const { data, error } = await this.sb.from('projects').select('scene').eq('id', id).maybeSingle();
+    if (error || !data) return null;
+    const r = loadScene(data.scene);
+    return r.ok ? r.scene : null;
+  }
+
+  async saveProject(scene: Scene, id?: string): Promise<Result<ProjectMeta>> {
+    const session = await this.getSession();
+    if (!session) return fail('Sign in to save to your account.');
+    const row = { name: scene.meta.name.slice(0, 80) || 'My home', scene, schema_version: scene.schemaVersion };
+    const q = id
+      ? this.sb.from('projects').update(row).eq('id', id).select('id, name, updated_at').single()
+      : this.sb.from('projects').insert({ ...row, owner_id: session.userId }).select('id, name, updated_at').single();
+    const { data, error } = await q;
+    if (error || !data) return fail(error?.message.includes('size') ? 'This home is too large to save.' : 'Could not save your home. Please try again.');
+    return ok({ id: data.id as string, name: data.name as string, updatedAt: data.updated_at as string });
+  }
+
+  async deleteProject(id: string): Promise<void> {
+    await this.sb.from('projects').delete().eq('id', id);
+  }
+
+  async createShare(projectId: string): Promise<Result<{ token: string }>> {
+    const { data, error } = await this.sb.from('shares').insert({ project_id: projectId }).select('token').single();
+    return error || !data ? fail('Could not create a link. Save this home to your account first.') : ok({ token: data.token as string });
+  }
+
+  async revokeShares(projectId: string): Promise<void> {
+    await this.sb.from('shares').update({ revoked_at: new Date().toISOString() }).eq('project_id', projectId).is('revoked_at', null);
+  }
+
+  async getShared(token: string): Promise<Scene | null> {
+    const { data, error } = await this.sb.rpc('get_shared_project', { p_token: token });
+    if (error || !data) return null;
+    const r = loadScene(data);
+    return r.ok ? r.scene : null;
+  }
+
+  async getEntitlements(): Promise<Entitlements> {
+    const session = await this.getSession();
+    if (!session) return { subscribed: false, unlocks: {} };
+    const [sub, unl] = await Promise.all([
+      this.sb.from('subscriptions').select('status, current_period_end').eq('user_id', session.userId).maybeSingle(),
+      this.sb.from('unlocks').select('asset_id, expires_at').eq('user_id', session.userId),
+    ]);
+    const end = sub.data?.current_period_end ? Date.parse(sub.data.current_period_end as string) : Infinity;
+    const subscribed = (sub.data?.status === 'active' || sub.data?.status === 'trialing') && end > Date.now();
+    const unlocks: Entitlements['unlocks'] = {};
+    for (const r of unl.data ?? []) unlocks[r.asset_id as string] = (r.expires_at as string | null) ?? null;
+    return pruneUnlocks({ subscribed, unlocks });
+  }
+
+  async unlockWithAd(): Promise<Result<Entitlements>> {
+    return fail('Rewarded unlocks need server-side ad verification, which is not switched on yet.');
+  }
+
+  async setSubscription(): Promise<Result<Entitlements>> {
+    return fail('Subscriptions are managed through billing, which is not switched on yet.');
+  }
+}

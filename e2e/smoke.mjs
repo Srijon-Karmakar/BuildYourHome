@@ -502,10 +502,10 @@ try {
     await page.waitForFunction(() => document.querySelectorAll('.furniture .card-thumb img').length >= 6, null, { timeout: 30000 }).catch(() => {});
     check('thumbnails are rendered from the models', (await page.locator('.furniture .card-thumb img').count()) >= 6);
 
-    // Place an armchair in open floor.
-    await panel.getByLabel('Search furniture').fill('armchair');
-    await panel.locator('.card', { hasText: 'Armchair' }).click();
-    check('picking closes the catalog and starts placing', !(await panel.isVisible()) && (await page.evaluate(() => window.__hd.useUi.getState().placing)) === 'armchair');
+    // Place a (free) single bed in open floor.
+    await panel.getByLabel('Search furniture').fill('single bed');
+    await panel.locator('.card', { hasText: 'Single bed' }).click();
+    check('picking closes the catalog and starts placing', !(await panel.isVisible()) && (await page.evaluate(() => window.__hd.useUi.getState().placing)) === 'bed-single');
     await page.mouse.move(700, 330);
     await page.keyboard.press('r');
     check('R turns the item being placed', Math.abs((await page.evaluate(() => window.__hd.useUi.getState().placeRotation)) - Math.PI / 2) < 1e-9);
@@ -534,10 +534,10 @@ try {
     check('wall art cannot be placed in the middle of a room', (await items()).length === n);
     await page.keyboard.press('Escape');
 
-    // Select the armchair and edit it in the inspector.
+    // Select the bed and edit it in the inspector.
     await page.evaluate((id) => window.__hd.editor.select([id]), placed.id);
     await page.waitForTimeout(200);
-    check('inspector shows the item', await inspector.getByText('Armchair').first().isVisible());
+    check('inspector shows the item', await inspector.getByText('Single bed').first().isVisible());
     await field('Rotation').fill('45');
     await field('Rotation').press('Enter');
     check('exact rotation in degrees', Math.abs((await items()).find((i) => i.id === placed.id).rotationY - Math.PI / 4) < 1e-6);
@@ -860,6 +860,111 @@ try {
     check('and can be turned off again', (await page.evaluate(() => window.__hd.useUi.getState().pro)) === false);
     check('no page errors in pro tools', errors.length === 0, errors.slice(0, 2).join(' | '));
     await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2k. accounts, cloud, sharing, free vs premium
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } }); // one browser: shared storage
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?view=2d&fresh=1');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForFunction(() => window.__hd.useCloud.getState().ready);
+    const catalog = page.getByRole('complementary', { name: 'Furniture catalog' });
+
+    // --- guests: free items place, premium / rewarded items are gated
+    await page.getByRole('button', { name: 'Furniture' }).click();
+    check('premium items show a Premium badge, rewarded ones "Watch ad"', (await catalog.locator('.card', { hasText: 'Double bed' }).getByText('Premium').count()) === 1 && (await catalog.locator('.card', { hasText: 'Armchair' }).getByText('Watch ad').count()) === 1);
+    await catalog.getByLabel('Search furniture').fill('double bed');
+    await catalog.locator('.card', { hasText: 'Double bed' }).click();
+    const dlg = page.getByRole('dialog', { name: 'Double bed' });
+    check('picking a premium item opens the upsell instead of placing it', (await dlg.isVisible()) && (await page.evaluate(() => window.__hd.useUi.getState().placing)) === null);
+    check('it offers an account, not a fake purchase, to a guest', await dlg.getByRole('button', { name: /Create a free account/ }).isVisible());
+    await dlg.getByRole('button', { name: 'Not now' }).click();
+
+    await catalog.getByLabel('Search furniture').fill('armchair');
+    await catalog.locator('.card', { hasText: 'Armchair' }).click();
+    const rdlg = page.getByRole('dialog', { name: 'Armchair' });
+    await rdlg.getByRole('button', { name: /Watch an ad/ }).click();
+    check('a demo ad plays', await page.getByRole('dialog', { name: 'Advertisement' }).isVisible());
+    await page.waitForFunction(() => window.__hd.useUi.getState().placing === 'armchair', null, { timeout: 15000 });
+    check('after the ad the armchair is unlocked and ready to place', true);
+    check('the unlock is remembered by the account state', Object.keys((await page.evaluate(() => window.__hd.useCloud.getState().ent)).unlocks).includes('armchair'));
+    await page.keyboard.press('Escape');
+
+    // --- account: sign up, save, attach
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    const acct = page.getByRole('group', { name: 'Account' });
+    await acct.getByRole('button', { name: 'Create account', exact: true }).first().click();
+    await acct.getByLabel('Email').fill('owner@example.com');
+    await acct.getByLabel('Password').fill('short');
+    await acct.locator('button[type=submit]').click();
+    check('a weak password is refused with a message', await acct.getByRole('alert').isVisible());
+    await acct.getByLabel('Password').fill('a long password');
+    await acct.locator('button[type=submit]').click();
+    await acct.getByText('owner@example.com').waitFor({ timeout: 5000 });
+    check('signing up signs you in', true);
+
+    // build something worth saving, then save + share
+    await page.keyboard.press('Escape');
+    const box = await page.locator('canvas.plan-canvas').boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    for (const [dx, dy] of [[-120, -90], [120, -90], [120, 90], [-120, 90], [-120, -90]]) await page.mouse.click(cx + dx, cy + dy);
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Account' }).click();
+    await acct.getByRole('button', { name: 'Save to my account' }).click();
+    await acct.getByRole('listitem').first().waitFor({ timeout: 5000 });
+    check('the home appears under My homes', (await acct.getByRole('listitem').count()) === 1);
+    await acct.getByRole('button', { name: 'Create a view-only link' }).click();
+    const link = await acct.getByLabel('Share link').inputValue();
+    check('a share link is created', link.includes('?share='), link);
+
+    // --- the link works for anyone, read-only
+    const viewer = await ctx.newPage();
+    viewer.on('pageerror', (e) => errors.push(String(e)));
+    await viewer.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await viewer.goto(link.replace(/^https?:\/\/[^/]+/, BASE.replace(/\/$/, '')));
+    await viewer.getByText('Shared · view only').waitFor({ timeout: 10000 });
+    check('the shared home opens in a read-only viewer', (await viewer.getByRole('navigation', { name: 'Tools' }).count()) === 0 && (await viewer.getByRole('button', { name: 'Walk' }).isVisible()));
+    await viewer.close();
+
+    // --- reload: the attached home keeps syncing; stop sharing kills the link
+    await acct.getByRole('button', { name: 'Stop sharing' }).click();
+    const gone = await ctx.newPage();
+    await gone.goto(link.replace(/^https?:\/\/[^/]+/, BASE.replace(/\/$/, '')));
+    await gone.getByText('This link isn’t available').waitFor({ timeout: 10000 });
+    check('a revoked link no longer works', true);
+    await gone.close();
+
+    // --- subscription (demo billing): everything unlocks, ads disappear
+    await acct.getByRole('button', { name: 'Go ad-free (demo)' }).click();
+    check('subscribing turns ads off', (await page.evaluate(() => window.__hd.useCloud.getState().ent.subscribed)) === true);
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Furniture' }).click();
+    await catalog.getByLabel('Search furniture').fill('double bed');
+    check('premium items no longer show a lock', (await catalog.locator('.card', { hasText: 'Double bed' }).getByText('Premium').count()) === 0);
+    await catalog.locator('.card', { hasText: 'Double bed' }).click();
+    check('and can be placed', (await page.evaluate(() => window.__hd.useUi.getState().placing)) === 'bed-double');
+    await page.keyboard.press('Escape');
+
+    // --- sign out and back in: subscription is per account
+    await page.getByRole('button', { name: 'Account' }).click();
+    await acct.getByRole('button', { name: 'Sign out' }).click();
+    check('signing out returns to the free plan', (await page.evaluate(() => window.__hd.useCloud.getState().ent.subscribed)) === false);
+    await acct.getByLabel('Email').fill('owner@example.com');
+    await acct.getByLabel('Password').fill('wrong password!');
+    await acct.locator('button[type=submit]').click();
+    check('a wrong password is refused', await acct.getByRole('alert').isVisible());
+    await acct.getByLabel('Password').fill('a long password');
+    await acct.locator('button[type=submit]').click();
+    await acct.getByText('Ad-free · all items unlocked').waitFor({ timeout: 5000 });
+    check('signing back in restores the subscription and My homes', (await acct.getByRole('listitem').count()) === 1);
+    check('no page errors in the cloud flows', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.screenshot({ path: `${SP}/e2e-account.png` });
+    await ctx.close();
   }
 
   // ---------------------------------------------------------------- 3. benchmark

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useUi } from '../plan/session';
+import { AdBanner } from './AdBanner';
 
 const GROUPS: Array<{ title: string; rows: Array<[string, string]> }> = [
   {
@@ -87,6 +88,7 @@ export function Help() {
             </section>
           ))}
         </div>
+        <AdBanner />
         <p className="welcome-sub">On a phone: tap to place, pinch to zoom, two fingers to pan, and drag with your left thumb to walk.</p>
       </div>
     </div>

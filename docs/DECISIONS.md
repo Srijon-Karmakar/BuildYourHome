@@ -117,6 +117,13 @@ Format: Status · Context · Decision · Consequences. Never delete an ADR; mark
 - **Decision:** The catalog is plain data in `@hd/assets` (no Three.js) so editor-core can place items and compute footprints/colliders in Node. Placeholder models are procedural (ADR-013), cloned from per-(asset, colour) templates. All snapping logic (grid, back-to-wall, wall mounting, ceiling) lives in one pure function `solvePlacement`, used by the placement tool, dragging and the demo scene, and unit tested. Item position y is relative to the floor of its level.
 - **Consequences:** + testable, swap-in-GLB friendly, single source of truth for "where does this go". − Models are generic; collision uses footprint edges only; placement doesn't avoid other furniture.
 
+---
+## ADR-019 — Backend behind an interface; demo LocalBackend first, Supabase when configured
+- **Status:** Accepted (Phase 2)
+- **Context:** The owner has no Supabase project yet and keys must never be pasted into chat or committed; the product still has to be built and tested end to end.
+- **Decision:** All account / storage / sharing / entitlement access goes through `Backend` (`apps/web/src/cloud/types.ts`). `LocalBackend` (browser storage; hashed passwords; no sync) is the default; `SupabaseBackend` is selected by `VITE_SUPABASE_*` env vars and loaded lazily. Entitlements are enforced server-side by RLS (users can only read subscription/unlock rows; only the service role writes them), so on Supabase the browser cannot grant itself access: `unlockWithAd`/`setSubscription` are refused until webhook / ad-verification functions exist. Shared links resolve through a `security definer` function that needs a valid, non-revoked token.
+- **Consequences:** + every flow is testable offline; swapping providers is contained; − two implementations to keep in step (the interface and shared tests guard it); the real path needs a live smoke test before launch.
+
 ## Template
 ```
 ## ADR-0xx — Title

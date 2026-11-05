@@ -4,6 +4,7 @@ import { activePlan } from '../plan/PlanCanvas';
 import { fileNameFor, MAX_FILE_BYTES, parseSceneFile, serializeScene } from '../lib/persistence';
 import { useUi } from '../plan/session';
 import { buildTemplate } from '../plan/templates';
+import { useCloud } from '../cloud/store';
 
 /** Save to / open from a file, and start a new home (two taps, so it can't happen by accident). */
 export function FileActions({ onDone }: { onDone: () => void }) {
@@ -65,6 +66,7 @@ export function FileActions({ onDone }: { onDone: () => void }) {
         className={`pill small${confirmNew ? ' solid' : ''}`}
         onClick={() => {
           if (!confirmNew) return setConfirmNew(true);
+          useCloud.getState().detach();
           editor.loadScene(buildTemplate('blank'));
           setConfirmNew(false);
           refit();

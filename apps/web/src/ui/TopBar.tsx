@@ -1,5 +1,6 @@
 import { activePlan } from '../plan/PlanCanvas';
 import { useUi, type ViewMode } from '../plan/session';
+import { AccountMenu } from './AccountMenu';
 import { DisplayMenu } from './DisplayMenu';
 import { useSaveStatus } from '../lib/persistence';
 import { HomeMenu } from './HomeMenu';
@@ -51,6 +52,7 @@ export function TopBar() {
       </div>
 
       <div className="topbar-right">
+        <AccountMenu />
         <HomeMenu />
         <DisplayMenu />
         <button

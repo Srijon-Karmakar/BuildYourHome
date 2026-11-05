@@ -40,17 +40,17 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 **Exit criteria:** testers can design a 2-floor house with furniture and roof in < 30 min without help, survive reload, no data loss.
 
 ## Phase 2 — Accounts, cloud & sharing (≈ 3–4 weeks)
-- [ ] P2-01 Supabase project, schema, RLS, environments
-- [ ] P2-02 Auth (email + Google), profile
-- [ ] P2-03 Cloud save/sync + conflict handling + project dashboard w/ thumbnails
-- [ ] P2-04 Share links + read-only viewer
+- [x] P2-01 (SQL + RLS written; not yet run on a live project) Supabase project, schema, RLS, environments
+- [x] P2-02 (email/password; Google OAuth + reset still to do) Auth (email + Google), profile
+- [x] P2-03 (autosave sync + project list; thumbnails and conflict dialog still to do) Cloud save/sync + conflict handling + project dashboard w/ thumbnails
+- [x] P2-04 Share links + read-only viewer
 - [ ] P2-05 Templates / sample houses
 - [ ] P2-06 PWA (offline shell, install prompt)
 - [ ] P2-07 Error tracking + analytics
-- [ ] P2-08 Entitlement service + DB tables (`subscriptions`, `unlocks`), lock badges, upsell sheet (ADR-011)
-- [ ] P2-09 `AdProvider` abstraction + mock provider; ad placements rules (free tier only, never mid-edit)
-- [ ] P2-10 Rewarded-ad unlock flow (mock → real network; server-side verification)
-- [ ] P2-11 Subscription billing: Stripe (web) first; RevenueCat wiring prepared for P4
+- [x] P2-08 (client rules + badges + upsell; server tables in SQL) Entitlement service + DB tables (`subscriptions`, `unlocks`), lock badges, upsell sheet (ADR-011)
+- [x] P2-09 (demo ads; real network later) `AdProvider` abstraction + mock provider; ad placements rules (free tier only, never mid-edit)
+- [x] P2-10 (demo ad → 24 h unlock; server verification pending) Rewarded-ad unlock flow (mock → real network; server-side verification)
+- [~] P2-11 demo subscription only; Stripe/RevenueCat not started Subscription billing: Stripe (web) first; RevenueCat wiring prepared for P4
 **Exit:** user can sign in on web and phone and see the same project; shared link opens a viewer for anonymous users; free vs premium gating works end-to-end with mock ads/billing.
 
 ## Phase 3 — Exterior richness & lighting (≈ 4–5 weeks)

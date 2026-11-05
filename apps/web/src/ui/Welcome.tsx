@@ -6,6 +6,8 @@ import { editor, useUi } from '../plan/session';
 import { defaultInputUnit, parseLength as parseLen } from '../lib/units';
 import { buildTemplate, QUICK_ROOM_MAX_M, QUICK_ROOM_MIN_M, type TemplateId } from '../plan/templates';
 import { MAX_FILE_BYTES, parseSceneFile } from '../lib/persistence';
+import { useCloud } from '../cloud/store';
+import { AdBanner } from './AdBanner';
 
 const store = (k: string, v: string) => {
   try {
@@ -45,6 +47,7 @@ export function Welcome() {
   }
 
   const begin = (id: TemplateId, opts?: { width: number; depth: number }) => {
+    useCloud.getState().detach();
     const built = buildTemplate(id, opts);
     editor.loadScene({ ...built, meta: { ...built.meta, units } });
     finish(true);
@@ -126,6 +129,8 @@ export function Welcome() {
             <p>An empty plan: draw every wall yourself</p>
           </button>
         </div>
+
+        <AdBanner />
 
         {error && (
           <p className="w-error" role="alert">

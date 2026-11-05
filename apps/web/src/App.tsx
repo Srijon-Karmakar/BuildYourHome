@@ -5,6 +5,7 @@ import { FurniturePanel } from './ui/FurniturePanel';
 import { Help } from './ui/Help';
 import { Inspector } from './ui/Inspector';
 import { LevelSwitcher } from './ui/LevelSwitcher';
+import { Upsell } from './ui/Upsell';
 import { Welcome } from './ui/Welcome';
 import { PerfPanel } from './ui/PerfPanel';
 import { ToolRail } from './ui/ToolRail';
@@ -39,6 +40,7 @@ export function App() {
       <LevelSwitcher />
       <Welcome />
       <Help />
+      <Upsell />
       <PerfPanel />
     </div>
   );
