@@ -17,10 +17,17 @@ function SignIn() {
   const [mode, setMode] = useState<'in' | 'up'>('in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
   const busy = useCloud((s) => s.busy);
   const message = useCloud((s) => s.message);
   const backend = useCloud((s) => s.mode);
-  const submit = () => void (mode === 'in' ? useCloud.getState().signIn(email, password) : useCloud.getState().signUp(email, password));
+  const notice = useCloud((s) => s.notice);
+  const submit = () => {
+    setLocalError(null);
+    if (mode === 'up' && password !== confirm) return setLocalError('The two passwords don’t match.');
+    void (mode === 'in' ? useCloud.getState().signIn(email, password) : useCloud.getState().signUp(email, password));
+  };
   return (
     <form
       className="acct-form"
@@ -31,10 +38,10 @@ function SignIn() {
     >
       <p className="acct-lead">Save your homes, open them on any device and share a link.</p>
       <div className="f-seg wide" role="group" aria-label="Account">
-        <button type="button" aria-pressed={mode === 'in'} onClick={() => setMode('in')}>
+        <button type="button" aria-pressed={mode === 'in'} onClick={() => { setMode('in'); setLocalError(null); }}>
           Sign in
         </button>
-        <button type="button" aria-pressed={mode === 'up'} onClick={() => setMode('up')}>
+        <button type="button" aria-pressed={mode === 'up'} onClick={() => { setMode('up'); setLocalError(null); }}>
           Create account
         </button>
       </div>
@@ -46,14 +53,38 @@ function SignIn() {
         Password
         <input type="password" autoComplete={mode === 'in' ? 'current-password' : 'new-password'} value={password} onChange={(e) => setPassword(e.target.value)} />
       </label>
-      {message && (
+      {mode === 'up' && (
+        <label className="acct-field">
+          Confirm password
+          <input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+        </label>
+      )}
+      {notice && (
+        <p className="fine" role="status">
+          {notice}
+        </p>
+      )}
+      {(localError ?? message) && (
         <p className="w-error" role="alert">
-          {message}
+          {localError ?? message}
         </p>
       )}
       <button type="submit" className="pill solid wide" disabled={busy}>
         {mode === 'in' ? 'Sign in' : 'Create account'}
       </button>
+      {mode === 'in' && (
+        <button
+          type="button"
+          className="pill quiet small"
+          disabled={busy}
+          onClick={() => {
+            setLocalError(email.trim() ? null : 'Enter your email above first.');
+            if (email.trim()) void useCloud.getState().resetPassword(email);
+          }}
+        >
+          Forgot password?
+        </button>
+      )}
       {backend === 'local' && <small className="fine">Demo mode: accounts live in this browser only. Connect Supabase to sync across devices.</small>}
     </form>
   );
@@ -70,6 +101,12 @@ function Account() {
   const message = useCloud((s) => s.message);
   const syncedAt = useCloud((s) => s.syncedAt);
   const [copied, setCopied] = useState(false);
+  const notice = useCloud((s) => s.notice);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [pwError, setPwError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const c = useCloud.getState();
   const link = shareToken ? shareUrl(shareToken) : null;
 
@@ -145,6 +182,61 @@ function Account() {
         </>
       ) : (
         <small className="fine">{ent.subscribed ? 'Subscription active.' : 'Subscriptions are coming soon.'}</small>
+      )}
+      <h4>Security</h4>
+      {pwOpen ? (
+        <form
+          className="acct-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (pw !== pw2) return setPwError('The two passwords don’t match.');
+            setPwError(null);
+            if (await c.updatePassword(pw)) {
+              setPwOpen(false);
+              setPw('');
+              setPw2('');
+            }
+          }}
+        >
+          <label className="acct-field">
+            New password
+            <input type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} />
+          </label>
+          <label className="acct-field">
+            Confirm new password
+            <input type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} />
+          </label>
+          <div className="fa-row">
+            <button type="submit" className="pill small solid" disabled={busy}>
+              Save password
+            </button>
+            <button type="button" className="pill small" onClick={() => setPwOpen(false)}>
+              Cancel
+            </button>
+          </div>
+          {pwError && (
+            <p className="w-error" role="alert">
+              {pwError}
+            </p>
+          )}
+        </form>
+      ) : (
+        <button type="button" className="pill small wide" onClick={() => setPwOpen(true)}>
+          Change password
+        </button>
+      )}
+      <button
+        type="button"
+        className={`pill small wide${confirmDelete ? ' solid' : ''}`}
+        onClick={() => (confirmDelete ? void c.deleteAccount() : setConfirmDelete(true))}
+        onBlur={() => setConfirmDelete(false)}
+      >
+        {confirmDelete ? 'Tap again: delete my account and all saved homes' : 'Delete my account'}
+      </button>
+      {notice && (
+        <p className="fine" role="status">
+          {notice}
+        </p>
       )}
       {message && (
         <p className="w-error" role="alert">

@@ -12,7 +12,15 @@ export function getBackend(): Promise<Backend> {
   instance ??= (async () => {
     const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
     const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-    if (url && key) {
+    // Dev/test escape hatch: force the browser-only demo backend even when Supabase keys are configured
+    // (used by the browser tests so they never touch a real project). Ignored in production builds.
+    let forceLocal = false;
+    try {
+      forceLocal = import.meta.env.DEV && localStorage.getItem('hd.backend') === 'local';
+    } catch {
+      /* storage unavailable */
+    }
+    if (url && key && !forceLocal) {
       const { SupabaseBackend } = await import('./supabaseBackend');
       return new SupabaseBackend(url, key);
     }

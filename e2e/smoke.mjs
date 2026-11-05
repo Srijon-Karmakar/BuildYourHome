@@ -11,6 +11,18 @@ const BASE = process.env.E2E_URL ?? 'http://localhost:5173/';
 const ARGS = ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'];
 
 const browser = await chromium.launch({ channel: process.env.E2E_CHANNEL ?? 'msedge', headless: true, args: ARGS });
+
+// The tests use the demo backend even when Supabase keys are configured in .env.local, so they never touch a real
+// project: every context gets `hd.backend=local` (honoured by dev builds only).
+{
+  const newContext = browser.newContext.bind(browser);
+  browser.newContext = async (opts) => {
+    const c = await newContext(opts);
+    await c.addInitScript(() => localStorage.setItem('hd.backend', 'local'));
+    return c;
+  };
+  browser.newPage = async (opts) => (await browser.newContext(opts)).newPage();
+}
 const results = [];
 const check = (name, ok, extra = '') => {
   results.push({ name, ok });
@@ -899,10 +911,16 @@ try {
     const acct = page.getByRole('group', { name: 'Account' });
     await acct.getByRole('button', { name: 'Create account', exact: true }).first().click();
     await acct.getByLabel('Email').fill('owner@example.com');
-    await acct.getByLabel('Password').fill('short');
+    await acct.getByLabel('Password', { exact: true }).fill('short');
+    await acct.getByLabel('Confirm password').fill('short');
     await acct.locator('button[type=submit]').click();
     check('a weak password is refused with a message', await acct.getByRole('alert').isVisible());
-    await acct.getByLabel('Password').fill('a long password');
+    await acct.getByLabel('Password', { exact: true }).fill('a long password');
+    await acct.getByLabel('Confirm password').fill('a long passwore');
+    await acct.locator('button[type=submit]').click();
+    check('mismatched passwords are caught before sending', (await acct.getByRole('alert').innerText()).includes('don’t match'));
+    check('and no account was created', (await page.evaluate(() => window.__hd.useCloud.getState().session)) === null);
+    await acct.getByLabel('Confirm password').fill('a long password');
     await acct.locator('button[type=submit]').click();
     await acct.getByText('owner@example.com').waitFor({ timeout: 5000 });
     check('signing up signs you in', true);
@@ -955,15 +973,136 @@ try {
     await acct.getByRole('button', { name: 'Sign out' }).click();
     check('signing out returns to the free plan', (await page.evaluate(() => window.__hd.useCloud.getState().ent.subscribed)) === false);
     await acct.getByLabel('Email').fill('owner@example.com');
-    await acct.getByLabel('Password').fill('wrong password!');
+    await acct.getByLabel('Password', { exact: true }).fill('wrong password!');
     await acct.locator('button[type=submit]').click();
     check('a wrong password is refused', await acct.getByRole('alert').isVisible());
-    await acct.getByLabel('Password').fill('a long password');
+    await acct.getByLabel('Password', { exact: true }).fill('a long password');
     await acct.locator('button[type=submit]').click();
     await acct.getByText('Ad-free · all items unlocked').waitFor({ timeout: 5000 });
     check('signing back in restores the subscription and My homes', (await acct.getByRole('listitem').count()) === 1);
     check('no page errors in the cloud flows', errors.length === 0, errors.slice(0, 2).join(' | '));
     await page.screenshot({ path: `${SP}/e2e-account.png` });
+    await ctx.close();
+  }
+
+  // ---------------------------------------------------------------- 2l. account lifecycle + sync conflicts
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const errors = [];
+    const open = async (url) => {
+      const pg = await ctx.newPage();
+      pg.on('pageerror', (e) => errors.push(String(e)));
+      await pg.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+      await pg.goto(BASE + url);
+      await pg.waitForFunction(() => window.__hd.useCloud.getState().ready);
+      return pg;
+    };
+    const signUp = async (pg, email, pass) => {
+      await pg.getByRole('button', { name: 'Sign in' }).click();
+      const a = pg.getByRole('group', { name: 'Account' });
+      await a.getByRole('button', { name: 'Create account', exact: true }).first().click();
+      await a.getByLabel('Email').fill(email);
+      await a.getByLabel('Password', { exact: true }).fill(pass);
+      await a.getByLabel('Confirm password').fill(pass);
+      await a.locator('button[type=submit]').click();
+      await a.getByText(email).waitFor({ timeout: 5000 });
+      return a;
+    };
+
+    // ---- forgot password (demo backend opens the new-password step straight away)
+    const page = await open('?view=2d&fresh=1');
+    let acct = await signUp(page, 'reset@example.com', 'old password 1');
+    await acct.getByRole('button', { name: 'Sign out' }).click();
+    await acct.getByLabel('Email').fill('');
+    await acct.getByRole('button', { name: 'Forgot password?' }).click();
+    check('forgot password asks for the email first', await acct.getByRole('alert').isVisible());
+    await acct.getByLabel('Email').fill('reset@example.com');
+    await acct.getByRole('button', { name: 'Forgot password?' }).click();
+    const rec = page.getByRole('dialog', { name: 'Choose a new password' });
+    await rec.waitFor({ timeout: 5000 });
+    check('the reset opens the "Choose a new password" step', true);
+    await rec.getByLabel('New password', { exact: true }).fill('brand new pass 2');
+    await rec.getByLabel('Confirm new password').fill('different pass 2');
+    await rec.getByRole('button', { name: 'Save password' }).click();
+    check('mismatched new passwords are caught', await rec.getByRole('alert').isVisible());
+    await rec.getByLabel('Confirm new password').fill('brand new pass 2');
+    await rec.getByRole('button', { name: 'Save password' }).click();
+    await rec.waitFor({ state: 'detached', timeout: 5000 });
+    check('the new password is saved and the dialog closes', true);
+    await page.getByRole('button', { name: 'Account' }).click();
+    await acct.getByRole('button', { name: 'Sign out' }).click();
+    await acct.getByLabel('Email').fill('reset@example.com');
+    await acct.getByLabel('Password', { exact: true }).fill('old password 1');
+    await acct.locator('button[type=submit]').click();
+    check('the old password no longer works', await acct.getByRole('alert').isVisible());
+    await acct.getByLabel('Password', { exact: true }).fill('brand new pass 2');
+    await acct.locator('button[type=submit]').click();
+    await acct.getByText('reset@example.com').waitFor({ timeout: 5000 });
+    check('the new password signs in', true);
+
+    // ---- change password from the account menu
+    await acct.getByRole('button', { name: 'Change password' }).click();
+    await acct.getByLabel('New password', { exact: true }).fill('third password 3');
+    await acct.getByLabel('Confirm new password').fill('third password 3');
+    await acct.getByRole('button', { name: 'Save password' }).click();
+    await acct.getByText('Your password has been changed.').waitFor({ timeout: 5000 });
+    check('Change password works from the account menu', true);
+
+    // ---- delete the account (two taps), its homes go with it
+    await acct.getByRole('button', { name: 'Save to my account' }).click();
+    await acct.getByRole('listitem').first().waitFor({ timeout: 5000 });
+    await acct.getByRole('button', { name: 'Delete my account' }).click();
+    check('deleting needs a second tap', await acct.getByRole('button', { name: /Tap again: delete/ }).isVisible());
+    await acct.getByRole('button', { name: /Tap again: delete/ }).click();
+    await page.waitForFunction(() => window.__hd.useCloud.getState().session === null);
+    check('the account is gone and you are signed out', true);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await acct.getByLabel('Email').fill('reset@example.com');
+    await acct.getByLabel('Password', { exact: true }).fill('third password 3');
+    await acct.locator('button[type=submit]').click();
+    check('signing in to a deleted account fails', await acct.getByRole('alert').isVisible());
+    await page.close();
+
+    // ---- two devices (two tabs, same account) editing the same home
+    const A = await open('?view=2d&fresh=1&persist=1');
+    const accA = await signUp(A, 'sync@example.com', 'sync password 1');
+    await accA.getByRole('button', { name: 'Save to my account' }).click();
+    await accA.getByRole('listitem').first().waitFor({ timeout: 5000 });
+    await A.keyboard.press('Escape');
+
+    const B = await open('?view=2d&fresh=1&persist=1');
+    await B.getByRole('button', { name: 'Account' }).click();
+    await B.getByRole('group', { name: 'Account' }).getByRole('button', { name: /Sample home|My home|Untitled home/ }).first().click();
+    await B.waitForFunction(() => window.__hd.useCloud.getState().projectId !== null && !window.__hd.useCloud.getState().accountOpen);
+    const rename = async (pg, name) => {
+      await pg.getByRole('button', { name: 'Home' }).click();
+      const input = pg.getByRole('group', { name: 'Home settings' }).locator('.f-row', { hasText: 'Name' }).locator('input');
+      await input.fill(name);
+      await input.press('Enter');
+      await pg.keyboard.press('Escape');
+    };
+    await rename(B, 'From B');
+    await B.waitForFunction(() => window.__hd.useCloud.getState().syncedAt !== null && window.__hd.useCloud.getState().projects.length >= 0, null, { timeout: 8000 });
+    await B.waitForTimeout(3500); // let B's autosync land
+    await rename(A, 'From A');
+    const conflictDialog = A.getByRole('alertdialog', { name: /changed somewhere else/ });
+    await conflictDialog.waitFor({ timeout: 10000 });
+    check('editing a home that another device changed raises a conflict instead of overwriting', true);
+    await conflictDialog.getByRole('button', { name: /Use the other version/ }).click();
+    await conflictDialog.waitFor({ state: 'detached', timeout: 5000 });
+    check('"Use the other version" loads the other device\'s changes', (await A.evaluate(() => window.__hd.editor.getState().scene.meta.name)) === 'From B');
+    await rename(A, 'A again');
+    await A.waitForTimeout(3500);
+    check('after resolving, syncing works again without another conflict', (await conflictDialog.count()) === 0 && !(await A.evaluate(() => window.__hd.useCloud.getState().conflict)));
+
+    await rename(B, 'B again');
+    await conflictDialog.first().waitFor({ state: 'detached' }).catch(() => {});
+    const conflictB = B.getByRole('alertdialog', { name: /changed somewhere else/ });
+    await conflictB.waitFor({ timeout: 10000 });
+    await conflictB.getByRole('button', { name: /Keep this version/ }).click();
+    await conflictB.waitFor({ state: 'detached', timeout: 5000 });
+    check('"Keep this version" replaces the other device\'s copy and clears the conflict', (await B.evaluate(() => window.__hd.editor.getState().scene.meta.name)) === 'B again');
+    check('no page errors in account lifecycle / sync', errors.length === 0, errors.slice(0, 2).join(' | '));
     await ctx.close();
   }
 

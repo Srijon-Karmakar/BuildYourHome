@@ -72,7 +72,7 @@ const randomId = (prefix: string): string => {
 };
 
 const ok = <T>(value: T): Result<T> => ({ ok: true, value });
-const fail = (error: string): Result<never> => ({ ok: false, error });
+const fail = (error: string, conflict?: boolean): Result<never> => ({ ok: false, error, ...(conflict ? { conflict } : {}) });
 
 /**
  * Browser-only stand-in for the cloud: accounts, projects, share links, subscription and ad unlocks stored in
@@ -82,6 +82,7 @@ const fail = (error: string): Result<never> => ({ ok: false, error });
 export class LocalBackend implements Backend {
   readonly mode = 'local' as const;
   private listeners = new Set<(s: Session | null) => void>();
+  private recoveryListeners = new Set<() => void>();
 
   constructor(
     private kv: KV = browserKV(),
@@ -142,6 +143,49 @@ export class LocalBackend implements Backend {
     this.emit(null);
   }
 
+  async resetPassword(emailRaw: string): Promise<Result<{ demo: boolean }>> {
+    const email = emailRaw.trim().toLowerCase();
+    if (!EMAIL.test(email)) return fail('Enter a valid email address.');
+    const user = this.read<UserRec[]>(K.users, []).find((u) => u.email === email);
+    // Demo only: no email can be sent, so "opening the link" is simulated by signing in and asking for a new password.
+    // (This backend is not secure by design — see the class comment.)
+    if (user) {
+      this.startSession(user);
+      this.recoveryListeners.forEach((f) => f());
+    }
+    return ok({ demo: true });
+  }
+
+  onRecovery(cb: () => void): () => void {
+    this.recoveryListeners.add(cb);
+    return () => this.recoveryListeners.delete(cb);
+  }
+
+  async updatePassword(newPassword: string): Promise<Result<true>> {
+    const s = await this.getSession();
+    if (!s) return fail('Sign in first.');
+    if (newPassword.length < MIN_PASSWORD) return fail(`Use a password of at least ${MIN_PASSWORD} characters.`);
+    const users = this.read<UserRec[]>(K.users, []);
+    const h = await hash(newPassword);
+    this.write(K.users, users.map((u) => (u.id === s.userId ? { ...u, hash: h } : u)));
+    return ok(true);
+  }
+
+  async deleteAccount(): Promise<Result<true>> {
+    const s = await this.getSession();
+    if (!s) return fail('Sign in first.');
+    const projects = this.read<ProjectRec[]>(K.projects, []);
+    const mine = new Set(projects.filter((p) => p.owner === s.userId).map((p) => p.id));
+    this.write(K.projects, projects.filter((p) => !mine.has(p.id)));
+    const shares = this.read<Record<string, string>>(K.shares, {});
+    this.write(K.shares, Object.fromEntries(Object.entries(shares).filter(([, pid]) => !mine.has(pid))));
+    this.write(K.users, this.read<UserRec[]>(K.users, []).filter((u) => u.id !== s.userId));
+    this.kv.remove(K.ent + s.userId);
+    this.kv.remove(K.session);
+    this.emit(null);
+    return ok(true);
+  }
+
   // ------------------------------------------------------------------ projects
   private async requireUser(): Promise<Session | null> {
     return this.getSession();
@@ -164,13 +208,16 @@ export class LocalBackend implements Backend {
     return r.ok ? r.scene : null;
   }
 
-  async saveProject(scene: Scene, id?: string): Promise<Result<ProjectMeta>> {
+  async saveProject(scene: Scene, id?: string, expectedUpdatedAt?: string): Promise<Result<ProjectMeta>> {
     const s = await this.requireUser();
     if (!s) return fail('Sign in to save to your account.');
     const all = this.read<ProjectRec[]>(K.projects, []);
     const updatedAt = new Date(this.now()).toISOString();
     const existing = id ? all.find((p) => p.id === id) : undefined;
     if (id && (!existing || existing.owner !== s.userId)) return fail('This home belongs to another account.');
+    if (existing && expectedUpdatedAt && existing.updatedAt !== expectedUpdatedAt) {
+      return fail('This home was changed somewhere else since you opened it.', true);
+    }
     const rec: ProjectRec = { id: existing?.id ?? randomId('proj'), owner: s.userId, name: scene.meta.name, updatedAt, scene };
     this.write(K.projects, [...all.filter((p) => p.id !== rec.id), rec]);
     return ok({ id: rec.id, name: rec.name, updatedAt });

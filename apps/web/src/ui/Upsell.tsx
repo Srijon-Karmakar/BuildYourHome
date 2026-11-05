@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getAsset } from '@hd/assets';
 import { useCloud } from '../cloud/store';
 
@@ -7,11 +7,14 @@ const AD_SECONDS = 3;
 /** Stand-in for a rewarded video ad (real AdMob / web ads plug in behind the same flow, ADR-011). */
 function MockAd({ onDone }: { onDone: () => void }) {
   const [left, setLeft] = useState(AD_SECONDS);
+  // Keep the latest callback in a ref so re-renders of the parent can never restart the countdown.
+  const done = useRef(onDone);
+  done.current = onDone;
   useEffect(() => {
-    if (left <= 0) return void onDone();
+    if (left <= 0) return void done.current();
     const t = window.setTimeout(() => setLeft((n) => n - 1), 1000);
     return () => window.clearTimeout(t);
-  }, [left, onDone]);
+  }, [left]);
   return (
     <div className="welcome" role="dialog" aria-modal="true" aria-label="Advertisement">
       <div className="welcome-card ad-card">

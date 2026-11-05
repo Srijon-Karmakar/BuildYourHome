@@ -13,7 +13,7 @@ import type { Backend, Entitlements, ProjectMeta, Result, Session } from './type
  * (billing webhooks / ad verification), so a browser can never grant itself premium access.
  */
 const ok = <T>(value: T): Result<T> => ({ ok: true, value });
-const fail = (error: string): Result<never> => ({ ok: false, error });
+const fail = (error: string, conflict?: boolean): Result<never> => ({ ok: false, error, ...(conflict ? { conflict } : {}) });
 
 /** Turn Supabase's technical errors into something a person can act on. */
 function friendly(message: string | undefined): string {
@@ -67,6 +67,31 @@ export class SupabaseBackend implements Backend {
     await this.sb.auth.signOut();
   }
 
+  async resetPassword(email: string): Promise<Result<{ demo: boolean }>> {
+    const { error } = await this.sb.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin + window.location.pathname });
+    // Don't reveal whether the address has an account: only report problems that aren't about that.
+    if (error && /rate|too many|network|fetch/i.test(error.message)) return fail(friendly(error.message));
+    return ok({ demo: false });
+  }
+
+  onRecovery(cb: () => void): () => void {
+    const { data } = this.sb.auth.onAuthStateChange((event) => event === 'PASSWORD_RECOVERY' && cb());
+    return () => data.subscription.unsubscribe();
+  }
+
+  async updatePassword(newPassword: string): Promise<Result<true>> {
+    const { error } = await this.sb.auth.updateUser({ password: newPassword });
+    return error ? fail(friendly(error.message)) : ok(true);
+  }
+
+  async deleteAccount(): Promise<Result<true>> {
+    // Needs services/supabase/migrations/0002_delete_account.sql (a security-definer function that removes the caller).
+    const { error } = await this.sb.rpc('delete_my_account');
+    if (error) return fail('Account deletion is not set up on this project yet (run migration 0002).');
+    await this.sb.auth.signOut();
+    return ok(true);
+  }
+
   async listProjects(): Promise<ProjectMeta[]> {
     const { data, error } = await this.sb.from('projects').select('id, name, updated_at').order('updated_at', { ascending: false }).limit(100);
     if (error || !data) return [];
@@ -80,14 +105,20 @@ export class SupabaseBackend implements Backend {
     return r.ok ? r.scene : null;
   }
 
-  async saveProject(scene: Scene, id?: string): Promise<Result<ProjectMeta>> {
+  async saveProject(scene: Scene, id?: string, expectedUpdatedAt?: string): Promise<Result<ProjectMeta>> {
     const session = await this.getSession();
     if (!session) return fail('Sign in to save to your account.');
     const row = { name: scene.meta.name.slice(0, 80) || 'My home', scene, schema_version: scene.schemaVersion };
-    const q = id
-      ? this.sb.from('projects').update(row).eq('id', id).select('id, name, updated_at').single()
-      : this.sb.from('projects').insert({ ...row, owner_id: session.userId }).select('id, name, updated_at').single();
-    const { data, error } = await q;
+    if (id) {
+      // Optimistic concurrency: only overwrite the copy we last saw / loaded.
+      let upd = this.sb.from('projects').update(row).eq('id', id);
+      if (expectedUpdatedAt) upd = upd.eq('updated_at', expectedUpdatedAt);
+      const { data, error } = await upd.select('id, name, updated_at').maybeSingle();
+      if (error) return fail(error.message.includes('size') ? 'This home is too large to save.' : 'Could not save your home. Please try again.');
+      if (!data) return expectedUpdatedAt ? fail('This home was changed somewhere else since you opened it.', true) : fail('This home no longer exists.');
+      return ok({ id: data.id as string, name: data.name as string, updatedAt: data.updated_at as string });
+    }
+    const { data, error } = await this.sb.from('projects').insert({ ...row, owner_id: session.userId }).select('id, name, updated_at').single();
     if (error || !data) return fail(error?.message.includes('size') ? 'This home is too large to save.' : 'Could not save your home. Please try again.');
     return ok({ id: data.id as string, name: data.name as string, updatedAt: data.updated_at as string });
   }

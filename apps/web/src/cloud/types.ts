@@ -1,7 +1,7 @@
 import type { Scene } from '@hd/scene-schema';
 
 /** Outcome of an operation that can fail for reasons the user should read (never throws for those). */
-export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
+export type Result<T> = { ok: true; value: T } | { ok: false; error: string; /** The saved copy changed elsewhere (see saveProject). */ conflict?: boolean };
 
 export interface Session {
   userId: string;
@@ -35,11 +35,26 @@ export interface Backend {
   signUp(email: string, password: string): Promise<Result<Session>>;
   signIn(email: string, password: string): Promise<Result<Session>>;
   signOut(): Promise<void>;
+  /**
+   * Start a password reset. Real backends email a link (and never reveal whether the address has an account);
+   * the demo backend sends nothing and opens the new-password step straight away (`demo: true`).
+   */
+  resetPassword(email: string): Promise<Result<{ demo: boolean }>>;
+  /** Fires when the user arrives from a reset link and must now choose a new password. */
+  onRecovery(cb: () => void): () => void;
+  /** Change the signed-in user's password. */
+  updatePassword(newPassword: string): Promise<Result<true>>;
+  /** Permanently delete the account and everything saved under it, then sign out. */
+  deleteAccount(): Promise<Result<true>>;
 
   listProjects(): Promise<ProjectMeta[]>;
   loadProject(id: string): Promise<Scene | null>;
-  /** Create (no id) or update a project owned by the signed-in user. */
-  saveProject(scene: Scene, id?: string): Promise<Result<ProjectMeta>>;
+  /**
+   * Create (no id) or update a project owned by the signed-in user. With `expectedUpdatedAt` the update only
+   * happens if the stored copy still has that timestamp; otherwise it fails with `conflict: true` and nothing
+   * is overwritten (two devices editing the same home).
+   */
+  saveProject(scene: Scene, id?: string, expectedUpdatedAt?: string): Promise<Result<ProjectMeta>>;
   deleteProject(id: string): Promise<void>;
 
   /** Public read-only link to a project owned by the user. */

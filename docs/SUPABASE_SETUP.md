@@ -18,6 +18,10 @@ To use real accounts and cloud storage:
    VITE_SUPABASE_URL=https://xxxx.supabase.co
    VITE_SUPABASE_ANON_KEY=sb_publishable_...   # the publishable key (variable keeps its old name)
    ```
+4b. Also run [`0002_delete_account.sql`](../services/supabase/migrations/0002_delete_account.sql) (adds `delete_my_account()`,
+   needed for the app's "Delete my account" button; it cascades to the user's homes, links, subscription and unlocks).
+4c. **Authentication → URL Configuration**: set **Site URL** to where the app runs (e.g. `http://localhost:5173` while developing,
+   your real domain later) and add the same address under **Redirect URLs**. Password-reset emails link back to it.
 5. **Authentication → Providers**: email is on by default. For a quick demo you may turn off *Confirm email*;
    otherwise users must open the confirmation link before they can sign in (the app tells them so).
 6. Restart `pnpm dev`. The Account menu no longer says "Demo mode".

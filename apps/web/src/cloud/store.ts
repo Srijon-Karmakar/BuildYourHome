@@ -14,6 +14,13 @@ interface CloudState {
   /** Cloud project the open home is attached to (it is then saved automatically). */
   projectId: string | null;
   shareToken: string | null;
+  /** `updatedAt` of the cloud copy we last saved/loaded (guards against overwriting another device's changes). */
+  projectUpdatedAt: string | null;
+  /** The cloud copy changed elsewhere; syncing is paused until the user chooses. */
+  conflict: boolean;
+  /** Arrived from a password-reset link: must choose a new password. */
+  recovery: boolean;
+  notice: string | null;
   busy: boolean;
   message: string | null;
   syncedAt: number | null;
@@ -26,6 +33,11 @@ interface CloudState {
   signUp(email: string, password: string): Promise<boolean>;
   signIn(email: string, password: string): Promise<boolean>;
   signOut(): Promise<void>;
+  resetPassword(email: string): Promise<void>;
+  updatePassword(password: string): Promise<boolean>;
+  deleteAccount(): Promise<boolean>;
+  resolveConflict(keepMine: boolean): Promise<void>;
+  dismissRecovery(): void;
   refresh(): Promise<void>;
   saveNow(): Promise<boolean>;
   open(id: string): Promise<void>;
@@ -55,6 +67,10 @@ export const useCloud = create<CloudState>((set, get) => ({
   projects: [],
   projectId: null,
   shareToken: null,
+  projectUpdatedAt: null,
+  conflict: false,
+  recovery: false,
+  notice: null,
   busy: false,
   message: null,
   syncedAt: null,
@@ -69,11 +85,12 @@ export const useCloud = create<CloudState>((set, get) => ({
       set({ session });
       void get().refresh();
     });
+    backend.onRecovery(() => set({ recovery: true, accountOpen: false, message: null }));
     set({ mode: backend.mode, session: await backend.getSession(), ready: true });
     await get().refresh();
   },
 
-  setAccountOpen: (accountOpen) => set({ accountOpen, message: null }),
+  setAccountOpen: (accountOpen) => set({ accountOpen, message: null, notice: null }),
 
   async signUp(email, password) {
     set({ busy: true, message: null });
@@ -93,7 +110,54 @@ export const useCloud = create<CloudState>((set, get) => ({
 
   async signOut() {
     await be().signOut();
-    set({ session: null, projects: [], projectId: null, shareToken: null, message: null });
+    set({ session: null, projects: [], projectId: null, projectUpdatedAt: null, conflict: false, shareToken: null, message: null });
+    await get().refresh();
+  },
+
+  async resetPassword(email) {
+    set({ busy: true, message: null, notice: null });
+    const r = await be().resetPassword(email);
+    set({
+      busy: false,
+      message: r.ok ? null : r.error,
+      notice: r.ok ? (r.value.demo ? null : 'If there is an account for this email, we have sent a reset link. Check your inbox.') : null,
+    });
+  },
+
+  async updatePassword(password) {
+    set({ busy: true, message: null });
+    const r = await be().updatePassword(password);
+    set({ busy: false, message: r.ok ? null : r.error, ...(r.ok ? { recovery: false, notice: 'Your password has been changed.' } : {}) });
+    return r.ok;
+  },
+
+  async deleteAccount() {
+    set({ busy: true, message: null });
+    const r = await be().deleteAccount();
+    set({ busy: false, message: r.ok ? null : r.error });
+    if (!r.ok) return false;
+    set({ session: null, projects: [], projectId: null, projectUpdatedAt: null, conflict: false, shareToken: null, accountOpen: false, notice: 'Your account and saved homes were deleted.' });
+    await get().refresh();
+    return true;
+  },
+
+  dismissRecovery: () => set({ recovery: false, message: null }),
+
+  async resolveConflict(keepMine) {
+    const id = get().projectId;
+    if (!id) return set({ conflict: false });
+    set({ busy: true });
+    if (keepMine) {
+      const r = await be().saveProject(editor.getState().scene, id); // no expectation: overwrite on purpose
+      set({ busy: false, conflict: !r.ok, message: r.ok ? null : r.error, ...(r.ok ? { projectUpdatedAt: r.value.updatedAt, syncedAt: Date.now() } : {}) });
+    } else {
+      const scene = await be().loadProject(id);
+      const meta = (await be().listProjects()).find((p) => p.id === id);
+      set({ busy: false });
+      if (!scene) return set({ message: 'Could not load the other version.' });
+      editor.loadScene(scene);
+      set({ conflict: false, projectUpdatedAt: meta?.updatedAt ?? null, message: null });
+    }
     await get().refresh();
   },
 
@@ -105,8 +169,14 @@ export const useCloud = create<CloudState>((set, get) => ({
 
   async saveNow() {
     set({ busy: true, message: null });
-    const r = await be().saveProject(editor.getState().scene, get().projectId ?? undefined);
-    set({ busy: false, message: r.ok ? null : r.error, ...(r.ok ? { projectId: r.value.id, syncedAt: Date.now() } : {}) });
+    const id = get().projectId ?? undefined;
+    const r = await be().saveProject(editor.getState().scene, id, id ? (get().projectUpdatedAt ?? undefined) : undefined);
+    set({
+      busy: false,
+      message: r.ok || r.conflict ? null : r.error,
+      ...(r.ok ? { projectId: r.value.id, projectUpdatedAt: r.value.updatedAt, syncedAt: Date.now(), conflict: false } : {}),
+      ...(!r.ok && r.conflict ? { conflict: true } : {}),
+    });
     if (r.ok) await get().refresh();
     return r.ok;
   },
@@ -117,7 +187,7 @@ export const useCloud = create<CloudState>((set, get) => ({
     set({ busy: false });
     if (!scene) return set({ message: 'Could not open this home.' });
     editor.loadScene(scene);
-    set({ projectId: id, shareToken: null, accountOpen: false });
+    set({ projectId: id, projectUpdatedAt: get().projects.find((p) => p.id === id)?.updatedAt ?? null, conflict: false, shareToken: null, accountOpen: false });
     const { activePlan } = await import('../plan/PlanCanvas');
     window.setTimeout(() => {
       activePlan?.fitToPlan();
@@ -127,11 +197,11 @@ export const useCloud = create<CloudState>((set, get) => ({
 
   async remove(id) {
     await be().deleteProject(id);
-    if (get().projectId === id) set({ projectId: null, shareToken: null });
+    if (get().projectId === id) set({ projectId: null, projectUpdatedAt: null, conflict: false, shareToken: null });
     await get().refresh();
   },
 
-  detach: () => set({ projectId: null, shareToken: null }),
+  detach: () => set({ projectId: null, projectUpdatedAt: null, conflict: false, shareToken: null }),
 
   async share() {
     if (!get().projectId && !(await get().saveNow())) return;
@@ -171,10 +241,12 @@ export const useCloud = create<CloudState>((set, get) => ({
   },
 
   async syncScene(scene) {
-    const { projectId, session } = get();
-    if (!projectId || !session) return;
-    const r = await be().saveProject(scene, projectId);
-    set(r.ok ? { syncedAt: Date.now() } : { message: r.error });
+    const { projectId, session, conflict, projectUpdatedAt } = get();
+    if (!projectId || !session || conflict) return; // paused while a conflict is unresolved
+    const r = await be().saveProject(scene, projectId, projectUpdatedAt ?? undefined);
+    if (r.ok) set({ syncedAt: Date.now(), projectUpdatedAt: r.value.updatedAt });
+    else if (r.conflict) set({ conflict: true });
+    else set({ message: r.error });
   },
 }));
 

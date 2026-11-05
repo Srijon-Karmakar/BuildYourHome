@@ -29,6 +29,27 @@ Planning/documentation: **Done** (2026-11-05)
 
 ## Log
 
+### [2026-11-05] Launch-blocker account features: password reset, change password, delete account, sync conflicts
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified on the demo backend (66 web unit tests, 187/187 browser checks, 258 unit tests total). Supabase implementations are written and type-checked; **migration `0002_delete_account.sql` and the reset-email flow are not yet run on the live project.**
+- **What was done:**
+  - **Forgot password** (sign-in form): real backend emails a link (never reveals whether the address has an account) and the app shows a **"Choose a new password"** dialog when the user returns from the link (Supabase `PASSWORD_RECOVERY`); the demo backend sends nothing and opens that dialog directly. **Change password** and **Delete my account** (two taps; removes the user, homes, share links, subscription and unlocks) live in Account › Security. Delete uses a `security definer` SQL function (`0002_delete_account.sql`) because browsers may not delete auth users.
+  - **Sync conflicts (NFR-11):** cloud saves now carry the `updatedAt` they were based on; if another device saved in between, the save is refused (`conflict`), syncing pauses, and a dialog asks **Keep this version / Use the other version** — nothing is overwritten silently. Implemented as optimistic concurrency in both backends (`update … where updated_at = expected` on Supabase).
+  - Confirm-password on sign-up (earlier); demo ad countdown bug fixed (earlier).
+- **Verified (browser):** forgot password needs an email; reset opens the dialog; mismatch caught; new password works and the old one doesn't; Change password; account deletion needs a second tap, removes access, can't sign in afterwards; **two tabs on one account:** edit in tab B, then tab A → conflict dialog; "Use the other version" loads B's changes and later syncs cleanly; B then conflicts and "Keep this version" wins. Unit: reset reveals nothing for unknown emails, password rules, delete removes only that user's data, stale-save refusal and overwrite-on-purpose.
+- **Owner to do on the live project:** run `0002_delete_account.sql`; set Site URL / Redirect URL (see docs/SUPABASE_SETUP.md); optionally enable Google under Authentication › Providers (needs a Google Cloud OAuth client — I have not built the Google button yet because it can't work until that exists).
+- **Still open before a public launch:** Google sign-in button; email templates/branding; privacy policy + terms pages; rate limiting is Supabase's defaults; a live end-to-end run (sign up with a real email → confirm → save → share → open as stranger).
+- **Next step:** owner's live run + feedback; then Phase 3 (garden/ground, stairs/balcony, sun lighting, PNG/PDF export) or P1-07 plot/ground — owner's choice.
+
+### [2026-11-05] Supabase connected (partial live verification) + Confirm-password
+- **Owner** created the Supabase project, ran `0001_init.sql` and added `apps/web/.env.local` (URL + publishable key; no secret key; git-ignored — verified without printing the key). Supabase renamed the *anon* key to the **Publishable key** (`sb_publishable_…`); docs updated.
+- **Live read-only probe** (anonymous, nothing created): all 4 tables exist and RLS returns empty for anon (HTTP 200 `[]`); `get_shared_project('bogus')` returns `null`; email sign-up enabled, **email confirmation required**, sign-ups open. So the migration worked and the security model behaves as designed.
+- **Still NOT verified live:** sign-up → confirmation email → sign-in, saving a home, share link opened by a stranger (needs a real email inbox; the owner should do one run, or turn off "Confirm email" in Supabase Auth settings for testing).
+- **Create account** now has a **Confirm password** field; mismatched passwords are caught before anything is sent.
+- **Bug found + fixed:** the demo rewarded-ad countdown restarted on re-renders (timer effect depended on an inline callback) — now immune.
+- **Test isolation:** browser tests force the demo backend via `localStorage hd.backend=local` (dev builds only) so they never touch the owner's real project even though keys are configured. 172/172 browser checks, 249 unit tests pass.
+- **Next:** owner does one live run (sign up with a real email, confirm, save, share, open link in a private window) and reports; I fix what it reveals. Then password reset, Google sign-in, account deletion.
+
 ### [2026-11-05] P2-01…P2-11 — Phase 2: accounts, cloud save, sharing, free vs premium (demo backend + Supabase code)
 - **Model/Author:** Claude Sonnet 5.5
 - **Status:** Done and verified **against the demo backend**; the **Supabase path is written and type-checked but NOT run against a live project** (needs the owner's Supabase project — see `docs/SUPABASE_SETUP.md`). 61 web unit tests (+11 for cloud) → 249 unit tests total, **170/170 browser checks**.

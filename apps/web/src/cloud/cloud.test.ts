@@ -159,3 +159,89 @@ describe('LocalBackend: entitlements', () => {
     expect((await b.getEntitlements()).subscribed).toBe(false);
   });
 });
+
+describe('LocalBackend: password reset, change, delete', () => {
+  it('reset opens the recovery step for a real account and reveals nothing for unknown ones', async () => {
+    const b = new LocalBackend(memoryKV());
+    await b.signUp('a@b.co', 'password123');
+    await b.signOut();
+    let recoveries = 0;
+    b.onRecovery(() => recoveries++);
+    expect((await b.resetPassword('nope')).ok).toBe(false); // malformed
+    const unknown = await b.resetPassword('who@b.co');
+    expect(unknown).toEqual({ ok: true, value: { demo: true } }); // same answer, no hint
+    expect(recoveries).toBe(0);
+    expect((await b.resetPassword('A@B.co')).ok).toBe(true);
+    expect(recoveries).toBe(1);
+    expect((await b.getSession())?.email).toBe('a@b.co');
+  });
+
+  it('changing the password works, is validated, and the old one stops working', async () => {
+    const b = new LocalBackend(memoryKV());
+    expect((await b.updatePassword('newpassword1')).ok).toBe(false); // signed out
+    await b.signUp('a@b.co', 'password123');
+    expect((await b.updatePassword('short')).ok).toBe(false);
+    expect((await b.updatePassword('brand new pass')).ok).toBe(true);
+    await b.signOut();
+    expect((await b.signIn('a@b.co', 'password123')).ok).toBe(false);
+    expect((await b.signIn('a@b.co', 'brand new pass')).ok).toBe(true);
+  });
+
+  it('deleting the account removes the user, their homes, links and entitlements — and nobody else’s', async () => {
+    const kv = memoryKV();
+    const b = new LocalBackend(kv);
+    await b.signUp('other@b.co', 'password123');
+    const keep = await b.saveProject(createEmptyScene({ name: 'Keep me' }));
+    await b.signOut();
+    await b.signUp('a@b.co', 'password123');
+    const mine = await b.saveProject(createEmptyScene({ name: 'Mine' }));
+    if (!mine.ok || !keep.ok) throw new Error('setup failed');
+    const share = await b.createShare(mine.value.id);
+    if (!share.ok) throw new Error('share failed');
+    await b.setSubscription(true);
+    expect((await b.deleteAccount()).ok).toBe(true);
+    expect(await b.getSession()).toBeNull();
+    expect(await b.getShared(share.value.token)).toBeNull();
+    expect((await b.signIn('a@b.co', 'password123')).ok).toBe(false);
+    expect(JSON.stringify([kv.get('hd.local.projects'), kv.get('hd.local.users')])).not.toContain('Mine');
+    await b.signIn('other@b.co', 'password123');
+    expect((await b.listProjects()).map((p) => p.name)).toEqual(['Keep me']);
+    await b.signOut();
+    expect((await b.deleteAccount()).ok).toBe(false); // signed out
+  });
+});
+
+describe('LocalBackend: save conflicts', () => {
+  it('a save based on an outdated copy is refused and overwrites nothing', async () => {
+    let t = Date.parse('2026-01-01T00:00:00Z');
+    const kv = memoryKV();
+    const laptop = new LocalBackend(kv, () => (t += 1000));
+    await laptop.signUp('a@b.co', 'password123');
+    const first = await laptop.saveProject(createEmptyScene({ name: 'v1' }));
+    if (!first.ok) throw new Error('save failed');
+    const phone = new LocalBackend(kv, () => (t += 1000)); // same account, another device
+    const phoneSave = await phone.saveProject(createEmptyScene({ name: 'phone edit' }), first.value.id, first.value.updatedAt);
+    expect(phoneSave.ok).toBe(true);
+
+    const stale = await laptop.saveProject(createEmptyScene({ name: 'laptop edit' }), first.value.id, first.value.updatedAt);
+    expect(stale.ok).toBe(false);
+    expect(!stale.ok && stale.conflict).toBe(true);
+    expect((await laptop.loadProject(first.value.id))?.meta.name).toBe('phone edit');
+
+    // choosing "keep mine" = save again without an expectation
+    expect((await laptop.saveProject(createEmptyScene({ name: 'laptop edit' }), first.value.id)).ok).toBe(true);
+    expect((await phone.loadProject(first.value.id))?.meta.name).toBe('laptop edit');
+  });
+
+  it('an up-to-date save succeeds and returns the new timestamp to expect next time', async () => {
+    let t = Date.parse('2026-01-01T00:00:00Z');
+    const b = new LocalBackend(memoryKV(), () => (t += 1000));
+    await b.signUp('a@b.co', 'password123');
+    const one = await b.saveProject(createEmptyScene({ name: 'v1' }));
+    if (!one.ok) throw new Error('save failed');
+    const two = await b.saveProject(createEmptyScene({ name: 'v2' }), one.value.id, one.value.updatedAt);
+    if (!two.ok) throw new Error('save failed');
+    expect(two.value.updatedAt > one.value.updatedAt).toBe(true);
+    expect((await b.saveProject(createEmptyScene({ name: 'v3' }), one.value.id, two.value.updatedAt)).ok).toBe(true);
+  });
+});

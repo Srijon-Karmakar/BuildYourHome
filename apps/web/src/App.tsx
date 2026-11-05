@@ -2,6 +2,7 @@ import { PlanCanvas } from './plan/PlanCanvas';
 import { useUi } from './plan/session';
 import { BottomBar } from './ui/BottomBar';
 import { FurniturePanel } from './ui/FurniturePanel';
+import { ConflictDialog, RecoveryDialog } from './ui/AccountDialogs';
 import { Help } from './ui/Help';
 import { Inspector } from './ui/Inspector';
 import { LevelSwitcher } from './ui/LevelSwitcher';
@@ -41,6 +42,8 @@ export function App() {
       <Welcome />
       <Help />
       <Upsell />
+      <RecoveryDialog />
+      <ConflictDialog />
       <PerfPanel />
     </div>
   );
