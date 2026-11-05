@@ -29,6 +29,32 @@ Planning/documentation: **Done** (2026-11-05)
 
 ## Log
 
+### [2026-11-05] Owner feedback round: select in 3D, 3D pane not covered by the edit card, more assets
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified (297 unit tests: geometry 68, editor-core 138, web 74, assets 9, schema 8; 247/247 browser checks; typecheck, lint and build clean).
+- **What was done:**
+  1. **Selecting and editing in 3D.** Click a wall, door/window, furniture item, stairs or a room floor in the 3D view to select it (Shift / "Add more" toggles; clicking empty space clears; an orbit drag is not a click). The selected object is outlined (brick colour; a box for furniture and openings). Clicking switches to the object's floor and to the Select tool; the edit card opens as on the plan. **Floor furniture can be dragged along the floor in 3D** (walls/neighbours snap as on the plan, one undo step, the camera does not orbit meanwhile). In the 3D-only view Select and Undo/Redo are available; drawing tools stay on the plan. A dev-only `__hd.project(x,y,z)` helper lets the browser tests click 3D objects.
+  2. **Edit card no longer covers the views.** The card has its own column (`.app.with-inspector`); the plan and 3D panes use the space left of it (stacked when the window is under 1200 px; on phones it stays a bottom sheet). The plan does not jump when the pane narrows.
+  3. **More assets (≈ 60 requested, 68 added → 102 items).** New **Outdoor & garden** category (trees, palm, pine, bush, hedge, flower bed, bench, patio set, umbrella, lounger, barbecue, pool, fountain, car in 5 colours, bicycle, lamp post, gate, fence, planter, water tank, stepping stones, dustbin), plus more living (corner sofa, ottoman, console, display cabinet, bean bag, shoe rack, **pooja unit, jhula**), bedroom (king/bunk bed, crib, dressing table, bench), kitchen (tall/wall cabinets, island, hood, dishwasher, washing machine, round table), bathroom, office, decor (curtain, clock, shelf, vase, round rug, large painting, fireplace), lighting (table lamp, chandelier, wall light, ceiling fan, arc lamp) and plants (succulent, palm, bonsai, cactus, **tulsi planter**). Every model is procedural (ADR-013) and covered by the existing size / standing-on-floor tests. Shared model helpers moved to `furniture/kit.ts`.
+  4. **More door / window styles and materials.** Doors: Louvered, French, Sliding (plan symbol + 3D); windows: Casement, Louvered; more frame and door colours; 6 new paints, 5 wall finishes, 8 floors, 5 ground and 6 roof materials (names are unique per picker so swatch labels stay distinct). The style picker wraps when there are many options.
+- **Files changed/created:** `apps/web/src/{App.tsx,styles.css,plan/*,ui/*,view3d/{pick.tsx,Scene3D,WallMesh,StairMesh,FloorMesh,OpeningMesh,placeholderMaterials(.test),furniture/{kit,builders,builders2,ItemMesh}}}`, `packages/assets/src/catalog(.test).ts`, `packages/scene-schema/src/constants.ts`, `e2e/smoke.mjs`.
+- **Problems / notes:** an item with pointer handlers but no click handler let the floor behind it also receive the click (fixed by swallowing it). Existing e2e checks that counted "2 sofas" now expect 3 (corner sofa). Trees and other big outdoor items are non-solid so the walker is not blocked by their canopy. Wall/stairs dragging in 3D is not implemented (select + edit only).
+- **Next step:** finish P3-02 (balcony / porch), then export (P3-05), sun (P3-03), garden (P3-01). Owner-side items unchanged (run migrations 0002/0003, redeem code, live Supabase test, benchmark).
+
+### [2026-11-05] P3-02 (part 1) — Stairs
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Stairs done and verified (unit tests: geometry 68, editor-core 138, web 69 = 284; browser checks 223/223; typecheck, lint and build clean). Balcony / porch are still open under P3-02.
+- **What was done:**
+  - **ADR-020** first, then the feature. A stair is straight, L or U; the rise is derived from the two floors (≈ 17.5 cm risers, 28 cm treads, a landing for L/U), so changing a floor height re-fits it. Pure geometry in `@hd/geometry/stairs` (layout, outline, `heightAt`, solid-step mesh); commands in `editor-core` (`addStair` — adds the floor above in the same undo step when there is none —, `updateStairs`, `rotateStairs`, `translateStairs`, `removeStairs`, `stairOpenings`, `stairNeedsRoom`); `postProcess` drops stairs whose floors disappear; `buildFloorMesh` can now cut holes.
+  - **Plan:** Stairs tool (key S, tool-rail button, ghost, R turns, Esc stops) with Straight / L / U and Turns left/right options; stairs are drawn with step lines, a walking arrow and UP / DN on both floors (dashed stairwell on the upper one); select, drag (one undo step), nudge with arrows, Delete.
+  - **Inspector:** shape, turn, width, 90° turns, step material; warns when the floor above has no room around the opening.
+  - **3D:** solid walnut steps (distinct from oak floors); the floor above and the ceiling below get a stairwell opening when the whole outline is inside a room.
+  - **Walking:** the eye follows the steps, the active floor switches half-way up, and a 40 cm step-height limit keeps the walker off the sides of a flight and out of the stairwell (acts like a railing).
+  - Fixed along the way: the `pnpm coverage` script (now `pnpm -r exec vitest run --coverage …`).
+- **Files changed/created:** `packages/geometry/src/stairs/*`, `room/floor.ts`, `packages/editor-core/src/commands/stairs.ts` (+ tests, `testRooms.ts`), `postProcess.ts`, `scene-schema` (`Stair.mirror/material`), `apps/web/src/{plan,walk,view3d,ui}/*`, `e2e/smoke.mjs`, `docs/DECISIONS.md` (ADR-020), `docs/DATA_MODEL.md`.
+- **Problems / notes:** floor openings only cut when the whole outline is inside one room (the inspector explains otherwise); no railings, winders or spiral stairs; with the default 3 m floor height a straight stair is ≈ 4.5 m long, so L / U shapes are often the better fit.
+- **Next step:** balcony / porch (finish P3-02), then export (P3-05), sun (P3-03), garden (P3-01).
+
 ### [2026-11-05] P1-07 + P1-11 + redeem code — Phase 1 leftovers
 - **Model/Author:** Claude Sonnet 5.5
 - **Status:** Done. 271 unit tests (geometry 56, editor-core 130, assets 9, schema 8, web 68) + 202/202 browser checks; typecheck and lint clean. Phase 1 code is now complete; only the owner's furnished-home benchmark remains for the exit check.

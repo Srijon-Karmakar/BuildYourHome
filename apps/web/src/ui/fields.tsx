@@ -238,7 +238,7 @@ export function Segmented<T extends string>({
   onChange: (v: T) => void;
 }) {
   const buttons = (
-    <div className={`f-seg${options.length > 2 ? ' wide' : ''}`} role="group" aria-label={label}>
+    <div className={`f-seg${options.length > 2 ? ' wide' : ''}${options.length > 4 ? ' wrap' : ''}`} role="group" aria-label={label}>
       {options.map((o) => (
         <button key={o.id} type="button" aria-pressed={value === o.id} onClick={() => onChange(o.id)}>
           {o.label}

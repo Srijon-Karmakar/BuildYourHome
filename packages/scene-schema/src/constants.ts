@@ -16,8 +16,8 @@ export const DEFAULT_MATERIAL_ROOF = 'roof-tile-terracotta';
 
 export const DEFAULT_MATERIAL_CEILING = 'paint-white';
 
-export const DOOR_STYLES = ['flush', 'panel', 'glass', 'double'] as const;
-export const WINDOW_STYLES = ['single', 'double', 'sliding'] as const;
+export const DOOR_STYLES = ['flush', 'panel', 'glass', 'double', 'louvered', 'french', 'sliding'] as const;
+export const WINDOW_STYLES = ['single', 'double', 'sliding', 'casement', 'louvered'] as const;
 export type DoorStyle = (typeof DOOR_STYLES)[number];
 export type WindowStyle = (typeof WINDOW_STYLES)[number];
 
@@ -27,6 +27,8 @@ export const FRAME_COLORS = [
   { id: '#2b2a28', name: 'Black' },
   { id: '#b98a5b', name: 'Oak' },
   { id: '#8a8a86', name: 'Grey' },
+  { id: '#6b5a45', name: 'Bronze' },
+  { id: '#e8dcc4', name: 'Cream' },
 ] as const;
 
 /** Door leaf colour presets (hex). First entry is the default. */
@@ -37,4 +39,8 @@ export const LEAF_COLORS = [
   { id: '#2b2a28', name: 'Black' },
   { id: '#8f9f86', name: 'Sage' },
   { id: '#7a4236', name: 'Brick' },
+  { id: '#e8dcc4', name: 'Cream' },
+  { id: '#a8693a', name: 'Teak' },
+  { id: '#4d6783', name: 'Blue' },
+  { id: '#a8563f', name: 'Rust' },
 ] as const;

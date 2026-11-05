@@ -12,7 +12,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --if-present test",
-    "coverage": "pnpm -r --if-present --filter './packages/*' exec vitest run --coverage --coverage.include='src/**' --coverage.exclude='**/*.test.ts' --coverage.exclude='**/index.ts' --coverage.reporter=text-summary",
+    "coverage": "pnpm -r exec vitest run --coverage --coverage.reporter=text-summary",
     "lint": "eslint .",
     "e2e": "node e2e/smoke.mjs",
     "format": "prettier --write ."

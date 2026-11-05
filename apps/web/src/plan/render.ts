@@ -1,7 +1,7 @@
 import { getAsset, itemFootprint, frontOf } from '@hd/assets';
 import type { Opening, Scene, Vec2, Vec3 } from '@hd/scene-schema';
 import type { SnapResult } from '@hd/editor-core';
-import { facePoint, leftNormal, type WallFootprint } from '@hd/geometry';
+import { facePoint, leftNormal, stairToWorld, type StairLayout, type WallFootprint } from '@hd/geometry';
 import { formatArea, formatLength, type DisplayUnits } from '../lib/units';
 import { toScreen, toWorld, type View } from './viewport';
 import type { LevelGeometry } from './wallGeom';
@@ -51,6 +51,16 @@ export interface OpeningPreview {
   swing: boolean;
 }
 
+/** A stair as drawn on the plan of one floor. */
+export interface StairDraw {
+  layout: StairLayout;
+  origin: Vec2;
+  rotationY: number;
+  selected?: boolean;
+  /** `up`: starts on this floor. `down`: arrives from below (a stairwell). `ghost`: about to be placed. */
+  role: 'up' | 'down' | 'ghost';
+}
+
 export interface RenderState {
   units: DisplayUnits;
   /** Pro tools: overall dimensions, room width x depth, every wall length. */
@@ -72,10 +82,12 @@ export interface RenderState {
   scene: Scene;
   levelId: string;
   selection: readonly string[];
-  tool: 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot';
+  tool: 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair';
   hover: SnapResult | null;
   drawingFrom: Vec2 | null;
   gridStep: number;
+  /** Stairs that start or end on this floor, plus the ghost of the ones about to be placed. */
+  stairs: readonly StairDraw[];
   /** The property outline, the outline being drawn, and house points that stick out of the plot. */
   plot: { boundary: readonly Vec2[] | null; draft: readonly Vec2[] | null; outside: readonly Vec2[] };
 }
@@ -286,7 +298,8 @@ function drawOpeningSymbol(
   ctx.lineCap = 'butt';
   ctx.lineJoin = 'miter';
 
-  if (o.type === 'window') {
+  if (o.type === 'window' || (o.type === 'door' && o.style === 'sliding')) {
+    // Windows, and sliding doors, are drawn as a glazed strip (sliding ones with two offset sash lines).
     ctx.fillStyle = '#f4f3ef';
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.2;
@@ -361,7 +374,7 @@ function drawOpeningSymbol(
       ctx.arc(hx, hy, len * v.scale, a0, a0 + delta, delta < 0);
       ctx.stroke();
     };
-    if (o.style === 'double') {
+    if (o.style === 'double' || o.style === 'french') {
       leafAt(s0, 1, o.width / 2);
       leafAt(s1, -1, o.width / 2);
     } else {
@@ -748,6 +761,97 @@ function drawPlotAfter(ctx: CanvasRenderingContext2D, s: RenderState): void {
   }
 }
 
+function drawStairs(ctx: CanvasRenderingContext2D, s: RenderState): void {
+  const { view: v } = s;
+  for (const d of s.stairs) {
+    const sc = (p: Vec2): [number, number] => {
+      const w = stairToWorld(d.origin, d.rotationY, p);
+      return toScreen(v, w[0], w[1]);
+    };
+    const faint = d.role === 'down';
+    ctx.save();
+    if (d.role === 'ghost') ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    d.layout.outline.forEach((p, i) => {
+      const [x, y] = sc(p);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = faint ? 'rgba(17,17,17,0.05)' : 'rgba(255,255,255,0.6)';
+    ctx.fill();
+    const ink = d.selected ? C.wallSel : d.role === 'ghost' ? C.brick : C.wall;
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = d.selected ? 2.2 : 1.4;
+    ctx.setLineDash(faint ? [7, 5] : []);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Step lines: one line across every step at its far edge; the landing gets its outline.
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = faint ? 'rgba(17,17,17,0.28)' : 'rgba(17,17,17,0.55)';
+    ctx.beginPath();
+    for (const t of d.layout.treads) {
+      const [x0, z0, x1, z1] = t.rect;
+      if (t.landing) {
+        const a = sc([x0, z0]), b = sc([x1, z0]), c = sc([x1, z1]), e = sc([x0, z1]);
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(b[0], b[1]);
+        ctx.lineTo(c[0], c[1]);
+        ctx.lineTo(e[0], e[1]);
+        ctx.closePath();
+        continue;
+      }
+      const [dx, dz] = t.dir;
+      const [a, b] = dz < 0 ? [sc([x0, z0]), sc([x1, z0])] : dz > 0 ? [sc([x0, z1]), sc([x1, z1])] : dx < 0 ? [sc([x0, z0]), sc([x0, z1])] : [sc([x1, z0]), sc([x1, z1])];
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+    }
+    ctx.stroke();
+
+    // Walking line with an arrow: up the stairs (or down, as seen from the floor above).
+    const tr = d.layout.treads;
+    const cxOf = (i: number) => (tr[i]!.rect[0] + tr[i]!.rect[2]) / 2;
+    const czOf = (i: number) => (tr[i]!.rect[1] + tr[i]!.rect[3]) / 2;
+    const centres: [number, number][] = [];
+    tr.forEach((t, i) => {
+      if (t.landing && i > 0 && i < tr.length - 1) {
+        // Walk straight into the landing, turn there, walk out (no diagonal across it).
+        centres.push(sc([cxOf(i - 1), czOf(i)]), sc([cxOf(i + 1), czOf(i)]));
+      } else centres.push(sc([cxOf(i), czOf(i)]));
+    });
+    if (centres.length >= 2) {
+      const path = faint ? [...centres].reverse() : centres;
+      ctx.strokeStyle = ink;
+      ctx.fillStyle = ink;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      path.forEach((p, i) => (i === 0 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1])));
+      ctx.stroke();
+      const a = path[path.length - 2]!;
+      const b = path[path.length - 1]!;
+      const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+      ctx.beginPath();
+      ctx.moveTo(b[0], b[1]);
+      ctx.lineTo(b[0] - 9 * Math.cos(ang - 0.45), b[1] - 9 * Math.sin(ang - 0.45));
+      ctx.lineTo(b[0] - 9 * Math.cos(ang + 0.45), b[1] - 9 * Math.sin(ang + 0.45));
+      ctx.closePath();
+      ctx.fill();
+      const start = path[0]!;
+      ctx.beginPath();
+      ctx.arc(start[0], start[1], 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      if (d.role !== 'ghost') {
+        ctx.font = `500 11px ${FONT}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        halo(ctx, faint ? 'DN' : 'UP', start[0] + 18, start[1] - (faint ? -10 : 10));
+      }
+    }
+    ctx.restore();
+  }
+}
+
 export function drawPlan(ctx: CanvasRenderingContext2D, s: RenderState): void {
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, s.width, s.height);
@@ -766,6 +870,7 @@ export function drawPlan(ctx: CanvasRenderingContext2D, s: RenderState): void {
   }
   drawPlotBefore(ctx, s);
   drawRooms(ctx, s, 'fills');
+  drawStairs(ctx, s);
   drawItems(ctx, s);
   drawWalls(ctx, s);
   drawPaintSide(ctx, s);

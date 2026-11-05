@@ -57,6 +57,14 @@ export const IconFurniture = () =>
     </>,
   );
 
+export const IconStairs = () =>
+  wrap(
+    <>
+      <path d="M4 20h4v-4h4v-4h4V8h4" />
+      <path d="M4 20v-0M20 8v12H4" />
+    </>,
+  );
+
 export const IconDoor = () =>
   wrap(
     <>

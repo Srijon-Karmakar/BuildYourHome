@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { createEmptyScene, type Vec2 } from '@hd/scene-schema';
+import type { StairKind } from '@hd/geometry';
 import { cleanPolygon, createEditor, createWallTool, DEFAULT_SNAP, plotProblem, setPlot, type SnapSettings } from '@hd/editor-core';
 
 /** App-wide singletons for the editing session (one project open at a time). */
 export const editor = createEditor(createEmptyScene());
 export const wallTool = createWallTool(editor, () => useUi.getState().newWallKind);
 
-export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot';
+export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair';
 export type ViewMode = '2d' | '3d' | 'split';
 export type { FloorView } from '../view3d/floors';
 
@@ -68,6 +69,12 @@ interface UiState {
   setTool(t: ToolId): void;
   toggleSnap(k: 'grid' | 'nodes' | 'walls' | 'angle'): void;
   setDrawing(v: boolean): void;
+  /** Settings of the stairs the Stairs tool places next. */
+  newStair: { kind: StairKind; mirror: boolean; width: number };
+  setNewStair(p: Partial<{ kind: StairKind; mirror: boolean; width: number }>): void;
+  /** Rotation (radians) of the stairs about to be placed. */
+  stairRotation: number;
+  rotateStair(delta: number): void;
   /** Corners of the plot being drawn by hand (tool === 'plot'). */
   plotDraft: Vec2[];
   setPlotDraft(p: Vec2[]): void;
@@ -131,7 +138,8 @@ export const useUi = create<UiState>((set) => ({
       // Walking needs the 3D pane.
       return { walk: true, hasWalked: true, view: s.view === '2d' ? (wide ? 'split' : '3d') : s.view };
     }),
-  setView: (view) => set(view === '2d' ? { view, walk: false } : { view }),
+  // Drawing tools only work on the plan: in the 3D-only view you select and edit.
+  setView: (view) => set(view === '2d' ? { view, walk: false } : view === '3d' ? { view, tool: 'select' } : { view }),
   bumpFit: () => set((s) => ({ fitTick: s.fitTick + 1 })),
   tool: 'wall',
   snap: DEFAULT_SNAP,
@@ -144,6 +152,10 @@ export const useUi = create<UiState>((set) => ({
   paintSide: 'both',
   setPaintSide: (paintSide) => set({ paintSide }),
   additive: false,
+  newStair: { kind: 'straight', mirror: false, width: 1 },
+  setNewStair: (p) => set((s) => ({ newStair: { ...s.newStair, ...p } })),
+  stairRotation: 0,
+  rotateStair: (delta) => set((s) => ({ stairRotation: s.stairRotation + delta })),
   plotDraft: [],
   setPlotDraft: (plotDraft) => set({ plotDraft, plotError: null }),
   plotError: null,

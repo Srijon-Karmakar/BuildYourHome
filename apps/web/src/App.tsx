@@ -1,5 +1,6 @@
+import { useStore } from 'zustand';
 import { PlanCanvas } from './plan/PlanCanvas';
-import { useUi } from './plan/session';
+import { editor, useUi } from './plan/session';
 import { BottomBar } from './ui/BottomBar';
 import { FurniturePanel } from './ui/FurniturePanel';
 import { ConflictDialog, RecoveryDialog } from './ui/AccountDialogs';
@@ -20,19 +21,23 @@ export function App() {
   const walk = useUi((s) => s.walk);
   const show2d = view !== '3d';
   const show3d = view !== '2d';
+  // The edit card gets its own column so it never covers the plan or the 3D view.
+  const hasInspector = useStore(editor.store, (s) => s.selection.length > 0) && !walk;
   return (
-    <div className={`app panes-${view}`}>
-      {show2d && (
-        <div className="pane">
-          <PlanCanvas />
-        </div>
-      )}
-      {show3d && (
-        <div className="pane">
-          <Scene3D />
-          {walk && <WalkOverlay />}
-        </div>
-      )}
+    <div className={`app${hasInspector ? ' with-inspector' : ''}`}>
+      <div className={`panes panes-${view}`}>
+        {show2d && (
+          <div className="pane">
+            <PlanCanvas />
+          </div>
+        )}
+        {show3d && (
+          <div className="pane">
+            <Scene3D />
+            {walk && <WalkOverlay />}
+          </div>
+        )}
+      </div>
       <TopBar />
       <ToolRail />
       <BottomBar />

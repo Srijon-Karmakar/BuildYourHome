@@ -55,11 +55,11 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 
 ## Phase 3 — Exterior richness & lighting (≈ 4–5 weeks)
 - [ ] P3-01 Garden/landscape items, paths, fences, boundary wall
-- [ ] P3-02 Balcony / porch / stairs
+- [ ] P3-02 Balcony / porch / stairs — **stairs done** (straight / L / U, walkable, stairwell opening; ADR-020); balcony / porch still to do
 - [ ] P3-03 Time-of-day sun + shadows; interior lights
 - [ ] P3-04 Advanced realism: reflections/probes, baked AO lightmaps, better glass/water, bloom — tuned per tier
 - [ ] P3-05 Export PNG + scaled PDF plan + DXF; saved viewpoints; layers (FR-905)
-- [ ] P3-06 Catalog growth (≈ 250 items), material set ≈ 150
+- [ ] P3-06 Catalog growth (≈ 250 items), material set ≈ 150 — **in progress: 102 items (new Outdoor & garden category), 46 floor/wall/ground/roof materials, 7 door + 5 window styles**
 **Exit:** an exterior "hero view" looks good on high tier and runs on low tier.
 
 ## Phase 4 — Mobile app & polish (≈ 3–4 weeks)

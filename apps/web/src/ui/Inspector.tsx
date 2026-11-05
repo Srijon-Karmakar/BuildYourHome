@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from 'zustand';
 import { getAsset, CATEGORIES } from '@hd/assets';
-import type { Item, Opening, Room, RoomType, Wall } from '@hd/scene-schema';
+import type { Item, Opening, Room, RoomType, Stair, Wall } from '@hd/scene-schema';
 import { DOOR_STYLES, FRAME_COLORS, LEAF_COLORS, WINDOW_STYLES } from '@hd/scene-schema';
-import { batch, duplicateItems, rotateItems, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
+import { batch, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
 import { formatArea, formatLength } from '../lib/units';
 import { requireAccess } from '../cloud/store';
 import { deleteSelection } from '../plan/PlanController';
@@ -54,7 +54,6 @@ const openingName = (o: Opening) => (o.type === 'arch' ? 'Archway' : o.type === 
  * Edits are single undoable commands; with several items selected, one edit applies to all of them.
  */
 export function Inspector() {
-  const view = useUi((s) => s.view);
   const walk = useUi((s) => s.walk);
   const additive = useUi((s) => s.additive);
   const toggleAdditive = useUi((s) => s.toggleAdditive);
@@ -71,8 +70,9 @@ export function Inspector() {
     if (empty) setCollapsed(isPhone());
   }, [empty]);
 
-  const { walls, openings, rooms, items } = useMemo(() => {
+  const { walls, openings, rooms, items, stairs } = useMemo(() => {
     const it: Item[] = [];
+    const st: Stair[] = [];
     const w: Wall[] = [];
     const o: Opening[] = [];
     const r: Room[] = [];
@@ -81,14 +81,15 @@ export function Inspector() {
       else if (scene.openings[id]) o.push(scene.openings[id]!);
       else if (scene.rooms[id]) r.push(scene.rooms[id]!);
       else if (scene.items[id]) it.push(scene.items[id]!);
+      else if (scene.stairs[id]) st.push(scene.stairs[id]!);
     }
-    return { walls: w, openings: o, rooms: r, items: it };
+    return { walls: w, openings: o, rooms: r, items: it, stairs: st };
   }, [selection, scene]);
 
-  if (walk || view === '3d' || empty) return null;
+  if (walk || empty) return null;
 
   // ------------------------------------------------------------------ header
-  const total = walls.length + openings.length + rooms.length + items.length;
+  const total = walls.length + openings.length + rooms.length + items.length + stairs.length;
   let title: string;
   let subtitle = '';
   if (total === 1 && rooms[0]) {
@@ -105,12 +106,17 @@ export function Inspector() {
     const asset = getAsset(items[0].assetId);
     title = asset?.name ?? 'Item';
     subtitle = asset ? `${CATEGORIES.find((c) => c.id === asset.category)?.name ?? ''} · ${formatLength(asset.size[0] * items[0].scale[0], scene.meta.units)} × ${formatLength(asset.size[1] * items[0].scale[2], scene.meta.units)}` : '';
+  } else if (total === 1 && stairs[0]) {
+    const s = stairs[0];
+    const l = layoutOf(scene, s);
+    title = 'Stairs';
+    subtitle = `${scene.levels[s.fromLevel]?.name ?? ''} → ${scene.levels[s.toLevel]?.name ?? ''}${l ? ` · ${formatLength(l.rise, scene.meta.units)} up · ${l.risers} steps` : ''}`;
   } else if (total === 1 && openings[0]) {
     title = openingName(openings[0]);
     subtitle = `${formatLength(openings[0].width, scene.meta.units)} × ${formatLength(openings[0].height, scene.meta.units)}`;
   } else {
     title = plural(total, 'item');
-    subtitle = [walls.length && plural(walls.length, 'wall'), openings.length && plural(openings.length, 'opening'), rooms.length && plural(rooms.length, 'room'), items.length && plural(items.length, 'furnishing')]
+    subtitle = [walls.length && plural(walls.length, 'wall'), openings.length && plural(openings.length, 'opening'), rooms.length && plural(rooms.length, 'room'), items.length && plural(items.length, 'furnishing'), stairs.length && plural(stairs.length, 'stairs')]
       .filter(Boolean)
       .join(' · ');
   }
@@ -139,7 +145,11 @@ export function Inspector() {
     { label: '150 %', value: 1.5 },
   ];
 
-  const canDelete = walls.length + openings.length + items.length > 0;
+  const stairIds = stairs.map((s) => s.id);
+  const editStairs = (props: Parameters<typeof updateStairs>[1]) => editor.execute(updateStairs(stairIds, props));
+  const stairRooms = (lid: string) => levelRooms(scene, lid).map((r) => r.polygon);
+  const needsRoom = stairs.length === 1 ? stairNeedsRoom(scene, stairs[0]!, stairRooms) : null;
+  const canDelete = walls.length + openings.length + items.length + stairs.length > 0;
 
   return (
     <aside className={`inspector${collapsed ? ' collapsed' : ''}`} aria-label="Properties">
@@ -281,6 +291,52 @@ export function Inspector() {
             </Section>
           )}
 
+          {stairs.length > 0 && (
+            <Section title={stairs.length > 1 ? 'Stairs' : 'Stairs'}>
+              <Segmented
+                label="Shape"
+                value={common(stairs.map((s) => s.kind))}
+                options={[
+                  { id: 'straight', label: 'Straight' },
+                  { id: 'L', label: 'L-shape' },
+                  { id: 'U', label: 'U-shape' },
+                ]}
+                onChange={(kind) => editStairs({ kind })}
+              />
+              {stairs.some((s) => s.kind !== 'straight') && (
+                <Segmented
+                  label="Turns"
+                  value={common(stairs.map((s) => (s.mirror ? 'right' : 'left')))}
+                  options={[
+                    { id: 'left', label: 'Left' },
+                    { id: 'right', label: 'Right' },
+                  ]}
+                  onChange={(t) => editStairs({ mirror: t === 'right' })}
+                />
+              )}
+              <LengthField label="Width" value={common(stairs.map((s) => s.width), near)} min={0.6} max={3} step={0.05} onCommit={(width) => editStairs({ width })} />
+              <div className="f-chips">
+                <button type="button" onClick={() => editor.execute(rotateStairs(stairIds, -Math.PI / 2))}>
+                  ↺ 90°
+                </button>
+                <button type="button" onClick={() => editor.execute(rotateStairs(stairIds, Math.PI / 2))}>
+                  ↻ 90°
+                </button>
+              </div>
+              <Swatches
+                label="Steps"
+                items={materialsFor('floor')}
+                value={common(stairs.map((s) => s.material?.id ?? 'floor-wood-walnut'))}
+                onPick={(id) => editStairs({ material: { id } })}
+              />
+              {needsRoom && (
+                <p className="f-note" role="status" data-testid="stair-warning">
+                  The floor can only open where there is a room: draw walls around the top of the stairs on {scene.levels[needsRoom]?.name ?? 'the floor above'}.
+                </p>
+              )}
+            </Section>
+          )}
+
           {openings.length > 0 && (
             <Section title={openings.length > 1 ? 'Openings' : openingName(openings[0]!)}>
               <LengthField
@@ -311,8 +367,8 @@ export function Inspector() {
                   value={common(openings.map(effectiveStyle))}
                   options={(oneType === 'door' ? DOOR_STYLES : WINDOW_STYLES).map((s) => ({ id: s as string, label: cap(s) }))}
                   onChange={(style) =>
-                    // A double door needs room for two leaves.
-                    editOpenings(style === 'double' && oneType === 'door' ? { style, width: Math.max(1.4, ...openings.map((o) => o.width)) } : { style })
+                    // Double, French and sliding doors need room for two leaves.
+                    editOpenings(['double', 'french', 'sliding'].includes(style) && oneType === 'door' ? { style, width: Math.max(1.4, ...openings.map((o) => o.width)) } : { style })
                   }
                 />
               )}

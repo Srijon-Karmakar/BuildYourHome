@@ -111,6 +111,9 @@ export const Stair = z.object({
   origin: Vec3,
   rotationY: z.number(),
   width: z.number().positive(),
+  /** L / U stairs turn to the left by default; mirrored they turn to the right. */
+  mirror: z.boolean().optional(),
+  material: MaterialRef.optional(),
 });
 
 export const Viewpoint = z.object({

@@ -10,14 +10,16 @@ interface Props {
   y: number;
   materialId: string;
   tier: Tier;
+  /** Openings cut out of the ceiling (a stairwell). */
+  holes?: readonly (readonly Vec2[])[];
 }
 
 /** Flat ceiling facing down. Does not cast shadows (the sun is not blocked: there are no windows yet). */
-export function CeilingMesh({ polygon, y, materialId, tier }: Props) {
-  const key = polygon.map((p) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`).join(';');
+export function CeilingMesh({ polygon, y, materialId, tier, holes = [] }: Props) {
+  const key = polygon.map((p) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`).join(';') + '|' + holes.map((h) => h.map((p) => `${p[0].toFixed(4)},${p[1].toFixed(4)}`).join(';')).join('/');
 
   const geometry = useMemo(() => {
-    const m = buildFloorMesh(polygon, y - 0.003, 'down');
+    const m = buildFloorMesh(polygon, y - 0.003, 'down', holes);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
     g.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));

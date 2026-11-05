@@ -6,4 +6,5 @@ export * from './scene';
 export * from './items';
 export * from './roof';
 export * from './plot';
+export * from './stairs';
 export * from './batch';

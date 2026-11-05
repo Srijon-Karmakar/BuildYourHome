@@ -9,9 +9,11 @@ export interface WalkPose {
   z: number;
   /** Radians. 0 looks toward −z (north on the plan); increases counter-clockwise seen from above. */
   yaw: number;
+  /** Eye height above the ground (metres); follows the steps on stairs. */
+  y: number;
 }
 
-export const walkPose = createStore<WalkPose>(() => ({ active: false, x: 0, z: 0, yaw: 0 }));
+export const walkPose = createStore<WalkPose>(() => ({ active: false, x: 0, z: 0, yaw: 0, y: 0 }));
 
 /** Mutable input shared between the touch/mouse overlay and the frame loop (no React re-renders). */
 export const walkInput = {

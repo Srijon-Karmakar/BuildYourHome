@@ -9,7 +9,8 @@ describe('catalog integrity', () => {
     const cats = new Set(CATEGORIES.map((c) => c.id));
     for (const x of CATALOG) {
       expect(cats.has(x.category), x.id).toBe(true);
-      expect(x.size.every((v) => v > 0 && v < 4), x.id).toBe(true);
+      // Outdoor things (cars, pools, trees) are bigger than anything indoors.
+      expect(x.size.every((v) => v > 0 && v < (x.category === 'outdoor' ? 8 : 4)), x.id).toBe(true);
       expect(x.placeholder).toBe(true);
     }
   });
@@ -36,7 +37,7 @@ describe('catalog integrity', () => {
     expect(searchCatalog('', 'bathroom').every((x) => x.category === 'bathroom')).toBe(true);
     expect(searchCatalog('kitchen').length).toBeGreaterThan(0); // category name
     expect(searchCatalog('zzzz')).toEqual([]);
-    expect(searchCatalog('table', 'office').map((x) => x.id)).toEqual(['desk']);
+    expect(searchCatalog('table', 'office').map((x) => x.id).sort()).toEqual(['desk', 'desk-l']);
   });
 });
 

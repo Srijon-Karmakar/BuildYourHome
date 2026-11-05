@@ -5,18 +5,25 @@ import type { MeshData } from '../wall/mesh';
 /**
  * Flat floor (or ceiling) mesh from a room outline, at height `y`.
  * Normal faces +Y (floor, seen from above); pass `facing: 'down'` for a ceiling.
- * UVs are world metres (x, z).
+ * UVs are world metres (x, z). `holes` are openings cut out of it (e.g. a stairwell); each must lie inside `polygon`.
  */
-export function buildFloorMesh(polygon: readonly Vec2[], y: number, facing: 'up' | 'down' = 'up'): MeshData {
-  const flat = polygon.flatMap((p) => [p[0], p[1]]);
-  const tri = earcut(flat);
-  const n = polygon.length;
+export function buildFloorMesh(polygon: readonly Vec2[], y: number, facing: 'up' | 'down' = 'up', holes: readonly (readonly Vec2[])[] = []): MeshData {
+  const all: Vec2[] = [...polygon, ...holes.flat()];
+  const holeStarts: number[] = [];
+  let at = polygon.length;
+  for (const h of holes) {
+    holeStarts.push(at);
+    at += h.length;
+  }
+  const flat = all.flatMap((p) => [p[0], p[1]]);
+  const tri = earcut(flat, holeStarts.length ? holeStarts : undefined);
+  const n = all.length;
   const sign = facing === 'up' ? 1 : -1;
 
   const positions = new Float32Array(n * 3);
   const normals = new Float32Array(n * 3);
   const uvs = new Float32Array(n * 2);
-  polygon.forEach((p, i) => {
+  all.forEach((p, i) => {
     positions.set([p[0], y, p[1]], i * 3);
     normals.set([0, sign, 0], i * 3);
     uvs.set([p[0], p[1]], i * 2);
@@ -27,7 +34,7 @@ export function buildFloorMesh(polygon: readonly Vec2[], y: number, facing: 'up'
     const a = tri[t]!;
     let b = tri[t + 1]!;
     let c = tri[t + 2]!;
-    const pa = polygon[a]!, pb = polygon[b]!, pc = polygon[c]!;
+    const pa = all[a]!, pb = all[b]!, pc = all[c]!;
     // Normal.y of (a,b,c) in (x, y, z) space = (b-a)_z*(c-a)_x - (b-a)_x*(c-a)_z.
     const ny = (pb[1] - pa[1]) * (pc[0] - pa[0]) - (pb[0] - pa[0]) * (pc[1] - pa[1]);
     if (ny * sign < 0) [b, c] = [c, b];

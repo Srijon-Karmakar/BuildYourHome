@@ -503,9 +503,9 @@ try {
     await page.getByRole('button', { name: 'Furniture' }).click();
     check('Furniture opens the catalog', await panel.isVisible());
     await panel.getByLabel('Search furniture').fill('sofa');
-    check('search by name', (await panel.locator('.card').count()) === 2);
+    check('search by name', (await panel.locator('.card').count()) === 3);
     await panel.getByLabel('Search furniture').fill('couch');
-    check('search by tag finds sofas', (await panel.locator('.card').count()) === 2);
+    check('search by tag finds sofas', (await panel.locator('.card').count()) === 3);
     await panel.getByLabel('Search furniture').fill('');
     await panel.getByRole('tab', { name: 'Bathroom' }).click();
     const names = await panel.locator('.card-name').allTextContents();
@@ -761,7 +761,7 @@ try {
     await page.keyboard.press('?');
     const help = page.getByRole('dialog', { name: /Help/ });
     check('? opens the shortcuts', await help.isVisible());
-    check('it lists shortcuts', (await help.getByText('Rotate furniture 90°').count()) === 1);
+    check('it lists shortcuts', (await help.getByText('Rotate furniture or stairs 90°').count()) === 1);
     await page.keyboard.press('Escape');
     check('Esc closes it', (await help.count()) === 0);
     await ctx.close();
@@ -1192,6 +1192,222 @@ try {
     await cat.locator('.card', { hasText: 'Double bed' }).click();
     check('the Double bed can be placed', (await rc.evaluate(() => window.__hd.useUi.getState().placing)) !== null);
     await rc.close();
+  }
+
+  // ---------------------------------------------------------------- 2m. stairs
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?view=2d');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForTimeout(500);
+    const box = await page.locator('canvas.plan-canvas').boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    const room = async () => {
+      for (const [dx, dy] of [[-240, -180], [240, -180], [240, 180], [-240, 180], [-240, -180]]) await page.mouse.click(cx + dx, cy + dy);
+      await page.keyboard.press('Escape');
+    };
+    const S = () => page.evaluate(() => {
+      const st = window.__hd.editor.getState();
+      return { stairs: Object.values(st.scene.stairs), levels: st.scene.levelOrder, active: st.activeLevelId, selection: st.selection };
+    });
+    await room();
+    await page.keyboard.press('s');
+    check('the Stairs tool is on (key S) and shows its options', (await page.evaluate(() => window.__hd.useUi.getState().tool)) === 'stair' && (await page.getByRole('group', { name: 'Stair shape' }).isVisible()));
+    await page.mouse.move(cx, cy + 150);
+    await page.mouse.click(cx, cy + 150);
+    let s = await S();
+    check('placing stairs adds the floor above when there is none', s.levels.length === 2 && s.stairs.length === 1);
+    check('the new stairs are selected and the tool goes back to Select', s.selection[0] === s.stairs[0]?.id && (await page.evaluate(() => window.__hd.useUi.getState().tool)) === 'select');
+    check('the stairs connect ground floor → floor above, origin on the plan', s.stairs[0].fromLevel === s.levels[0] && s.stairs[0].toLevel === s.levels[1] && Math.abs(s.stairs[0].origin[2] - 2.5) < 0.06);
+    const ins = page.getByRole('complementary', { name: 'Properties' });
+    check('the inspector shows the stairs and how far they climb', (await ins.getByText('Stairs').first().isVisible()) && /steps/.test(await ins.textContent()));
+    check('it warns that the floor above has no room to open yet', await ins.getByTestId('stair-warning').isVisible());
+    await page.screenshot({ path: `${SP}/e2e-stairs-plan.png` });
+
+    // Draw the room above → the warning goes away.
+    await page.evaluate(() => window.__hd.editor.setActiveLevel(window.__hd.editor.getState().scene.levelOrder[1]));
+    await page.keyboard.press('w');
+    await room();
+    await page.keyboard.press('v');
+    await page.evaluate(() => window.__hd.editor.select([Object.keys(window.__hd.editor.getState().scene.stairs)[0]]));
+    await page.waitForTimeout(150);
+    check('with a room on the floor above the warning disappears', (await ins.getByTestId('stair-warning').count()) === 0);
+
+    // Edit: shape, turn, width, rotate with R, undo.
+    await ins.getByRole('group', { name: 'Shape' }).getByRole('button', { name: 'L-shape' }).click();
+    s = await S();
+    check('Shape L-shape changes the stairs', s.stairs[0].kind === 'L');
+    await ins.getByRole('group', { name: 'Turns' }).getByRole('button', { name: 'Right' }).click();
+    check('Turns right mirrors them', (await S()).stairs[0].mirror === true);
+    await ins.getByRole('group', { name: 'Shape' }).getByRole('button', { name: 'Straight' }).click();
+    const w = ins.locator('.f-row', { hasText: 'Width' }).locator('input');
+    await w.fill('1.2');
+    await w.press('Enter');
+    check('width is editable', Math.abs((await S()).stairs[0].width - 1.2) < 1e-9);
+    await page.keyboard.press('r');
+    check('R turns the selected stairs 90°', Math.abs((await S()).stairs[0].rotationY - Math.PI / 2) < 1e-9);
+    await page.keyboard.press('Control+z');
+    check('undo turns them back', Math.abs((await S()).stairs[0].rotationY) < 1e-9);
+
+    // Dragging in Select mode moves the whole stair as one undo step.
+    await page.evaluate(() => window.__hd.editor.setActiveLevel(window.__hd.editor.getState().scene.levelOrder[0]));
+    await page.waitForTimeout(150);
+    const before = (await S()).stairs[0].origin.slice();
+    await page.mouse.move(cx, cy + 20);
+    await page.mouse.down();
+    await page.mouse.move(cx + 60, cy + 20, { steps: 4 });
+    await page.mouse.up();
+    const after = (await S()).stairs[0].origin;
+    check('dragging moves the stairs on the plan', Math.abs(after[0] - before[0] - 1) < 0.1 && Math.abs(after[2] - before[2]) < 0.06, JSON.stringify([before, after]));
+    await page.keyboard.press('Control+z');
+    check('the drag is a single undo step', Math.abs((await S()).stairs[0].origin[0] - before[0]) < 1e-9);
+
+    // Walk up the stairs: the eye rises and the walker ends up on the floor above.
+    await page.evaluate(() => window.__hd.rememberPose({ x: 0, z: 2.9, yaw: 0 }));
+    await page.getByRole('button', { name: 'Walk' }).click();
+    await page.waitForFunction(() => window.__hd.walkPose.getState().active);
+    await page.keyboard.down('KeyW');
+    await page.waitForFunction(() => window.__hd.editor.getState().activeLevelId === window.__hd.editor.getState().scene.levelOrder[1], null, { timeout: 60000 });
+    const mid = await page.evaluate(() => window.__hd.walkPose.getState().y);
+    check('walking up the stairs lifts the eye and switches to the floor above', mid > 1.6 + 1, `eye ${mid.toFixed(2)} m`);
+    await page.waitForFunction(() => window.__hd.walkPose.getState().z < -2.15, null, { timeout: 60000 }); // past the top step
+    await page.keyboard.up('KeyW');
+    await page.waitForTimeout(1500);
+    const top = await page.evaluate(() => window.__hd.walkPose.getState().y);
+    const topLevel = await page.evaluate(() => window.__hd.editor.getState().scene.levels[window.__hd.editor.getState().scene.levelOrder[1]].elevation);
+    check('…and settles at eye height on the upper floor', Math.abs(top - (topLevel + 1.6)) < 0.5, `eye ${top.toFixed(2)} m, floor at ${topLevel}`);
+    await page.screenshot({ path: `${SP}/e2e-stairs-walk.png` });
+    await page.keyboard.press('Escape');
+
+    // Delete removes them; deleting the upper floor would too.
+    await page.waitForTimeout(200);
+    await page.evaluate(() => window.__hd.editor.select([Object.keys(window.__hd.editor.getState().scene.stairs)[0]]));
+    await page.keyboard.press('Delete');
+    check('Delete removes the stairs', (await S()).stairs.length === 0);
+    check('no page errors in the stairs flows', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2n. selecting and editing in 3D, edit card layout
+  {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?demo=1&view=split');
+    await page.waitForSelector('canvas');
+    await page.waitForFunction(() => window.__hd.project);
+    await page.evaluate(() => window.__hd.useUi.setState({ showRoof: false, cutaway: true }));
+    await page.waitForTimeout(2500);
+    const info = await page.evaluate(() => {
+      const sc = window.__hd.editor.getState().scene;
+      const it = Object.values(sc.items).find((i) => i.assetId === 'coffee-table') ?? Object.values(sc.items)[0];
+      return { id: it.id, pos: it.position };
+    });
+    const where = (y = 0.2) => page.evaluate(([x, yy, z]) => window.__hd.project(x, yy, z), [info.pos[0], info.pos[1] + y, info.pos[2]]);
+
+    let [px, py] = await where();
+    await page.mouse.click(px, py);
+    await page.waitForTimeout(300);
+    const sel = () => page.evaluate(() => window.__hd.editor.getState().selection);
+    check('clicking furniture in 3D selects it', (await sel())[0] === info.id, JSON.stringify(await sel()));
+    check('the edit card opens for it', await page.getByRole('complementary', { name: 'Properties' }).isVisible());
+
+    // The edit card has its own column: it never covers the plan or the 3D view.
+    const rects = await page.evaluate(() => {
+      const r = (el) => { const b = el.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom }; };
+      return { panes: [...document.querySelectorAll('.pane')].map(r), card: r(document.querySelector('.inspector')) };
+    });
+    check('the edit card does not overlap either view', rects.panes.every((p) => p.r <= rects.card.l + 1 || p.l >= rects.card.r - 1 || p.b <= rects.card.t + 1 || p.t >= rects.card.b - 1), JSON.stringify(rects));
+    check('the views use the space left of the card', rects.panes.every((p) => p.r <= rects.card.l + 1));
+    await page.screenshot({ path: `${SP}/e2e-3d-select.png` });
+
+    // Drag it along the floor in 3D: one undo step.
+    [px, py] = await where();
+    await page.mouse.move(px, py);
+    await page.mouse.down();
+    await page.mouse.move(px + 70, py + 10, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    const moved = await page.evaluate((id) => window.__hd.editor.getState().scene.items[id].position, info.id);
+    check('dragging furniture in 3D moves it', Math.hypot(moved[0] - info.pos[0], moved[2] - info.pos[2]) > 0.3, JSON.stringify([info.pos, moved]));
+    await page.keyboard.press('Control+z');
+    const back = await page.evaluate((id) => window.__hd.editor.getState().scene.items[id].position, info.id);
+    check('the whole drag is one undo step', Math.hypot(back[0] - info.pos[0], back[2] - info.pos[2]) < 1e-6);
+
+    // Clicking nothing clears; 3D-only view keeps Select (and only Select) enabled.
+    await page.mouse.click(rects.panes.at(-1).l + 25, rects.panes.at(-1).t + 140);
+    await page.waitForTimeout(300);
+    check('clicking empty space in 3D clears the selection', (await sel()).length === 0);
+    await page.getByRole('button', { name: '3D', exact: true }).click();
+    const rail = page.getByRole('navigation', { name: 'Tools' });
+    check('in the 3D view Select is available and the drawing tools are not', !(await rail.getByRole('button', { name: /Select/ }).isDisabled()) && (await rail.getByRole('button', { name: /Wall/ }).isDisabled()));
+    await page.waitForTimeout(800);
+    [px, py] = await where();
+    await page.mouse.click(px, py);
+    await page.waitForTimeout(300);
+    check('selecting works in the 3D-only view too', (await sel())[0] === info.id);
+    check('no page errors while selecting in 3D', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2o. bigger catalog, door / window styles
+  {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?demo=1&view=2d');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForFunction(() => window.__hd.useCloud.getState().ready);
+    await page.getByRole('button', { name: 'Furniture' }).click();
+    const cat = page.getByRole('complementary', { name: 'Furniture catalog' });
+    check('the catalog has an Outdoor & garden category', await cat.getByRole('tab', { name: 'Outdoor & garden' }).isVisible());
+    await cat.getByRole('tab', { name: 'All' }).click();
+    check('the catalog now has 100+ items', (await cat.locator('.card').count()) >= 100, String(await cat.locator('.card').count()));
+    await cat.getByRole('tab', { name: 'Outdoor & garden' }).click();
+    check('premium outdoor items are badged for a guest', (await cat.locator('.card', { hasText: 'Fountain' }).getByText('Premium').count()) === 1);
+    await cat.locator('.card', { hasText: 'Shade tree' }).click();
+    await page.mouse.click(120, 700);
+    const treeCount = () => page.evaluate(() => Object.values(window.__hd.editor.getState().scene.items).filter((i) => i.assetId === 'tree-round').length);
+    check('an outdoor item can be placed on the plan', (await treeCount()) === 1);
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Furniture' }).click();
+    await cat.getByRole('tab', { name: 'All' }).click();
+    await cat.getByLabel('Search furniture').fill('pooja');
+    check('search finds India-specific items (pooja unit)', (await cat.locator('.card', { hasText: 'Pooja unit' }).count()) === 1);
+    await page.keyboard.press('Escape');
+
+    // New door / window styles.
+    const ins = page.getByRole('complementary', { name: 'Properties' });
+    const op = (type) => page.evaluate((t) => Object.values(window.__hd.editor.getState().scene.openings).find((o) => o.type === t)?.id, type);
+    const style = (id) => page.evaluate((i) => window.__hd.editor.getState().scene.openings[i].style, id);
+    const doorId = await op('door');
+    await page.evaluate((id) => window.__hd.editor.select([id]), doorId);
+    const styles = ins.getByRole('group', { name: 'Style' });
+    for (const name of ['Louvered', 'French', 'Sliding']) check(`doors offer the ${name} style`, await styles.getByRole('button', { name, exact: true }).isVisible());
+    await styles.getByRole('button', { name: 'French', exact: true }).click();
+    check('French doors get room for two leaves', (await style(doorId)) === 'french' && (await page.evaluate((i) => window.__hd.editor.getState().scene.openings[i].width, doorId)) >= 1.4);
+    await styles.getByRole('button', { name: 'Louvered', exact: true }).click();
+    check('Louvered applies', (await style(doorId)) === 'louvered');
+    await styles.getByRole('button', { name: 'Sliding', exact: true }).click();
+    check('Sliding door applies', (await style(doorId)) === 'sliding');
+    await page.screenshot({ path: `${SP}/e2e-door-styles.png` });
+    const winId = await op('window');
+    await page.evaluate((id) => window.__hd.editor.select([id]), winId);
+    await ins.getByRole('group', { name: 'Style' }).getByRole('button', { name: 'Casement', exact: true }).click();
+    check('windows offer Casement', (await style(winId)) === 'casement');
+    await ins.getByRole('group', { name: 'Style' }).getByRole('button', { name: 'Louvered', exact: true }).click();
+    check('windows offer Louvered', (await style(winId)) === 'louvered');
+    check('no page errors with the new catalog and styles', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
   }
 
   // ---------------------------------------------------------------- 3. benchmark

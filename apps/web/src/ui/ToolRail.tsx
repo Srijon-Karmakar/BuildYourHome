@@ -1,6 +1,6 @@
 import { useStore } from 'zustand';
 import { editor, useUi } from '../plan/session';
-import { IconDoor, IconFurniture, IconRedo, IconSelect, IconUndo, IconWall, IconWindow } from './icons';
+import { IconDoor, IconFurniture, IconStairs, IconRedo, IconSelect, IconUndo, IconWall, IconWindow } from './icons';
 import { SnapMenu } from './SnapMenu';
 
 export function ToolRail() {
@@ -19,8 +19,7 @@ export function ToolRail() {
         type="button"
         className="tool"
         title="Select and move (V)"
-        aria-pressed={editable && tool === 'select'}
-        disabled={!editable}
+        aria-pressed={tool === 'select'}
         onClick={() => setTool('select')}
       >
         <IconSelect />
@@ -59,6 +58,18 @@ export function ToolRail() {
       >
         <IconWindow />
         <span>Window</span>
+      </button>
+
+      <button
+        type="button"
+        className="tool"
+        title="Add stairs (S)"
+        aria-pressed={editable && tool === 'stair'}
+        disabled={!editable}
+        onClick={() => setTool('stair')}
+      >
+        <IconStairs />
+        <span>Stairs</span>
       </button>
 
       <button

@@ -130,3 +130,23 @@ describe('buildFloorMesh', () => {
     expect(down.normals[1]).toBe(-1);
   });
 });
+
+describe('buildFloorMesh with holes', () => {
+  it('cuts a hole: total area = outer − hole, nothing inside the hole', () => {
+    const outer: [number, number][] = [[0, 0], [6, 0], [6, 4], [0, 4]];
+    const hole: [number, number][] = [[2, 1], [3, 1], [3, 3], [2, 3]];
+    const m = buildFloorMesh(outer, 0, 'up', [hole]);
+    let area = 0;
+    for (let t = 0; t < m.indices.length; t += 3) {
+      const p = [0, 1, 2].map((k) => [m.positions[m.indices[t + k]! * 3]!, m.positions[m.indices[t + k]! * 3 + 2]!] as const);
+      const a = ((p[1]![0] - p[0]![0]) * (p[2]![1] - p[0]![1]) - (p[2]![0] - p[0]![0]) * (p[1]![1] - p[0]![1])) / 2;
+      expect(a).toBeLessThan(0); // all facing up (cross product in the x–z plane is negative for +y normals)
+      area -= a;
+      const cx = (p[0]![0] + p[1]![0] + p[2]![0]) / 3;
+      const cz = (p[0]![1] + p[1]![1] + p[2]![1]) / 3;
+      expect(cx > 2 && cx < 3 && cz > 1 && cz < 3).toBe(false);
+    }
+    expect(area).toBeCloseTo(24 - 2, 6);
+    expect(m.normals.length).toBe(m.positions.length);
+  });
+});

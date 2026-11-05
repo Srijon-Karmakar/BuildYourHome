@@ -124,6 +124,12 @@ Format: Status · Context · Decision · Consequences. Never delete an ADR; mark
 - **Decision:** All account / storage / sharing / entitlement access goes through `Backend` (`apps/web/src/cloud/types.ts`). `LocalBackend` (browser storage; hashed passwords; no sync) is the default; `SupabaseBackend` is selected by `VITE_SUPABASE_*` env vars and loaded lazily. Entitlements are enforced server-side by RLS (users can only read subscription/unlock rows; only the service role writes them), so on Supabase the browser cannot grant itself access: `unlockWithAd`/`setSubscription` are refused until webhook / ad-verification functions exist. Shared links resolve through a `security definer` function that needs a valid, non-revoked token.
 - **Consequences:** + every flow is testable offline; swapping providers is contained; − two implementations to keep in step (the interface and shared tests guard it); the real path needs a live smoke test before launch.
 
+## ADR-020 — Stairs: parametric solid steps, derived rise, stairwell opening, walker follows them
+- **Status:** Accepted (Phase 3, P3-02)
+- **Context:** Multi-storey homes need a way to connect floors in plan, 3D and the walkthrough. `Stair` already exists in the schema.
+- **Decision:** A stair is `{ fromLevel, toLevel, kind: straight|L|U, origin, rotationY, width, mirror?, material? }`. `origin` is the centre of the bottom edge of the first step (y relative to the `fromLevel` floor). The run climbs toward local −z; `mirror` turns L/U stairs the other way. The **rise is never stored**: it is `toLevel.elevation − fromLevel.elevation`, split into risers of ≈ 17.5 cm, so changing a floor height re-fits the stairs. Treads are 28 cm; L/U stairs get a square landing in the middle. Steps are solid blocks (no stringers), built as pure geometry in `@hd/geometry/stairs` (layout, outline, `heightAt`, mesh). The stair's outline is cut out of the floor above (and the ceiling below) when it lies inside a room. The walker follows `heightAt` while inside the outline and switches its active floor at the half-way height; stairs are removed with either of their floors; the tool adds the floor above when there is none.
+- **Consequences:** + one source of truth, no stale heights; + walking between floors works without special levels; − floor openings only cut when the whole outline is inside one room (otherwise the floor stays and the inspector warns); − no railings, winders or spiral stairs yet.
+
 ## Template
 ```
 ## ADR-0xx — Title

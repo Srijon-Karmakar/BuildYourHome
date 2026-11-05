@@ -76,7 +76,8 @@ interface Roof {
   material: MaterialRef;
 }
 
-interface Stair { id; fromLevel: Id; toLevel: Id; kind: 'straight'|'L'|'U'; origin: Vec3; rotationY: number; width: number; }
+interface Stair { id; fromLevel: Id; toLevel: Id; kind: 'straight'|'L'|'U'; origin: Vec3; rotationY: number; width: number; mirror?: boolean; material?: MaterialRef; }
+// origin = centre of the first step's bottom edge (y relative to fromLevel's floor); rise is derived from the levels (ADR-020).
 
 type MaterialRef = { id: string; tint?: string; uvScale?: number; uvRotation?: number };
 interface Viewpoint { id; name; position: Vec3; target: Vec3; fov: number; }

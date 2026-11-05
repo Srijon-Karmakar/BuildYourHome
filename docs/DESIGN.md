@@ -74,3 +74,7 @@ Phones (< 700 px): rail becomes a bottom bar in the thumb zone; caption sits abo
 - Modal dialogs only for destructive/irreversible actions; everything else is inline or a popover.
 - Every new control must work with mouse, touch and keyboard.
 - 3D scenes: paper-coloured background, no harsh skies; materials stay natural (wood, plaster, stone) — colour comes from the home, not the UI.
+
+
+## Edit card layout (added after owner feedback)
+The property card never floats over the views: when something is selected the app reserves a column for it (`--ins-col`, 320 px; 292 px under 1100 px) and the plan / 3D panes share the remaining width. Under 1200 px a Split view stacks the two panes. On phones (< 700 px) the card is a bottom sheet over the views. The plan keeps its position when the pane narrows (no recentering), so taps and drags stay where the user left them.

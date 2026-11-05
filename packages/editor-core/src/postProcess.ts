@@ -67,6 +67,13 @@ export function postProcess(d: Scene): void {
   // 4b. Roofs on missing floors.
   for (const [id, r] of Object.entries(d.roofs)) if (!d.levels[r.levelId]) delete d.roofs[id];
 
+  // 4c. Stairs must connect two existing floors, the second one above the first.
+  for (const [id, s] of Object.entries(d.stairs)) {
+    const from = d.levelOrder.indexOf(s.fromLevel);
+    const to = d.levelOrder.indexOf(s.toLevel);
+    if (!d.levels[s.fromLevel] || !d.levels[s.toLevel] || from < 0 || to <= from) delete d.stairs[id];
+  }
+
   // 5. Rooms are derived from closed wall loops (identity carried across edits).
   syncRooms(d);
 }

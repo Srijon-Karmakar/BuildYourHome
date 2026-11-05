@@ -2,7 +2,18 @@ import type { Id, Vec2 } from '@hd/scene-schema';
 import { getAsset, pointInItem } from '@hd/assets';
 import {
   addItem,
+  addLevel,
   addOpening,
+  addStair,
+  batch,
+  layoutOf,
+  levelAbove,
+  removeStairs,
+  rotateStairs,
+  stairOutline,
+  stairRise,
+  translateStairs,
+  updateStairs,
   defaultSize,
   duplicateItems,
   removeItems,
@@ -21,7 +32,8 @@ import {
   type SnapResult,
 } from '@hd/editor-core';
 import { cancelPlot, editor, finishDrawing, finishPlot, useUi, wallTool } from './session';
-import { drawPlan, pointInPolygon, type ItemGhost, type OpeningPreview } from './render';
+import { stairLayout } from '@hd/geometry';
+import { drawPlan, pointInPolygon, type ItemGhost, type OpeningPreview, type StairDraw } from './render';
 import { levelRooms } from './rooms';
 import { levelGeometry } from './wallGeom';
 import { walkPose } from '../walk/walkState';
@@ -35,7 +47,7 @@ const NODE_HIT_PX = 16;
 const WALL_HIT_PX = 10;
 const TAP_SLOP_PX = 5;
 
-type Mode = 'none' | 'pan' | 'place' | 'placeOpening' | 'placeItem' | 'select' | 'dragNode' | 'dragOpening' | 'dragItem' | 'gesture';
+type Mode = 'none' | 'pan' | 'place' | 'placeOpening' | 'placeItem' | 'placeStair' | 'select' | 'dragNode' | 'dragOpening' | 'dragItem' | 'dragStair' | 'gesture';
 
 /**
  * Owns the 2D plan canvas: view transform, pointer/touch/keyboard handling, rendering on demand.
@@ -56,6 +68,7 @@ export class PlanController {
   hover: SnapResult | null = null;
   preview: OpeningPreview | null = null;
   itemGhost: ItemGhost | null = null;
+  stairGhost: StairDraw | null = null;
 
   private ctx: CanvasRenderingContext2D;
   private cssW = 0;
@@ -73,6 +86,7 @@ export class PlanController {
   private dragNodeId: Id | null = null;
   private dragOpeningId: Id | null = null;
   private dragItemId: Id | null = null;
+  private dragStairId: Id | null = null;
   /** Pointer offset from the item's centre when the drag began (so it doesn't jump). */
   private dragGrab: Vec2 = [0, 0];
   private dragBaseRotation = 0;
@@ -132,6 +146,7 @@ export class PlanController {
           this.hover = null;
           this.preview = null;
           this.itemGhost = null;
+          this.stairGhost = null;
           this.updateCursor();
         }
         this.invalidate();
@@ -248,6 +263,7 @@ export class PlanController {
       tool: ui.tool,
       hover: this.hover,
       drawingFrom: ui.tool === 'wall' ? wallTool.last : null,
+      stairs: [...this.stairDraws(), ...(this.stairGhost ? [this.stairGhost] : [])],
       plot: {
         boundary: st.scene.plot?.boundary ?? null,
         draft: ui.tool === 'plot' ? ui.plotDraft : null,
@@ -412,6 +428,59 @@ export class PlanController {
     return null;
   }
 
+  /** Stairs that start or end on the active floor, as drawn on the plan. */
+  private stairDraws(): StairDraw[] {
+    const st = editor.getState();
+    const out: StairDraw[] = [];
+    for (const s of Object.values(st.scene.stairs)) {
+      if (s.fromLevel !== st.activeLevelId && s.toLevel !== st.activeLevelId) continue;
+      const layout = layoutOf(st.scene, s);
+      if (!layout) continue;
+      out.push({ layout, origin: [s.origin[0], s.origin[2]], rotationY: s.rotationY, selected: st.selection.includes(s.id), role: s.fromLevel === st.activeLevelId ? 'up' : 'down' });
+    }
+    return out;
+  }
+
+  private hitStair(sx: number, sy: number): Id | null {
+    const st = editor.getState();
+    const [px, pz] = toWorld(this.view, sx, sy);
+    let hit: Id | null = null;
+    for (const s of Object.values(st.scene.stairs)) {
+      if (s.fromLevel !== st.activeLevelId && s.toLevel !== st.activeLevelId) continue;
+      const o = stairOutline(st.scene, s);
+      if (o && pointInPolygon(px, pz, o)) hit = s.id;
+    }
+    return hit;
+  }
+
+  private snapStairOrigin(sx: number, sy: number): Vec2 {
+    const w = toWorld(this.view, sx, sy) as Vec2;
+    const g = useUi.getState().snap.grid ? 0.05 : 0;
+    return g ? [Math.round(w[0] / g) * g, Math.round(w[1] / g) * g] : w;
+  }
+
+  /** Ghost of the stairs the next click would place. */
+  private stairGhostAt(sx: number, sy: number): StairDraw | null {
+    const ui = useUi.getState();
+    if (ui.tool !== 'stair') return null;
+    const st = editor.getState();
+    const lv = st.scene.levels[st.activeLevelId];
+    if (!lv) return null;
+    const above = levelAbove(st.scene, st.activeLevelId);
+    const rise = (above && stairRise(st.scene, { fromLevel: st.activeLevelId, toLevel: above })) || lv.height;
+    return {
+      layout: stairLayout({ kind: ui.newStair.kind, width: ui.newStair.width, rise, mirror: ui.newStair.mirror }),
+      origin: this.snapStairOrigin(sx, sy),
+      rotationY: ui.stairRotation,
+      role: 'ghost',
+    };
+  }
+
+  private selectedStairIds(): Id[] {
+    const st = editor.getState();
+    return st.selection.filter((id) => st.scene.stairs[id]);
+  }
+
   /** Replace the selection, or toggle membership when Shift is held / "Add more" is on. */
   private pick(id: Id | null, additive: boolean): void {
     const cur = editor.getState().selection;
@@ -448,6 +517,20 @@ export class PlanController {
     return st.selection.filter((id) => st.scene.items[id]);
   }
 
+  /** Put the stairs in the scene (adding a floor above first when there is none) and select them. */
+  private placeStair(g: StairDraw): void {
+    const st = editor.getState();
+    const ui = useUi.getState();
+    const before = new Set(Object.keys(st.scene.stairs));
+    const add = addStair({ fromLevel: st.activeLevelId, origin: g.origin, rotationY: g.rotationY, kind: ui.newStair.kind, width: ui.newStair.width, mirror: ui.newStair.mirror });
+    editor.execute(levelAbove(st.scene, st.activeLevelId) ? add : batch('Add stairs and floor', [addLevel(), add]));
+    const added = Object.keys(editor.getState().scene.stairs).filter((id) => !before.has(id));
+    if (added.length) {
+      editor.select(added);
+      ui.setTool('select');
+    }
+  }
+
   private endChain(): void {
     finishDrawing();
     this.invalidate();
@@ -462,7 +545,7 @@ export class PlanController {
 
     if (this.pointers.size === 2) {
       // Second finger: abandon whatever the first one started and switch to pinch/pan.
-      if ((this.mode === 'dragNode' || this.mode === 'dragOpening' || this.mode === 'dragItem') && editor.getState().inTransaction) editor.cancelTransaction();
+      if ((this.mode === 'dragNode' || this.mode === 'dragOpening' || this.mode === 'dragItem' || this.mode === 'dragStair') && editor.getState().inTransaction) editor.cancelTransaction();
       this.dragNodeId = null;
       this.dragOpeningId = null;
       this.dragItemId = null;
@@ -492,10 +575,14 @@ export class PlanController {
     } else if (tool === 'place') {
       this.mode = 'placeItem';
       this.itemGhost = this.itemGhostAt(p.x, p.y);
+    } else if (tool === 'stair') {
+      this.mode = 'placeStair';
+      this.stairGhost = this.stairGhostAt(p.x, p.y);
     } else {
       const nodeId = this.hitNode(p.x, p.y);
       const openingId = nodeId ? null : this.hitOpening(p.x, p.y);
       const itemId = nodeId || openingId ? null : this.hitItem(p.x, p.y);
+      const stairId = nodeId || openingId || itemId ? null : this.hitStair(p.x, p.y);
       if (nodeId) {
         this.mode = 'dragNode';
         this.dragNodeId = nodeId;
@@ -505,6 +592,13 @@ export class PlanController {
         this.mode = 'dragOpening';
         this.dragOpeningId = openingId;
         this.dragStarted = false;
+      } else if (stairId) {
+        const s = editor.getState().scene.stairs[stairId]!;
+        const w = toWorld(this.view, p.x, p.y);
+        this.mode = 'dragStair';
+        this.dragStairId = stairId;
+        this.dragStarted = false;
+        this.dragGrab = [w[0] - s.origin[0], w[1] - s.origin[2]];
       } else if (itemId) {
         const it = editor.getState().scene.items[itemId]!;
         const w = toWorld(this.view, p.x, p.y);
@@ -541,6 +635,9 @@ export class PlanController {
       } else if (tool === 'place' && e.pointerType === 'mouse') {
         this.itemGhost = this.itemGhostAt(p.x, p.y);
         this.invalidate();
+      } else if (tool === 'stair' && e.pointerType === 'mouse') {
+        this.stairGhost = this.stairGhostAt(p.x, p.y);
+        this.invalidate();
       }
       return;
     }
@@ -565,6 +662,22 @@ export class PlanController {
       case 'placeItem':
         this.itemGhost = this.itemGhostAt(p.x, p.y);
         this.invalidate();
+        break;
+      case 'placeStair':
+        this.stairGhost = this.stairGhostAt(p.x, p.y);
+        this.invalidate();
+        break;
+      case 'dragStair':
+        if (this.dragStairId && this.moved) {
+          if (!this.dragStarted) {
+            editor.beginTransaction('Move stairs');
+            this.dragStarted = true;
+          }
+          const w = toWorld(this.view, p.x, p.y);
+          const g = useUi.getState().snap.grid ? 0.05 : 0;
+          const o: Vec2 = [w[0] - this.dragGrab[0], w[1] - this.dragGrab[1]];
+          editor.preview(updateStairs([this.dragStairId], { origin: g ? [Math.round(o[0] / g) * g, Math.round(o[1] / g) * g] : o }));
+        }
         break;
       case 'dragItem':
         if (this.dragItemId && this.moved) {
@@ -645,6 +758,15 @@ export class PlanController {
       const g = this.itemGhostAt(p.x, p.y);
       if (g) editor.execute(addItem({ levelId: editor.getState().activeLevelId, assetId: g.assetId, position: g.position, rotationY: g.rotationY }));
       this.itemGhost = e.pointerType === 'mouse' ? this.itemGhostAt(p.x, p.y) : null;
+    } else if (mode === 'placeStair') {
+      const g = this.stairGhostAt(p.x, p.y);
+      if (g) this.placeStair(g);
+    } else if (mode === 'dragStair') {
+      const id = this.dragStairId;
+      if (this.dragStarted) editor.commitTransaction();
+      else if (id) this.pick(id, e.shiftKey || useUi.getState().additive);
+      this.dragStairId = null;
+      this.dragStarted = false;
     } else if (mode === 'dragItem') {
       const id = this.dragItemId;
       if (this.dragStarted) editor.commitTransaction();
@@ -679,11 +801,13 @@ export class PlanController {
     this.dragNodeId = null;
     this.dragOpeningId = null;
     this.dragItemId = null;
+    this.dragStairId = null;
     this.dragStarted = false;
     if (this.pointers.size === 0) this.mode = 'none';
     this.hover = null;
     this.preview = null;
     this.itemGhost = null;
+    this.stairGhost = null;
     this.invalidate();
   }
 
@@ -796,7 +920,7 @@ export class PlanController {
       }
       this.preview = null;
       this.itemGhost = null;
-      if (useUi.getState().tool === 'place') useUi.getState().setTool('select');
+      if (useUi.getState().tool === 'place' || useUi.getState().tool === 'stair') useUi.getState().setTool('select');
       editor.select([]);
     } else if (e.key === 'Enter') {
       if (useUi.getState().tool === 'wall') this.endChain();
@@ -814,17 +938,25 @@ export class PlanController {
       // Turn the item being placed, or the selected items, by 90° (Shift = the other way).
       const delta = (e.shiftKey ? -1 : 1) * (Math.PI / 2);
       const ids = this.selectedItemIds();
+      const stairIds = this.selectedStairIds();
       if (useUi.getState().tool === 'place') {
         useUi.getState().rotatePlacing(delta);
         this.itemGhost = null;
+      } else if (useUi.getState().tool === 'stair') {
+        useUi.getState().rotateStair(delta);
+        this.stairGhost = null;
       } else if (ids.length) editor.execute(rotateItems(ids, delta));
-    } else if (!mod && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') && this.selectedItemIds().length) {
-      // Nudge selected furniture: 5 cm, Shift = 25 cm.
+      else if (stairIds.length) editor.execute(rotateStairs(stairIds, delta));
+    } else if (!mod && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') && (this.selectedItemIds().length || this.selectedStairIds().length)) {
+      // Nudge selected furniture or stairs: 5 cm, Shift = 25 cm.
       e.preventDefault();
       const d = e.shiftKey ? 0.25 : 0.05;
       const dx = e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0;
       const dz = e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0;
-      editor.execute(translateItems(this.selectedItemIds(), dx, dz));
+      if (this.selectedItemIds().length) editor.execute(translateItems(this.selectedItemIds(), dx, dz));
+      else editor.execute(translateStairs(this.selectedStairIds(), dx, dz));
+    } else if (!mod && key === 's') {
+      useUi.getState().setTool('stair');
     } else if (!mod && key === 'v') {
       useUi.getState().setTool('select');
     } else if (!mod && key === 'd') {
@@ -842,7 +974,9 @@ export function deleteSelection(): void {
   const items = st.selection.filter((id) => st.scene.items[id]);
   const openings = st.selection.filter((id) => st.scene.openings[id]);
   const walls = st.selection.filter((id) => st.scene.walls[id]);
-  if (items.length) editor.execute(removeItems(items));
+  const stairs = st.selection.filter((id) => st.scene.stairs[id]);
+  if (stairs.length && !items.length && !openings.length && !walls.length) editor.execute(removeStairs(stairs));
+  else if (items.length) editor.execute(removeItems(items));
   else if (openings.length) editor.execute(removeOpenings(openings));
   else if (walls.length) editor.execute(removeWalls(walls));
 }

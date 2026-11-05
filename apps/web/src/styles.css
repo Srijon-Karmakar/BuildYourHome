@@ -49,9 +49,46 @@ button {
 .app {
   position: relative;
   height: 100%;
+  /* Width of the column the edit card takes beside the views (card + gutters). */
+  --ins-col: 320px;
+}
+
+.panes {
+  position: absolute;
+  inset: 0;
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
+}
+
+.app.with-inspector .panes {
+  right: calc(var(--ins-col) + var(--safe-r));
+}
+
+@media (max-width: 1100px) {
+  .app {
+    --ins-col: 292px;
+  }
+}
+
+/* No room for two views beside the card: stack them. */
+@media (max-width: 1199px) {
+  .app.with-inspector .panes-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+
+  .app.with-inspector .panes-split .pane + .pane {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* Phones: the card is a bottom sheet over the views (no column). */
+@media (max-width: 699px) {
+  .app.with-inspector .panes {
+    right: 0;
+  }
 }
 
 .panes-split {
@@ -1010,6 +1047,16 @@ button {
 .f-seg.wide button {
   flex: 1;
   padding: 0 4px;
+}
+
+.f-seg.wrap {
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.f-seg.wrap button {
+  flex: 1 0 auto;
+  padding: 0 10px;
 }
 
 .f-chips {

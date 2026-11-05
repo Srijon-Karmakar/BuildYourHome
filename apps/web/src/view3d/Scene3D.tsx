@@ -4,6 +4,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { AdaptiveDpr, Environment, Lightformer, OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useStore } from 'zustand';
+import { stairOpenings } from '@hd/editor-core';
 import { editor, useUi } from '../plan/session';
 import { levelRooms } from '../plan/rooms';
 import { levelGeometry } from '../plan/wallGeom';
@@ -16,7 +17,9 @@ import { CUT_HEIGHT_M, levelVisibility, type LevelVis } from './floors';
 import { ItemMesh } from './furniture/ItemMesh';
 import { OpeningMesh } from './OpeningMesh';
 import { PerfProbe } from './PerfProbe';
+import { canPick, CLICK_SLOP_PX, pickObject } from './pick';
 import { RoofMesh } from './RoofMesh';
+import { StairMesh } from './StairMesh';
 import { TIERS, type Tier } from './qualityLogic';
 import { catalogMaterial } from './placeholderMaterials';
 import { useTier } from './qualityStore';
@@ -33,6 +36,23 @@ function CameraFit() {
   const invalidate = useThree((s) => s.invalidate);
   // Re-frame once the canvas has a real size (the aspect ratio is needed for the fit).
   const sized = useThree((s) => s.size.width > 0 && s.size.height > 0);
+
+  // Test hook (dev builds only): where a world point appears on the page, so the browser tests can click 3D objects.
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const hd = (window as unknown as { __hd?: Record<string, unknown> }).__hd;
+    if (!hd) return;
+    hd.project = (x: number, y: number, z: number): [number, number] => {
+      camera.updateMatrixWorld();
+      const v = new THREE.Vector3(x, y, z).project(camera);
+      const r = gl.domElement.getBoundingClientRect();
+      return [r.left + ((v.x + 1) / 2) * r.width, r.top + ((1 - v.y) / 2) * r.height];
+    };
+    return () => {
+      delete hd.project;
+    };
+  }, [camera, gl]);
 
   useEffect(() => {
     const { target, distance } = computeFraming(editor.getState().scene, camera);
@@ -108,7 +128,7 @@ function Walls({ tier }: { tier: Tier }) {
         const fp = w && data.find((d) => d.level.id === w.levelId)?.geom.footprints[w.id];
         const v = w && vis[w.levelId];
         // Fixtures are hidden on floors that are not drawn and on a cut floor (they would float above the cut walls).
-        return fp && level && v && v.visible && !v.cut ? <OpeningMesh key={o.id} opening={o} fp={fp} elevation={level.elevation} /> : null;
+        return fp && level && v && v.visible && !v.cut ? <OpeningMesh key={o.id} opening={o} fp={fp} elevation={level.elevation} levelId={w.levelId} /> : null;
       })}
     </>
   );
@@ -127,9 +147,23 @@ function Floors({ tier }: { tier: Tier }) {
             elevation={scene.levels[lid]!.elevation}
             materialId={r.room?.floorMaterial.id ?? 'floor-wood-oak'}
             tier={tier}
+            holes={stairOpenings(scene, lid, 'floor', r.polygon)}
+            roomId={r.room?.id}
+            levelId={lid}
           />
         )),
       )}
+    </>
+  );
+}
+
+/** Stairs are drawn when the floor they start on is drawn. */
+function Stairs({ tier }: { tier: Tier }) {
+  const scene = useStore(editor.store, (s) => s.scene);
+  const vis = useLevelVis();
+  return (
+    <>
+      {Object.values(scene.stairs).map((s) => (vis[s.fromLevel]?.visible ? <StairMesh key={s.id} stair={s} scene={scene} tier={tier} /> : null))}
     </>
   );
 }
@@ -184,6 +218,7 @@ function Ceilings({ tier }: { tier: Tier }) {
               y={level.elevation + level.height}
               materialId={r.room?.ceilingMaterial?.id ?? 'paint-white'}
               tier={tier}
+              holes={stairOpenings(scene, lid, 'ceiling', r.polygon)}
             />
           ));
       })}
@@ -251,6 +286,15 @@ function Ground({ tier }: { tier: Tier }) {
   );
 }
 
+/** Where the last pointer press happened (to tell a click from an orbit drag). */
+const downAt = { x: 0, y: 0 };
+if (typeof window !== 'undefined') {
+  window.addEventListener('pointerdown', (e) => {
+    downAt.x = e.clientX;
+    downAt.y = e.clientY;
+  }, true);
+}
+
 export function Scene3D() {
   const walk = useUi((s) => s.walk);
   const tier = useTier();
@@ -265,12 +309,18 @@ export function Scene3D() {
       performance={{ min: 0.6, max: 1, debounce: 180 }}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
       camera={{ position: [8, 7, 10], fov: 50, near: 0.1, far: 500 }}
+      onPointerMissed={(e) => {
+        // A click on nothing clears the selection (an orbit drag does not).
+        if (!canPick() || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > CLICK_SLOP_PX) return;
+        pickObject(null, undefined, e.shiftKey || useUi.getState().additive);
+      }}
     >
       <color attach="background" args={['#e6e4e0']} />
       <Lighting tier={tier} />
       <Ground tier={tier} />
       <Floors tier={tier} />
       <Walls tier={tier} />
+      <Stairs tier={tier} />
       <Items />
       <Roofs tier={tier} />
       {walk && <Ceilings tier={tier} />}

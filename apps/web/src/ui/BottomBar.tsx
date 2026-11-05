@@ -7,6 +7,7 @@ const CAPTION = {
   door: 'Move over a wall and click to add a door · it opens toward your side',
   window: 'Move over a wall and click to add a window',
   plot: 'Click each corner of your land · click the first corner or press Enter to close · Esc to cancel',
+  stair: 'Click to place the stairs · R turns them · they climb to the floor above (one is added if needed) · Esc to stop',
   place: 'Click to place · R turns it · Esc to stop',
   select: 'Tap a wall, room, door or furniture to edit it · drag to move',
   view3d: 'Drag to look around · scroll or pinch to zoom',
@@ -42,9 +43,12 @@ export function BottomBar() {
   const showDone = drawing && !walk && tool === 'wall';
   const showPlotDone = tool === 'plot' && !walk && view !== '3d';
   const showKind = tool === 'wall' && !walk && view !== '3d';
+  const showStairKind = tool === 'stair' && !walk && view !== '3d';
+  const newStair = useUi((s) => s.newStair);
+  const setNewStair = useUi((s) => s.setNewStair);
 
   return (
-    <div className={`bottom${hasSelection && !walk && view !== '3d' ? ' with-inspector' : ''}`}>
+    <div className={`bottom${hasSelection && !walk ? ' with-inspector' : ''}`}>
       {showKind && (
         <div className="segmented" role="group" aria-label="New wall type">
           {(['interior', 'exterior'] as const).map((k) => (
@@ -60,6 +64,26 @@ export function BottomBar() {
             </button>
           ))}
         </div>
+      )}
+      {showStairKind && (
+        <>
+          <div className="segmented" role="group" aria-label="Stair shape">
+            {(['straight', 'L', 'U'] as const).map((k) => (
+              <button key={k} type="button" className="seg" aria-pressed={newStair.kind === k} onClick={() => setNewStair({ kind: k })}>
+                {k === 'straight' ? 'Straight' : k === 'L' ? 'L-shape' : 'U-shape'}
+              </button>
+            ))}
+          </div>
+          {newStair.kind !== 'straight' && (
+            <div className="segmented" role="group" aria-label="Stair turn">
+              {([false, true] as const).map((m) => (
+                <button key={String(m)} type="button" className="seg" aria-pressed={newStair.mirror === m} onClick={() => setNewStair({ mirror: m })}>
+                  {m ? 'Turns right' : 'Turns left'}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
       {tip && !showDone && !showPlotDone && (
         <div className="tip" role="status">
