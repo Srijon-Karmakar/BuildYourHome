@@ -1,11 +1,12 @@
 import { useStore } from 'zustand';
-import { editor, finishDrawing, useUi } from '../plan/session';
+import { editor, finishDrawing, finishPlot, useUi } from '../plan/session';
 import { nextTip } from './tipsLogic';
 
 const CAPTION = {
   wall: 'Click to place points · type a length + Enter for an exact wall · Esc to finish',
   door: 'Move over a wall and click to add a door · it opens toward your side',
   window: 'Move over a wall and click to add a window',
+  plot: 'Click each corner of your land · click the first corner or press Enter to close · Esc to cancel',
   place: 'Click to place · R turns it · Esc to stop',
   select: 'Tap a wall, room, door or furniture to edit it · drag to move',
   view3d: 'Drag to look around · scroll or pinch to zoom',
@@ -19,6 +20,8 @@ export function BottomBar() {
   const view = useUi((s) => s.view);
   const walk = useUi((s) => s.walk);
   const drawing = useUi((s) => s.drawing);
+  const plotPoints = useUi((s) => s.plotDraft.length);
+  const plotError = useUi((s) => s.plotError);
   const kind = useUi((s) => s.newWallKind);
   const setKind = useUi((s) => s.setNewWallKind);
   const hasSelection = useStore(editor.store, (s) => s.selection.length > 0);
@@ -36,7 +39,8 @@ export function BottomBar() {
       ? CAPTION.view3d
       : CAPTION[tool];
 
-  const showDone = drawing && !walk;
+  const showDone = drawing && !walk && tool === 'wall';
+  const showPlotDone = tool === 'plot' && !walk && view !== '3d';
   const showKind = tool === 'wall' && !walk && view !== '3d';
 
   return (
@@ -57,7 +61,7 @@ export function BottomBar() {
           ))}
         </div>
       )}
-      {tip && !showDone && (
+      {tip && !showDone && !showPlotDone && (
         <div className="tip" role="status">
           <span>
             <b>Next:</b> {tip.text}
@@ -85,6 +89,14 @@ export function BottomBar() {
       {showDone && (
         <div className="context">
           <button type="button" className="pill solid" title="Finish this wall (Enter)" onClick={finishDrawing}>
+            Done
+          </button>
+        </div>
+      )}
+      {showPlotDone && (
+        <div className="context">
+          {plotError && <span className="fine" role="alert">{plotError}</span>}
+          <button type="button" className="pill solid" title="Close the plot (Enter)" disabled={plotPoints < 3} onClick={finishPlot}>
             Done
           </button>
         </div>

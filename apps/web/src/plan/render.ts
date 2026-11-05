@@ -72,10 +72,12 @@ export interface RenderState {
   scene: Scene;
   levelId: string;
   selection: readonly string[];
-  tool: 'select' | 'wall' | 'door' | 'window' | 'place';
+  tool: 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot';
   hover: SnapResult | null;
   drawingFrom: Vec2 | null;
   gridStep: number;
+  /** The property outline, the outline being drawn, and house points that stick out of the plot. */
+  plot: { boundary: readonly Vec2[] | null; draft: readonly Vec2[] | null; outside: readonly Vec2[] };
 }
 
 function drawGrid(ctx: CanvasRenderingContext2D, s: RenderState): void {
@@ -637,6 +639,115 @@ function drawOverlay(ctx: CanvasRenderingContext2D, s: RenderState): void {
   }
 }
 
+function polyArea(p: readonly Vec2[]): number {
+  let a = 0;
+  for (let i = 0; i < p.length; i++) {
+    const q = p[i]!;
+    const r = p[(i + 1) % p.length]!;
+    a += q[0] * r[1] - r[0] * q[1];
+  }
+  return Math.abs(a) / 2;
+}
+
+/** Plot: land outside it is dimmed, the outline is dashed, edges are measured and the area is labelled. */
+function drawPlotBefore(ctx: CanvasRenderingContext2D, s: RenderState): void {
+  const b = s.plot.boundary;
+  if (!b || b.length < 3) return;
+  ctx.beginPath();
+  ctx.rect(0, 0, s.width, s.height);
+  b.forEach((p, i) => {
+    const [x, y] = toScreen(s.view, p[0], p[1]);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(17,17,17,0.07)';
+  ctx.fill('evenodd');
+}
+
+function drawPlotAfter(ctx: CanvasRenderingContext2D, s: RenderState): void {
+  const { view: v } = s;
+  const b = s.plot.boundary;
+  if (b && b.length >= 3) {
+    ctx.beginPath();
+    b.forEach((p, i) => {
+      const [x, y] = toScreen(v, p[0], p[1]);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.setLineDash([10, 6]);
+    ctx.strokeStyle = C.brick;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = `400 12px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < b.length; i++) {
+      const a = b[i]!;
+      const c = b[(i + 1) % b.length]!;
+      const len = Math.hypot(c[0] - a[0], c[1] - a[1]);
+      if (len * v.scale < 60) continue;
+      const [ax, ay] = toScreen(v, a[0], a[1]);
+      const [cx, cy] = toScreen(v, c[0], c[1]);
+      halo(ctx, formatLength(len, s.units), (ax + cx) / 2, (ay + cy) / 2 - 11);
+    }
+    const minX = Math.min(...b.map((p) => p[0]));
+    const minZ = Math.min(...b.map((p) => p[1]));
+    const [lx, ly] = toScreen(v, minX, minZ);
+    ctx.font = `500 12px ${FONT}`;
+    ctx.textAlign = 'left';
+    halo(ctx, `Plot · ${formatArea(polyArea(b), s.units)}`, lx + 10, ly + 18);
+    ctx.textAlign = 'center';
+    // House points outside the plot.
+    ctx.strokeStyle = '#c0392b';
+    ctx.lineWidth = 2;
+    for (const p of s.plot.outside) {
+      const [x, y] = toScreen(v, p[0], p[1]);
+      ctx.beginPath();
+      ctx.arc(x, y, 9, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+  const d = s.plot.draft;
+  if (d && d.length) {
+    ctx.strokeStyle = C.brick;
+    ctx.fillStyle = C.brick;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 5]);
+    ctx.beginPath();
+    d.forEach((p, i) => {
+      const [x, y] = toScreen(v, p[0], p[1]);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    if (s.hover) {
+      const [hx, hy] = toScreen(v, s.hover.point[0], s.hover.point[1]);
+      ctx.lineTo(hx, hy);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    d.forEach((p, i) => {
+      const [x, y] = toScreen(v, p[0], p[1]);
+      ctx.beginPath();
+      ctx.arc(x, y, i === 0 ? 6 : 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    const last = d[d.length - 1]!;
+    if (s.hover) {
+      const len = Math.hypot(s.hover.point[0] - last[0], s.hover.point[1] - last[1]);
+      if (len > 1e-6) {
+        const [hx, hy] = toScreen(v, s.hover.point[0], s.hover.point[1]);
+        ctx.font = `400 13px ${FONT}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        halo(ctx, formatLength(len, s.units), hx, hy - 22);
+      }
+    }
+  }
+}
+
 export function drawPlan(ctx: CanvasRenderingContext2D, s: RenderState): void {
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, s.width, s.height);
@@ -653,6 +764,7 @@ export function drawPlan(ctx: CanvasRenderingContext2D, s: RenderState): void {
     ctx.closePath();
     ctx.fill();
   }
+  drawPlotBefore(ctx, s);
   drawRooms(ctx, s, 'fills');
   drawItems(ctx, s);
   drawWalls(ctx, s);
@@ -660,6 +772,7 @@ export function drawPlan(ctx: CanvasRenderingContext2D, s: RenderState): void {
   drawOpenings(ctx, s);
   drawOverall(ctx, s);
   drawRooms(ctx, s, 'labels');
+  drawPlotAfter(ctx, s);
   drawWalker(ctx, s);
   drawOverlay(ctx, s);
 }

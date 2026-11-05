@@ -1,10 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { WALL_THICKNESS_EXTERIOR_M, WALL_THICKNESS_INTERIOR_M } from '@hd/scene-schema';
-import { batch, setDefaults, setGround, setSceneName, setUnits } from '@hd/editor-core';
+import {
+  batch,
+  boundaryKind,
+  DEFAULT_PLOT_MARGIN_M,
+  nodesOutsidePlot,
+  setBoundary,
+  setDefaults,
+  setGround,
+  setPlot,
+  setPlotAroundHouse,
+  setSceneName,
+  setUnits,
+} from '@hd/editor-core';
+import { polygonArea } from '@hd/geometry';
 import { editor, useUi } from '../plan/session';
 import { materialsFor } from '../view3d/placeholderMaterials';
 import { FileActions } from './FileActions';
+import { formatArea } from '../lib/units';
 import { LengthField, Section, Segmented, Swatches, TextField, Toggle } from './fields';
 
 /** Project-level settings: name, the ground around the house, and thickness for newly drawn walls. */
@@ -14,6 +28,10 @@ export function HomeMenu() {
   const pro = useUi((s) => s.pro);
   const setPro = useUi((s) => s.setPro);
   const root = useRef<HTMLDivElement>(null);
+  const [margin, setMargin] = useState(DEFAULT_PLOT_MARGIN_M);
+  const setTool = useUi((s) => s.setTool);
+  const plot = scene.plot?.boundary;
+  const outside = nodesOutsidePlot(scene).length;
 
   useEffect(() => {
     if (!open) return;
@@ -51,6 +69,59 @@ export function HomeMenu() {
               value={scene.terrain.groundMaterial.id}
               onPick={(id) => editor.execute(setGround({ id }))}
             />
+          </Section>
+          <Section title="Plot & site">
+            {plot ? (
+              <>
+                <small className="fine" data-testid="plot-area">
+                  Plot area {formatArea(polygonArea(plot), scene.meta.units)}
+                </small>
+                {outside > 0 && (
+                  <small className="fine" role="alert" data-testid="plot-warning">
+                    {outside} point{outside === 1 ? '' : 's'} of your house {outside === 1 ? 'is' : 'are'} outside the plot.
+                  </small>
+                )}
+                <Segmented
+                  label="Boundary"
+                  value={boundaryKind(scene)}
+                  options={[
+                    { id: 'none', label: 'None' },
+                    { id: 'wall', label: 'Wall' },
+                    { id: 'fence', label: 'Fence' },
+                  ]}
+                  onChange={(k) => editor.execute(setBoundary(k))}
+                />
+              </>
+            ) : (
+              <small className="fine">Mark the land your house stands on. Grass and paving then stay inside it.</small>
+            )}
+            <LengthField label="Space around house" value={margin} min={0} max={30} step={0.5} onCommit={setMargin} />
+            <div className="f-actions">
+              <button type="button" className="pill small" onClick={() => editor.execute(setPlotAroundHouse(margin))}>
+                {plot ? 'Reset around house' : 'Plot around my house'}
+              </button>
+              <button
+                type="button"
+                className="pill small"
+                onClick={() => {
+                  setTool('plot');
+                  setOpen(false);
+                }}
+              >
+                Draw by hand
+              </button>
+              {plot && (
+                <button
+                  type="button"
+                  className="pill small"
+                  onClick={() => {
+                    editor.execute(batch('Remove plot', [setBoundary('none'), setPlot(null)]));
+                  }}
+                >
+                  Remove plot
+                </button>
+              )}
+            </div>
           </Section>
           <Section title="Units & tools">
             <Segmented

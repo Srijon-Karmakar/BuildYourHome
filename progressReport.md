@@ -29,6 +29,19 @@ Planning/documentation: **Done** (2026-11-05)
 
 ## Log
 
+### [2026-11-05] P1-07 + P1-11 + redeem code — Phase 1 leftovers
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done. 271 unit tests (geometry 56, editor-core 130, assets 9, schema 8, web 68) + 202/202 browser checks; typecheck and lint clean. Phase 1 code is now complete; only the owner's furnished-home benchmark remains for the exit check.
+- **What was done:**
+  - **P1-07 Plot & site.** Home › *Plot & site*: *Plot around my house* (margin field, default 3 m; a 20 × 15 m plot when nothing is drawn), *Draw by hand* (new `plot` tool: click corners, click the first corner / Enter / double-click to close, Esc cancels), *Boundary* None / Wall / Fence (walls of kind `boundary` along the plot edge on the ground floor: wall = 0.2 m × 1.8 m stone, fence = 0.06 m × 1.2 m wood), plot area readout, warning when house points are outside, *Remove plot*. Boundary walls never form rooms or roofs. Plan: dimmed land outside, dashed outline, edge lengths, area label, red rings on points outside. 3D: the chosen ground covers only the plot, with a neutral verge around it. Fit and the 3D framing include the plot. Invalid outlines (self-crossing, < 4 m², < 3 corners) are refused.
+  - **Redeem codes** (see below).
+  - **P1-11:** added `@vitest/coverage-v8` and `pnpm coverage`; coverage was already ≥ 80% everywhere (geometry 95 %, editor-core 98 %, assets 93 %, schema 98 %). New tests: `packages/editor-core/src/plot.test.ts` (polygon helpers, plot commands, boundary behaviour, rooms unaffected).
+  - Ticked P1-07, P1-11, P1-12, P1-13, P1-14 (the last three were delivered earlier in P0-10/P0-11/P1-05).
+- **Unlock for developers — replaced by redeem codes (owner request):** Account › *Redeem a code*; a valid code unlocks every asset and turns ads off for that account (`Entitlements.gifted`). Server side: `services/supabase/migrations/0003_redeem_codes.sql` (hashed codes, RLS with no policies, `redeem_code()` security-definer function, per-account throttle, optional max uses / expiry / grant days, never overwrites a paid subscription). Demo backend accepts `HOME-DEMO`. The earlier `?unlockall` switch, Display › Developer toggle and email-grant SQL were removed. 271 unit tests + 205/205 browser checks.
+- **Files changed/created:** `packages/geometry/src/wall/footprint.ts`, `packages/editor-core/src/commands/plot.ts` (+ `plot.test.ts`), `rooms.ts`, `apps/web/src/plan/{session,PlanController,render,rooms}.ts`, `ui/{HomeMenu,BottomBar}.tsx`, `view3d/{Scene3D,framing,RoofMesh}`, `styles.css`, `e2e/smoke.mjs`, `package.json`, cloud/*, `ui/AccountMenu.tsx` and `0003_redeem_codes.sql` for the redeem code.
+- **Problems / notes:** hand-drawn plot corners carry tiny float noise (1.5000000000000002); harmless. Boundary walls drawn for an earlier plot stay put if you then redraw the plot — choose the boundary again after changing the plot.
+- **Next step:** owner runs migrations 0002 + 0003 in Supabase, creates a redeem code (template at the bottom of 0003), redeems it on their account, and does the Phase 1 benchmark on desktop + phone. Then Phase 3 in the agreed order: stairs (P3-02) → export (P3-05) → sun (P3-03) / garden (P3-01).
+
 ### [2026-11-05] Launch-blocker account features: password reset, change password, delete account, sync conflicts
 - **Model/Author:** Claude Sonnet 5.5
 - **Status:** Done and verified on the demo backend (66 web unit tests, 187/187 browser checks, 258 unit tests total). Supabase implementations are written and type-checked; **migration `0002_delete_account.sql` and the reset-email flow are not yet run on the live project.**

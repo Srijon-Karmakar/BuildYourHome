@@ -17,6 +17,8 @@ export interface ProjectMeta {
 /** What the current user may use. `unlocks` maps an asset id to its expiry (ISO) or null for "forever". */
 export interface Entitlements {
   subscribed: boolean;
+  /** Unlocked with a redeem code: everything free and no ads (for the owner, testers, gifts). Granted server-side. */
+  gifted?: boolean;
   unlocks: Record<string, string | null>;
 }
 
@@ -66,6 +68,11 @@ export interface Backend {
   getEntitlements(): Promise<Entitlements>;
   /** Reward for watching an ad. Real implementations must verify server-side (see docs). */
   unlockWithAd(assetId: string): Promise<Result<Entitlements>>;
+  /**
+   * Redeem a code (signed-in users only). A valid code unlocks everything for this account. The check happens
+   * on the server (Supabase) so a code can't be guessed from the app or granted by editing the browser.
+   */
+  redeemCode(code: string): Promise<Result<Entitlements>>;
   /** Demo billing only; the real flow goes through Stripe / the stores (ADR-011). */
   setSubscription(active: boolean): Promise<Result<Entitlements>>;
 }
@@ -76,3 +83,6 @@ export const shareUrl = (token: string, base: string = window.location.origin + 
   `${base}?${SHARE_PATH_PARAM}=${encodeURIComponent(token)}`;
 
 export type SceneSource = () => Scene;
+
+/** Make typed codes forgiving: case, spaces and dashes don't matter (the server applies the same rule). */
+export const normalizeCode = (code: string): string => code.toUpperCase().replace(/[^A-Z0-9]/g, '');

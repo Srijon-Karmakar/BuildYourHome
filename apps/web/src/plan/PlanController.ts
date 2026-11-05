@@ -20,12 +20,13 @@ import {
   snapPoint,
   type SnapResult,
 } from '@hd/editor-core';
-import { editor, finishDrawing, useUi, wallTool } from './session';
+import { cancelPlot, editor, finishDrawing, finishPlot, useUi, wallTool } from './session';
 import { drawPlan, pointInPolygon, type ItemGhost, type OpeningPreview } from './render';
 import { levelRooms } from './rooms';
 import { levelGeometry } from './wallGeom';
 import { walkPose } from '../walk/walkState';
 import { requireAccess } from '../cloud/store';
+import { nodesOutsidePlot } from '@hd/editor-core';
 import { defaultInputUnit, LENGTH_CHARS, LENGTH_UNIT_CHARS, parseLength } from '../lib/units';
 import { toWorld, zoomAt, type View } from './viewport';
 
@@ -109,6 +110,7 @@ export class PlanController {
     on(canvas, 'wheel', (e: WheelEvent) => this.onWheel(e), { passive: false });
     on(canvas, 'dblclick', () => {
       if (useUi.getState().tool === 'wall') this.endChain();
+      else if (useUi.getState().tool === 'plot') finishPlot();
     });
     on(canvas, 'contextmenu', (e: Event) => e.preventDefault());
     on(window, 'keydown', (e: KeyboardEvent) => this.onKey(e, true));
@@ -126,6 +128,7 @@ export class PlanController {
         if (s.tool !== prevTool) {
           prevTool = s.tool;
           this.endChain();
+          cancelPlot();
           this.hover = null;
           this.preview = null;
           this.itemGhost = null;
@@ -156,7 +159,8 @@ export class PlanController {
 
   /** Fit the whole plan (or reset to origin) into view. */
   fitToPlan(): void {
-    const nodes = Object.values(editor.getState().scene.nodes);
+    const scene = editor.getState().scene;
+    const nodes: { p: Vec2 }[] = [...Object.values(scene.nodes), ...(scene.plot?.boundary ?? []).map((p) => ({ p }))];
     if (nodes.length === 0) {
       this.view = { scale: 60, ox: this.cssW / 2, oy: this.cssH / 2 };
     } else {
@@ -209,7 +213,7 @@ export class PlanController {
       this.view.oy = rect.height / 2;
       this.centered = true;
       // A project opened with content (sample home, later: saved projects) starts framed.
-      if (Object.keys(editor.getState().scene.nodes).length > 0) this.fitToPlan();
+      if (Object.keys(editor.getState().scene.nodes).length > 0 || editor.getState().scene.plot) this.fitToPlan();
     }
     this.invalidate();
   }
@@ -244,6 +248,14 @@ export class PlanController {
       tool: ui.tool,
       hover: this.hover,
       drawingFrom: ui.tool === 'wall' ? wallTool.last : null,
+      plot: {
+        boundary: st.scene.plot?.boundary ?? null,
+        draft: ui.tool === 'plot' ? ui.plotDraft : null,
+        outside: nodesOutsidePlot(st.scene).flatMap((id) => {
+          const n = st.scene.nodes[id];
+          return n && n.levelId === st.activeLevelId ? [n.p as Vec2] : [];
+        }),
+      },
       gridStep: niceGridStep(this.view.scale),
     });
   }
@@ -264,7 +276,7 @@ export class PlanController {
       settings: exclude ? { ...ui.snap, walls: false } : ui.snap,
       gridStep: niceGridStep(this.view.scale),
       thresholdM: SNAP_PX / this.view.scale,
-      from: ui.tool === 'wall' ? (wallTool.last ?? undefined) : undefined,
+      from: ui.tool === 'wall' ? (wallTool.last ?? undefined) : ui.tool === 'plot' ? (ui.plotDraft[ui.plotDraft.length - 1] ?? undefined) : undefined,
       excludeNodeIds: exclude,
     });
   }
@@ -471,7 +483,7 @@ export class PlanController {
       this.mode = 'pan';
       return;
     }
-    if (tool === 'wall') {
+    if (tool === 'wall' || tool === 'plot') {
       this.mode = 'place';
       this.hover = this.snapAt(p.x, p.y);
     } else if (tool === 'door' || tool === 'window') {
@@ -520,7 +532,7 @@ export class PlanController {
     if (!prev) {
       // Hovering mouse (no button down).
       const tool = useUi.getState().tool;
-      if (tool === 'wall' && e.pointerType === 'mouse') {
+      if ((tool === 'wall' || tool === 'plot') && e.pointerType === 'mouse') {
         this.hover = this.snapAt(p.x, p.y);
         this.invalidate();
       } else if ((tool === 'door' || tool === 'window') && e.pointerType === 'mouse') {
@@ -610,7 +622,14 @@ export class PlanController {
     const mode = this.mode;
     this.mode = 'none';
 
-    if (mode === 'place') {
+    if (mode === 'place' && useUi.getState().tool === 'plot') {
+      const s = this.snapAt(p.x, p.y);
+      const ui = useUi.getState();
+      const first = ui.plotDraft[0];
+      if (first && ui.plotDraft.length >= 3 && Math.hypot(s.point[0] - first[0], s.point[1] - first[1]) * this.view.scale < 14) finishPlot();
+      else ui.setPlotDraft([...ui.plotDraft, s.point]);
+      this.hover = e.pointerType === 'mouse' ? this.snapAt(p.x, p.y) : null;
+    } else if (mode === 'place') {
       const s = this.snapAt(p.x, p.y);
       useUi.getState().setLengthInput('');
       wallTool.click(s.point, s.kind);
@@ -771,12 +790,17 @@ export class PlanController {
       editor.redo();
     } else if (e.key === 'Escape') {
       this.endChain();
+      if (useUi.getState().tool === 'plot') {
+        if (useUi.getState().plotDraft.length) cancelPlot();
+        else useUi.getState().setTool('select');
+      }
       this.preview = null;
       this.itemGhost = null;
       if (useUi.getState().tool === 'place') useUi.getState().setTool('select');
       editor.select([]);
     } else if (e.key === 'Enter') {
       if (useUi.getState().tool === 'wall') this.endChain();
+      else if (useUi.getState().tool === 'plot') finishPlot();
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       deleteSelection();
     } else if (!mod && key === 'w') {

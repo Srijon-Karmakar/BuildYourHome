@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createEmptyScene } from '@hd/scene-schema';
 import { adsEnabled, accessFor, canUse, lockLabel, pruneUnlocks, REWARDED_UNLOCK_MS } from './entitlements';
-import { LocalBackend, memoryKV } from './localBackend';
-import { NO_ENTITLEMENTS } from './types';
+import { DEMO_REDEEM_CODE, LocalBackend, memoryKV } from './localBackend';
+import { NO_ENTITLEMENTS, normalizeCode } from './types';
 
 const free = { id: 'a', tier: 'free' as const };
 const premium = { id: 'bed-double', tier: 'premium' as const };
@@ -243,5 +243,34 @@ describe('LocalBackend: save conflicts', () => {
     if (!two.ok) throw new Error('save failed');
     expect(two.value.updatedAt > one.value.updatedAt).toBe(true);
     expect((await b.saveProject(createEmptyScene({ name: 'v3' }), one.value.id, two.value.updatedAt)).ok).toBe(true);
+  });
+});
+
+describe('redeem codes', () => {
+  const premium2 = { id: 'bed-double', tier: 'premium' as const };
+  it('a gifted account can use every tier and sees no ads, without being a subscription', () => {
+    const g = { subscribed: false, gifted: true, unlocks: {} };
+    expect(canUse(premium2, g) && canUse(rewarded, g)).toBe(true);
+    expect(adsEnabled(g)).toBe(false);
+    expect(canUse(premium2, { subscribed: false, unlocks: {} })).toBe(false);
+  });
+
+  it('normalizeCode ignores case, spaces and dashes', () => {
+    expect(normalizeCode(' ab-12 cd ')).toBe('AB12CD');
+  });
+
+  it('the demo backend needs a sign-in, refuses wrong codes and remembers a right one per account', async () => {
+    const b = new LocalBackend(memoryKV());
+    expect((await b.redeemCode(DEMO_REDEEM_CODE)).ok).toBe(false); // guest
+    await b.signUp('gift@example.com', 'password one');
+    expect((await b.redeemCode('nope')).ok).toBe(false);
+    expect((await b.getEntitlements()).gifted).toBeUndefined();
+    const r = await b.redeemCode(' home demo ');
+    expect(r.ok && r.value.gifted).toBe(true);
+    expect((await b.getEntitlements()).gifted).toBe(true);
+    await b.signOut();
+    expect((await b.getEntitlements()).gifted).toBeUndefined(); // a guest on the same browser gets nothing
+    await b.signUp('other@example.com', 'password two');
+    expect((await b.getEntitlements()).gifted).toBeUndefined(); // another account neither
   });
 });

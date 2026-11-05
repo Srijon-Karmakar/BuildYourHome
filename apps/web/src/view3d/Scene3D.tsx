@@ -227,9 +227,22 @@ function Lighting({ tier }: { tier: Tier }) {
 }
 
 /** The surface around the house (grass, sand, paving…), chosen in the Home menu. */
-function Ground() {
+function Ground({ tier }: { tier: Tier }) {
   const id = useStore(editor.store, (s) => s.scene.terrain.groundMaterial.id);
+  const plot = useStore(editor.store, (s) => s.scene.plot?.boundary);
   const m = catalogMaterial(id);
+  if (plot && plot.length >= 3) {
+    // The chosen ground covers only the plot; everything around it is a neutral verge.
+    return (
+      <>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, 0]} receiveShadow>
+          <planeGeometry args={[300, 300]} />
+          <meshStandardMaterial color="#cfccc4" roughness={1} />
+        </mesh>
+        <FloorMesh polygon={plot} elevation={-0.012} materialId={id} tier={tier} />
+      </>
+    );
+  }
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.002, 0]} receiveShadow>
       <planeGeometry args={[300, 300]} />
@@ -255,7 +268,7 @@ export function Scene3D() {
     >
       <color attach="background" args={['#e6e4e0']} />
       <Lighting tier={tier} />
-      <Ground />
+      <Ground tier={tier} />
       <Floors tier={tier} />
       <Walls tier={tier} />
       <Items />

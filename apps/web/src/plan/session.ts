@@ -1,12 +1,12 @@
 import { create } from 'zustand';
-import { createEmptyScene } from '@hd/scene-schema';
-import { createEditor, createWallTool, DEFAULT_SNAP, type SnapSettings } from '@hd/editor-core';
+import { createEmptyScene, type Vec2 } from '@hd/scene-schema';
+import { cleanPolygon, createEditor, createWallTool, DEFAULT_SNAP, plotProblem, setPlot, type SnapSettings } from '@hd/editor-core';
 
 /** App-wide singletons for the editing session (one project open at a time). */
 export const editor = createEditor(createEmptyScene());
 export const wallTool = createWallTool(editor, () => useUi.getState().newWallKind);
 
-export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'place';
+export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot';
 export type ViewMode = '2d' | '3d' | 'split';
 export type { FloorView } from '../view3d/floors';
 
@@ -68,6 +68,11 @@ interface UiState {
   setTool(t: ToolId): void;
   toggleSnap(k: 'grid' | 'nodes' | 'walls' | 'angle'): void;
   setDrawing(v: boolean): void;
+  /** Corners of the plot being drawn by hand (tool === 'plot'). */
+  plotDraft: Vec2[];
+  setPlotDraft(p: Vec2[]): void;
+  /** Why the last attempt to finish a plot failed. */
+  plotError: string | null;
   /** "Add more": taps toggle items in/out of the selection (touch devices have no Shift key). */
   additive: boolean;
   toggleAdditive(): void;
@@ -139,6 +144,9 @@ export const useUi = create<UiState>((set) => ({
   paintSide: 'both',
   setPaintSide: (paintSide) => set({ paintSide }),
   additive: false,
+  plotDraft: [],
+  setPlotDraft: (plotDraft) => set({ plotDraft, plotError: null }),
+  plotError: null,
   toggleAdditive: () => set((s) => ({ additive: !s.additive })),
 }));
 
@@ -146,4 +154,25 @@ export function finishDrawing(): void {
   wallTool.finish();
   useUi.getState().setLengthInput('');
   useUi.getState().setDrawing(false);
+}
+
+/** Close the hand-drawn plot: validate, store it, and go back to selecting. */
+export function finishPlot(): void {
+  const ui = useUi.getState();
+  const pts = cleanPolygon(ui.plotDraft);
+  if (pts.length === 0) {
+    ui.setTool('select');
+    return;
+  }
+  const problem = plotProblem(pts);
+  if (problem) {
+    useUi.setState({ plotError: problem });
+    return;
+  }
+  editor.execute(setPlot(pts));
+  useUi.setState({ plotDraft: [], plotError: null, tool: 'select' });
+}
+
+export function cancelPlot(): void {
+  useUi.setState({ plotDraft: [], plotError: null });
 }

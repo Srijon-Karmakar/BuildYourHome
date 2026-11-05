@@ -157,3 +157,46 @@ export function polygonArea(p: readonly Vec2[]): number {
   }
   return Math.abs(s) / 2;
 }
+
+const cross2 = (o: Vec2, a: Vec2, b: Vec2) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+
+/** Do segments p1-p2 and p3-p4 cross or touch (excluding a shared endpoint)? */
+function segmentsIntersect(p1: Vec2, p2: Vec2, p3: Vec2, p4: Vec2): boolean {
+  const d1 = cross2(p3, p4, p1);
+  const d2 = cross2(p3, p4, p2);
+  const d3 = cross2(p1, p2, p3);
+  const d4 = cross2(p1, p2, p4);
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true;
+  const on = (a: Vec2, b: Vec2, c: Vec2) =>
+    Math.abs(cross2(a, b, c)) < 1e-9 && c[0] >= Math.min(a[0], b[0]) - 1e-9 && c[0] <= Math.max(a[0], b[0]) + 1e-9 && c[1] >= Math.min(a[1], b[1]) - 1e-9 && c[1] <= Math.max(a[1], b[1]) + 1e-9;
+  return on(p3, p4, p1) || on(p3, p4, p2) || on(p1, p2, p3) || on(p1, p2, p4);
+}
+
+/** A polygon with >= 3 vertices whose edges never cross or touch each other (non-adjacent edges). */
+export function isSimplePolygon(p: readonly Vec2[]): boolean {
+  const n = p.length;
+  if (n < 3) return false;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (j === i + 1 || (i === 0 && j === n - 1)) continue; // adjacent edges share a vertex by definition
+      if (segmentsIntersect(p[i]!, p[(i + 1) % n]!, p[j]!, p[(j + 1) % n]!)) return false;
+    }
+  }
+  return true;
+}
+
+/** Ray-casting point-in-polygon (boundary counts as inside within `eps`). */
+export function pointInPolygon(pt: Vec2, poly: readonly Vec2[], eps = 1e-6): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i]!;
+    const b = poly[j]!;
+    const abx = b[0] - a[0];
+    const abz = b[1] - a[1];
+    const len2 = abx * abx + abz * abz || 1;
+    const t = Math.max(0, Math.min(1, ((pt[0] - a[0]) * abx + (pt[1] - a[1]) * abz) / len2));
+    if (Math.hypot(pt[0] - (a[0] + abx * t), pt[1] - (a[1] + abz * t)) <= eps) return true; // on the edge
+    if (a[1] > pt[1] !== b[1] > pt[1] && pt[0] < ((b[0] - a[0]) * (pt[1] - a[1])) / (b[1] - a[1]) + a[0]) inside = !inside;
+  }
+  return inside;
+}

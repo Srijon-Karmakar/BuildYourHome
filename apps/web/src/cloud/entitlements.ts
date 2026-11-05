@@ -13,7 +13,7 @@ export type Access = 'free' | 'subscription' | 'unlocked' | 'locked-premium' | '
  */
 export function accessFor(asset: Pick<Asset, 'id' | 'tier'>, ent: Entitlements, now = Date.now()): Access {
   if (asset.tier === 'free') return 'free';
-  if (ent.subscribed) return 'subscription';
+  if (ent.subscribed || ent.gifted) return 'subscription';
   if (asset.tier === 'rewarded') {
     const exp = ent.unlocks[asset.id];
     if (exp !== undefined && (exp === null || Date.parse(exp) > now)) return 'unlocked';
@@ -28,7 +28,7 @@ export const canUse = (asset: Pick<Asset, 'id' | 'tier'>, ent: Entitlements, now
 };
 
 /** Ads are for free-tier users only and never for subscribers (ADR-011). */
-export const adsEnabled = (ent: Entitlements): boolean => !ent.subscribed;
+export const adsEnabled = (ent: Entitlements): boolean => !ent.subscribed && !ent.gifted;
 
 /** Drop expired unlocks. */
 export function pruneUnlocks(ent: Entitlements, now = Date.now()): Entitlements {

@@ -25,8 +25,11 @@ function SignIn() {
   const notice = useCloud((s) => s.notice);
   const submit = () => {
     setLocalError(null);
-    if (mode === 'up' && password !== confirm) return setLocalError('The two passwords don’t match.');
-    void (mode === 'in' ? useCloud.getState().signIn(email, password) : useCloud.getState().signUp(email, password));
+    if (mode === 'up' && password !== confirm)
+      return setLocalError('The two passwords don’t match.');
+    void (mode === 'in'
+      ? useCloud.getState().signIn(email, password)
+      : useCloud.getState().signUp(email, password));
   };
   return (
     <form
@@ -38,25 +41,54 @@ function SignIn() {
     >
       <p className="acct-lead">Save your homes, open them on any device and share a link.</p>
       <div className="f-seg wide" role="group" aria-label="Account">
-        <button type="button" aria-pressed={mode === 'in'} onClick={() => { setMode('in'); setLocalError(null); }}>
+        <button
+          type="button"
+          aria-pressed={mode === 'in'}
+          onClick={() => {
+            setMode('in');
+            setLocalError(null);
+          }}
+        >
           Sign in
         </button>
-        <button type="button" aria-pressed={mode === 'up'} onClick={() => { setMode('up'); setLocalError(null); }}>
+        <button
+          type="button"
+          aria-pressed={mode === 'up'}
+          onClick={() => {
+            setMode('up');
+            setLocalError(null);
+          }}
+        >
           Create account
         </button>
       </div>
       <label className="acct-field">
         Email
-        <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
       </label>
       <label className="acct-field">
         Password
-        <input type="password" autoComplete={mode === 'in' ? 'current-password' : 'new-password'} value={password} onChange={(e) => setPassword(e.target.value)} />
+        <input
+          type="password"
+          autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
       </label>
       {mode === 'up' && (
         <label className="acct-field">
           Confirm password
-          <input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
         </label>
       )}
       {notice && (
@@ -85,7 +117,11 @@ function SignIn() {
           Forgot password?
         </button>
       )}
-      {backend === 'local' && <small className="fine">Demo mode: accounts live in this browser only. Connect Supabase to sync across devices.</small>}
+      {backend === 'local' && (
+        <small className="fine">
+          Demo mode: accounts live in this browser only. Connect Supabase to sync across devices.
+        </small>
+      )}
     </form>
   );
 }
@@ -107,6 +143,8 @@ function Account() {
   const [pw2, setPw2] = useState('');
   const [pwError, setPwError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [code, setCode] = useState('');
+  const [codeMsg, setCodeMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const c = useCloud.getState();
   const link = shareToken ? shareUrl(shareToken) : null;
 
@@ -115,7 +153,13 @@ function Account() {
       <div className="acct-head">
         <div>
           <strong>{session.email}</strong>
-          <small>{ent.subscribed ? 'Ad-free · all items unlocked' : 'Free plan'}</small>
+          <small>
+            {ent.gifted
+              ? 'Unlocked with a code · everything free'
+              : ent.subscribed
+                ? 'Ad-free · all items unlocked'
+                : 'Free plan'}
+          </small>
         </div>
         <button type="button" className="pill small" onClick={() => void c.signOut()}>
           Sign out
@@ -123,17 +167,30 @@ function Account() {
       </div>
 
       <h4>This home</h4>
-      <button type="button" className="pill small solid wide" disabled={busy} onClick={() => void c.saveNow()}>
+      <button
+        type="button"
+        className="pill small solid wide"
+        disabled={busy}
+        onClick={() => void c.saveNow()}
+      >
         {projectId ? 'Save to my account now' : 'Save to my account'}
       </button>
       <small className="fine" role="status">
-        {projectId ? `Saved automatically${syncedAt ? ' · last sync ' + new Date(syncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}` : 'Not saved to your account yet.'}
+        {projectId
+          ? `Saved automatically${syncedAt ? ' · last sync ' + new Date(syncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}`
+          : 'Not saved to your account yet.'}
       </small>
 
       <h4>Share</h4>
       {link ? (
         <>
-          <input className="acct-link" readOnly value={link} aria-label="Share link" onFocus={(e) => e.currentTarget.select()} />
+          <input
+            className="acct-link"
+            readOnly
+            value={link}
+            aria-label="Share link"
+            onFocus={(e) => e.currentTarget.select()}
+          />
           <div className="fa-row">
             <button
               type="button"
@@ -151,7 +208,12 @@ function Account() {
           </div>
         </>
       ) : (
-        <button type="button" className="pill small wide" disabled={busy} onClick={() => void c.share()}>
+        <button
+          type="button"
+          className="pill small wide"
+          disabled={busy}
+          onClick={() => void c.share()}
+        >
           Create a view-only link
         </button>
       )}
@@ -165,7 +227,13 @@ function Account() {
               <span>{p.name}</span>
               <small>{ago(p.updatedAt)}</small>
             </button>
-            <button type="button" className="ins-close" aria-label={`Delete ${p.name}`} title="Delete" onClick={() => void c.remove(p.id)}>
+            <button
+              type="button"
+              className="ins-close"
+              aria-label={`Delete ${p.name}`}
+              title="Delete"
+              onClick={() => void c.remove(p.id)}
+            >
               ×
             </button>
           </li>
@@ -175,13 +243,63 @@ function Account() {
       <h4>Plan</h4>
       {mode === 'local' ? (
         <>
-          <button type="button" className="pill small wide" onClick={() => void c.subscribe(!ent.subscribed)}>
+          <button
+            type="button"
+            className="pill small wide"
+            onClick={() => void c.subscribe(!ent.subscribed)}
+          >
             {ent.subscribed ? 'Cancel demo subscription' : 'Go ad-free (demo)'}
           </button>
-          <small className="fine">Demo billing: no payment is taken. Real subscriptions arrive with billing.</small>
+          <small className="fine">
+            Demo billing: no payment is taken. Real subscriptions arrive with billing.
+          </small>
         </>
       ) : (
-        <small className="fine">{ent.subscribed ? 'Subscription active.' : 'Subscriptions are coming soon.'}</small>
+        <small className="fine">
+          {ent.subscribed ? 'Subscription active.' : 'Subscriptions are coming soon.'}
+        </small>
+      )}
+      {(!ent.gifted || codeMsg?.ok) && (
+        <>
+          <h4>Redeem a code</h4>
+          {codeMsg?.ok ? (
+            <p className="fine" role="status">
+              {codeMsg.text}
+            </p>
+          ) : (
+            <form
+              className="acct-form"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!code.trim()) return;
+                const err = await c.redeem(code);
+                if (err) setCodeMsg({ ok: false, text: err });
+                else {
+                  setCode('');
+                  setCodeMsg({ ok: true, text: 'Code accepted — everything is unlocked.' });
+                }
+              }}
+            >
+              <label className="acct-field">
+                Code
+                <input
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+              </label>
+              <button type="submit" className="pill small wide" disabled={busy || !code.trim()}>
+                Redeem
+              </button>
+              {codeMsg && (
+                <p className="w-error" role="alert">
+                  {codeMsg.text}
+                </p>
+              )}
+            </form>
+          )}
+        </>
       )}
       <h4>Security</h4>
       {pwOpen ? (
@@ -200,11 +318,21 @@ function Account() {
         >
           <label className="acct-field">
             New password
-            <input type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} />
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={pw}
+              onChange={(e) => setPw(e.target.value)}
+            />
           </label>
           <label className="acct-field">
             Confirm new password
-            <input type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} />
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={pw2}
+              onChange={(e) => setPw2(e.target.value)}
+            />
           </label>
           <div className="fa-row">
             <button type="submit" className="pill small solid" disabled={busy}>
@@ -273,7 +401,13 @@ export function AccountMenu() {
   if (!ready) return null;
   return (
     <div ref={root} className="menu-anchor">
-      <button type="button" className="pill quiet" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button
+        type="button"
+        className="pill quiet"
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
         {session ? 'Account' : 'Sign in'}
       </button>
       {open && (

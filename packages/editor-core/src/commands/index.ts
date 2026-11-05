@@ -5,4 +5,5 @@ export * from './openings';
 export * from './scene';
 export * from './items';
 export * from './roof';
+export * from './plot';
 export * from './batch';

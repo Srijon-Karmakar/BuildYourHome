@@ -27,14 +27,14 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 - [x] P1-04 (largely delivered via the inspector: 7 paints + 7 finishes + 12 floors + per-side paint) Materials: library, paint floors/walls/ceilings, per-face walls
 - [x] P1-05 (34 placeholder items + models + thumbnails; real asset budget pipeline comes with real GLBs) Asset pipeline v1 + catalog (≈ 80 items) + loader/cache
 - [x] P1-06 Furniture placement: drag, rotate, scale, snap to floor/walls, duplicate
-- [ ] P1-07 Plot boundary + ground plane
+- [x] P1-07 Plot boundary + ground plane (plot around house / draw by hand, wall or fence along the edge, ground limited to the plot, out-of-plot warning)
 - [x] P1-08 (roofs done; facade materials already covered by per-side wall finishes) Roof generator (gable/hip/flat) + facade materials
 - [x] P1-09 Local persistence (IndexedDB autosave), import/export JSON
 - [x] P1-10 (guided start done; Pro-mode polish continues in P1-15) UI shell: toolbars, panels, responsive/touch layout, shortcuts, onboarding tooltip
-- [ ] P1-11 Unit tests ≥ 80% on geometry/editor-core; first Playwright E2E
-- [ ] P1-12 Realistic rendering baseline (PBR, HDRI lighting, soft shadows, SSAO, tone mapping, color management) — ADR-010
-- [ ] P1-13 Adaptive quality: FPS governor, progressive rendering, Low/Med/High setting (moved up from P3)
-- [ ] P1-14 Placeholder asset set (procedural furniture/doors/windows + a few CC0) with `tier` field in catalog — ADR-013
+- [x] P1-11 (coverage: geometry 95%, editor-core 98%, assets 93%, schema 98% — `pnpm coverage`) Unit tests ≥ 80% on geometry/editor-core; first Playwright E2E
+- [x] P1-12 Realistic rendering baseline (PBR, HDRI lighting, soft shadows, SSAO, tone mapping, color management) — ADR-010
+- [x] P1-13 Adaptive quality: FPS governor, progressive rendering, Low/Med/High setting (moved up from P3)
+- [x] P1-14 Placeholder asset set (procedural furniture/doors/windows + a few CC0) with `tier` field in catalog — ADR-013
 - [x] P1-15 Simple vs Pro mode: numeric inputs, dimension annotations, unit parsing (m / ft-in) — ADR-014
 - [x] P1-16 (welcome + templates + next-step tips) Guided start (template or room-by-room) + onboarding tutorial
 **Exit criteria:** testers can design a 2-floor house with furniture and roof in < 30 min without help, survive reload, no data loss.

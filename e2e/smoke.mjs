@@ -1106,6 +1106,94 @@ try {
     await ctx.close();
   }
 
+  // ---------------------------------------------------------------- 2l. plot & site, redeem code
+  {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?view=2d');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForTimeout(500);
+    const box = await page.locator('canvas.plan-canvas').boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    for (const [dx, dy] of [[-120, -90], [120, -90], [120, 90], [-120, 90], [-120, -90]]) await page.mouse.click(cx + dx, cy + dy);
+    await page.keyboard.press('Escape');
+    const sc = () => page.evaluate(() => {
+      const s = window.__hd.editor.getState().scene;
+      return { plot: s.plot?.boundary ?? null, walls: Object.values(s.walls).map((w) => w.kind), rooms: Object.keys(s.rooms).length };
+    });
+    const home = page.getByRole('group', { name: 'Home settings' });
+    const openHome = async () => { if (!(await home.isVisible())) await page.getByRole('button', { name: 'Home' }).click(); };
+
+    await openHome();
+    check('Home menu offers a plot', await home.getByRole('button', { name: 'Plot around my house' }).isVisible());
+    await home.getByRole('button', { name: 'Plot around my house' }).click();
+    let s = await sc();
+    check('"Plot around my house" makes a rectangle 3 m around it (10 × 9 m)', s.plot?.length === 4 && Math.abs(s.plot[2][0] - s.plot[0][0] - 10) < 0.01 && Math.abs(s.plot[2][1] - s.plot[0][1] - 9) < 0.01, JSON.stringify(s.plot));
+    check('the plot area is shown', (await home.getByTestId('plot-area').textContent()).includes('90.0'));
+    check('no warning while the house is inside', (await home.getByTestId('plot-warning').count()) === 0);
+
+    await home.getByRole('group', { name: 'Boundary' }).getByRole('button', { name: 'Wall', exact: true }).click();
+    s = await sc();
+    check('Boundary › Wall adds 4 compound walls without making a new room', s.walls.filter((k) => k === 'boundary').length === 4 && s.rooms === 1);
+    await home.getByRole('group', { name: 'Boundary' }).getByRole('button', { name: 'Fence', exact: true }).click();
+    s = await sc();
+    check('Boundary › Fence replaces them', s.walls.filter((k) => k === 'boundary').length === 4);
+    await page.screenshot({ path: `${SP}/e2e-plot.png` });
+
+    // Draw a smaller plot by hand: the house now sticks out of it.
+    await home.getByRole('button', { name: 'Draw by hand' }).click();
+    check('Draw by hand switches to the plot tool and closes the menu', (await page.evaluate(() => window.__hd.useUi.getState().tool)) === 'plot' && !(await home.isVisible()));
+    for (const [dx, dy] of [[-90, -60], [90, -60], [90, 60], [-90, 60]]) await page.mouse.click(cx + dx, cy + dy);
+    check('corners are collected as a draft', (await page.evaluate(() => window.__hd.useUi.getState().plotDraft.length)) === 4);
+    await page.keyboard.press('Enter');
+    s = await sc();
+    check('Enter closes the hand-drawn plot (6 m²)', s.plot?.length === 4 && Math.abs(s.plot[2][0] - s.plot[0][0] - 3) < 0.01 && (await page.evaluate(() => window.__hd.useUi.getState().tool)) === 'select', JSON.stringify(s.plot));
+    await openHome();
+    check('points outside the plot are reported', (await home.getByTestId('plot-warning').textContent()).includes('outside'));
+    await page.screenshot({ path: `${SP}/e2e-plot-outside.png` });
+    await home.getByRole('button', { name: 'Remove plot' }).click();
+    s = await sc();
+    check('Remove plot clears the plot and its boundary', s.plot === null && s.walls.every((k) => k !== 'boundary'));
+    check('no page errors in plot flows', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+
+    // Redeem code: signed-in accounts only; a wrong code is refused, the right one unlocks everything for that account.
+    const rc = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await rc.goto(BASE + '?view=2d&fresh=1');
+    await rc.waitForSelector('canvas.plan-canvas');
+    await rc.waitForFunction(() => window.__hd.useCloud.getState().ready);
+    await rc.getByRole('button', { name: 'Sign in' }).click();
+    const ac = rc.getByRole('group', { name: 'Account' });
+    await ac.getByRole('button', { name: 'Create account', exact: true }).first().click();
+    await ac.getByLabel('Email').fill('redeem@example.com');
+    await ac.getByLabel('Password', { exact: true }).fill('redeem password 1');
+    await ac.getByLabel('Confirm password').fill('redeem password 1');
+    await ac.locator('button[type=submit]').click();
+    await ac.getByText('redeem@example.com').waitFor({ timeout: 5000 });
+    await ac.getByLabel('Code').fill('wrong code');
+    await ac.getByRole('button', { name: 'Redeem' }).click();
+    await ac.getByRole('alert').waitFor({ timeout: 5000 });
+    check('a wrong code is refused with a message', /valid/.test(await ac.getByRole('alert').textContent()));
+    check('…and nothing is unlocked', (await rc.evaluate(() => !!window.__hd.useCloud.getState().ent.gifted)) === false);
+    await ac.getByLabel('Code').fill('home-demo');
+    await ac.getByRole('button', { name: 'Redeem' }).click();
+    await ac.getByText(/Code accepted/).waitFor({ timeout: 5000 });
+    check('the right code unlocks everything for the account', (await rc.evaluate(() => window.__hd.useCloud.getState().ent.gifted)) === true);
+    check('the account says it is unlocked with a code', await ac.getByText(/Unlocked with a code/).isVisible());
+    await rc.keyboard.press('Escape');
+    await rc.getByRole('button', { name: 'Furniture' }).click();
+    const cat = rc.getByRole('complementary', { name: 'Furniture catalog' });
+    check('no Premium badge on the Double bed any more', (await cat.locator('.card', { hasText: 'Double bed' }).getByText('Premium').count()) === 0);
+    await cat.getByLabel('Search furniture').fill('double bed');
+    await cat.locator('.card', { hasText: 'Double bed' }).click();
+    check('the Double bed can be placed', (await rc.evaluate(() => window.__hd.useUi.getState().placing)) !== null);
+    await rc.close();
+  }
+
   // ---------------------------------------------------------------- 3. benchmark
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });

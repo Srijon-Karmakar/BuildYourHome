@@ -1,6 +1,6 @@
 import { loadScene, type Scene } from '@hd/scene-schema';
 import { pruneUnlocks, REWARDED_UNLOCK_MS } from './entitlements';
-import { NO_ENTITLEMENTS, type Backend, type Entitlements, type ProjectMeta, type Result, type Session } from './types';
+import { NO_ENTITLEMENTS, normalizeCode, type Backend, type Entitlements, type ProjectMeta, type Result, type Session } from './types';
 import { getAsset } from '@hd/assets';
 
 /** Minimal key-value storage so the backend can be tested without a browser. */
@@ -58,6 +58,8 @@ interface ProjectRec {
 
 const K = { users: 'hd.local.users', session: 'hd.local.session', projects: 'hd.local.projects', shares: 'hd.local.shares', ent: 'hd.local.ent.' };
 export const MIN_PASSWORD = 8;
+/** The demo backend has no server, so it accepts one public code (the real check is the `redeem_code` SQL function). */
+export const DEMO_REDEEM_CODE = 'HOME-DEMO';
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function hash(text: string): Promise<string> {
@@ -257,15 +259,27 @@ export class LocalBackend implements Backend {
   // -------------------------------------------------------------- entitlements
   private entKey = async (): Promise<string> => K.ent + ((await this.getSession())?.userId ?? 'guest');
 
-  async getEntitlements(): Promise<Entitlements> {
+  private async stored(): Promise<Entitlements> {
     const ent = this.read<Entitlements>(await this.entKey(), NO_ENTITLEMENTS);
-    return pruneUnlocks({ subscribed: !!ent.subscribed, unlocks: ent.unlocks ?? {} }, this.now());
+    return pruneUnlocks({ subscribed: !!ent.subscribed, ...(ent.gifted ? { gifted: true } : {}), unlocks: ent.unlocks ?? {} }, this.now());
+  }
+
+  async getEntitlements(): Promise<Entitlements> {
+    return this.stored();
+  }
+
+  async redeemCode(code: string): Promise<Result<Entitlements>> {
+    if (!(await this.getSession())) return fail('Sign in to redeem a code.');
+    if (normalizeCode(code) !== normalizeCode(DEMO_REDEEM_CODE)) return fail('That code isn’t valid.');
+    const next = { ...(await this.stored()), gifted: true };
+    this.write(await this.entKey(), next);
+    return ok(next);
   }
 
   async unlockWithAd(assetId: string): Promise<Result<Entitlements>> {
     const asset = getAsset(assetId);
     if (!asset || asset.tier !== 'rewarded') return fail('This item cannot be unlocked with an ad.');
-    const ent = await this.getEntitlements();
+    const ent = await this.stored();
     const next: Entitlements = { ...ent, unlocks: { ...ent.unlocks, [assetId]: new Date(this.now() + REWARDED_UNLOCK_MS).toISOString() } };
     this.write(await this.entKey(), next);
     return ok(next);
@@ -273,7 +287,7 @@ export class LocalBackend implements Backend {
 
   async setSubscription(active: boolean): Promise<Result<Entitlements>> {
     if (!(await this.getSession())) return fail('Sign in to manage a subscription.');
-    const ent = await this.getEntitlements();
+    const ent = await this.stored();
     const next = { ...ent, subscribed: active };
     this.write(await this.entKey(), next);
     return ok(next);

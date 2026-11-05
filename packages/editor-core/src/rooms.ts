@@ -40,7 +40,8 @@ export function syncRooms(d: Scene): void {
   for (const [id, r] of Object.entries(d.rooms)) if (!d.levels[r.levelId]) delete d.rooms[id];
 
   for (const levelId of d.levelOrder) {
-    const levelWalls = Object.values(d.walls).filter((w) => w.levelId === levelId);
+    // Compound walls / fences enclose the plot, not a room.
+    const levelWalls = Object.values(d.walls).filter((w) => w.levelId === levelId && w.kind !== 'boundary');
     const detected = detectRooms(d.nodes, levelWalls);
     const existing = Object.values(d.rooms).filter((r) => r.levelId === levelId);
 

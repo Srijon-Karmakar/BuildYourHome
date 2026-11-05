@@ -20,7 +20,7 @@ export function levelRooms(scene: Scene, levelId: Id): RoomView[] {
   if (last && last.nodes === scene.nodes && last.walls === scene.walls && last.rooms === scene.rooms && last.level === levelId) {
     return last.out;
   }
-  const walls = Object.values(scene.walls).filter((w) => w.levelId === levelId);
+  const walls = Object.values(scene.walls).filter((w) => w.levelId === levelId && w.kind !== 'boundary');
   const bySig = new Map<string, Room>();
   for (const r of Object.values(scene.rooms)) if (r.levelId === levelId) bySig.set(loopSignature(r.wallLoop), r);
   const out = detectRooms(scene.nodes, walls).map((d) => ({

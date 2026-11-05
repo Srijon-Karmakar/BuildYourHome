@@ -50,6 +50,8 @@ interface CloudState {
   startAd(): void;
   finishAd(): Promise<void>;
   subscribe(active: boolean): Promise<void>;
+  /** Redeem a code for the signed-in account. Returns an error text, or null on success. */
+  redeem(code: string): Promise<string | null>;
   syncScene(scene: ReturnType<typeof editor.getState>['scene']): Promise<void>;
 }
 
@@ -232,6 +234,13 @@ export const useCloud = create<CloudState>((set, get) => ({
     if (!r.ok) return set({ message: r.error });
     set({ ent: r.value, upsell: null, message: null });
     if (ad.intent === 'place') useUi.getState().startPlacing(ad.assetId);
+  },
+
+  async redeem(code) {
+    const r = await be().redeemCode(code);
+    if (!r.ok) return r.error;
+    set({ ent: r.value, message: null, upsell: null });
+    return null;
   },
 
   async subscribe(active) {

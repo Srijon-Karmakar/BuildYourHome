@@ -147,14 +147,34 @@ export class SupabaseBackend implements Backend {
     const session = await this.getSession();
     if (!session) return { subscribed: false, unlocks: {} };
     const [sub, unl] = await Promise.all([
-      this.sb.from('subscriptions').select('status, current_period_end').eq('user_id', session.userId).maybeSingle(),
+      this.sb.from('subscriptions').select('status, plan, current_period_end').eq('user_id', session.userId).maybeSingle(),
       this.sb.from('unlocks').select('asset_id, expires_at').eq('user_id', session.userId),
     ]);
     const end = sub.data?.current_period_end ? Date.parse(sub.data.current_period_end as string) : Infinity;
     const subscribed = (sub.data?.status === 'active' || sub.data?.status === 'trialing') && end > Date.now();
     const unlocks: Entitlements['unlocks'] = {};
     for (const r of unl.data ?? []) unlocks[r.asset_id as string] = (r.expires_at as string | null) ?? null;
-    return pruneUnlocks({ subscribed, unlocks });
+    // A 'gift' plan row (created by the `redeem_code` function, see migration 0003) unlocks everything.
+    const gifted = subscribed && sub.data?.plan === 'gift';
+    return pruneUnlocks({ subscribed: subscribed && !gifted, gifted, unlocks });
+  }
+
+  async redeemCode(code: string): Promise<Result<Entitlements>> {
+    if (!(await this.getSession())) return fail('Sign in to redeem a code.');
+    const { data, error } = await this.sb.rpc('redeem_code', { p_code: code });
+    if (error) return fail('Could not check the code. Please try again.');
+    switch (data as string) {
+      case 'ok':
+        return ok(await this.getEntitlements());
+      case 'throttled':
+        return fail('Too many tries. Please wait a while and try again.');
+      case 'expired':
+        return fail('That code has expired.');
+      case 'used_up':
+        return fail('That code has already been used up.');
+      default:
+        return fail('That code isn’t valid.');
+    }
   }
 
   async unlockWithAd(): Promise<Result<Entitlements>> {

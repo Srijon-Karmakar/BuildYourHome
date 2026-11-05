@@ -45,6 +45,20 @@ First thing to do after step 6: sign up, save a home, create a share link and op
 * Shared homes: anonymous visitors cannot read `projects`. They call `get_shared_project(token)`, which returns the scene
   only for a valid, non-revoked token (18 random bytes). Revoking sets `revoked_at`.
 
+## Redeem codes (unlock everything for an account)
+
+Run `services/supabase/migrations/0003_redeem_codes.sql` once. Then create a code in the SQL editor (the template is at
+the bottom of that file; choose your own long secret text, set `max_uses`, optionally `grant_days` / `expires_at`).
+Sign in to the app, open Account › *Redeem a code*, type it. The account then shows "Unlocked with a code · everything
+free", every catalog item is free and ads are off. Case, spaces and dashes in the code don't matter.
+
+Safety: only a SHA-256 hash of each code is stored, in tables with row-level security and no policies (the browser can't
+read them); the `redeem_code` function is the only way in and is the only writer of the `subscriptions` row; 10 wrong
+guesses per hour per account are throttled; a real paid subscription is never overwritten. Revoke a code, or take the
+unlock from one account, with the statements in the same file.
+
+The demo backend (no Supabase) accepts the public code `HOME-DEMO` so the flow can be tried and tested.
+
 ## Still to build for real monetisation (Phase 4 / later)
 
 * **Subscriptions:** Stripe (web) and RevenueCat (stores) webhooks → an edge function that upserts `subscriptions`.

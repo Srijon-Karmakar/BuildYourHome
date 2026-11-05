@@ -1732,3 +1732,10 @@ a.pill {
 a.pill.solid {
   color: var(--paper-2);
 }
+
+.f-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
