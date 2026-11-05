@@ -13,6 +13,16 @@ export type { FloorView } from '../view3d/floors';
 const wide = typeof window !== 'undefined' && window.matchMedia('(min-width: 900px)').matches;
 
 interface UiState {
+  /** First-run welcome / "New home" chooser. */
+  welcomeOpen: boolean;
+  setWelcomeOpen(open: boolean): void;
+  /** "Next step" tips (chosen on the welcome screen; can be hidden for good). */
+  tipsOn: boolean;
+  setTipsOn(on: boolean): void;
+  /** Has the user walked through the home yet (finishes the tips). */
+  hasWalked: boolean;
+  helpOpen: boolean;
+  setHelpOpen(open: boolean): void;
   /** Draw roofs in 3D (turn off to look into the house from above). */
   showRoof: boolean;
   toggleRoof(): void;
@@ -60,6 +70,20 @@ interface UiState {
 export const useUi = create<UiState>((set) => ({
   showRoof: true,
   toggleRoof: () => set((s) => ({ showRoof: !s.showRoof })),
+  welcomeOpen: false,
+  setWelcomeOpen: (welcomeOpen) => set({ welcomeOpen }),
+  tipsOn: false,
+  setTipsOn: (tipsOn) => {
+    try {
+      localStorage.setItem('hd.tips', tipsOn ? 'on' : 'off');
+    } catch {
+      /* ignore */
+    }
+    set({ tipsOn });
+  },
+  hasWalked: false,
+  helpOpen: false,
+  setHelpOpen: (helpOpen) => set({ helpOpen }),
   placing: null,
   placeRotation: 0,
   furnitureOpen: false,
@@ -77,7 +101,7 @@ export const useUi = create<UiState>((set) => ({
     set((s) => {
       if (!on) return { walk: false, fitTick: s.fitTick + 1 }; // re-frame the orbit camera after walking
       // Walking needs the 3D pane.
-      return { walk: true, view: s.view === '2d' ? (wide ? 'split' : '3d') : s.view };
+      return { walk: true, hasWalked: true, view: s.view === '2d' ? (wide ? 'split' : '3d') : s.view };
     }),
   setView: (view) => set(view === '2d' ? { view, walk: false } : { view }),
   bumpFit: () => set((s) => ({ fitTick: s.fitTick + 1 })),

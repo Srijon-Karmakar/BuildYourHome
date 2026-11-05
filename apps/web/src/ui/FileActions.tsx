@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
-import { createEmptyScene } from '@hd/scene-schema';
 import { editor } from '../plan/session';
 import { activePlan } from '../plan/PlanCanvas';
 import { fileNameFor, MAX_FILE_BYTES, parseSceneFile, serializeScene } from '../lib/persistence';
 import { useUi } from '../plan/session';
+import { buildTemplate } from '../plan/templates';
 
 /** Save to / open from a file, and start a new home (two taps, so it can't happen by accident). */
 export function FileActions({ onDone }: { onDone: () => void }) {
@@ -65,14 +65,25 @@ export function FileActions({ onDone }: { onDone: () => void }) {
         className={`pill small${confirmNew ? ' solid' : ''}`}
         onClick={() => {
           if (!confirmNew) return setConfirmNew(true);
-          editor.loadScene(createEmptyScene());
+          editor.loadScene(buildTemplate('blank'));
           setConfirmNew(false);
           refit();
           onDone();
+          useUi.getState().setWelcomeOpen(true);
         }}
         onBlur={() => setConfirmNew(false)}
       >
         {confirmNew ? 'Tap again to clear everything' : 'New home'}
+      </button>
+      <button
+        type="button"
+        className="pill small"
+        onClick={() => {
+          useUi.getState().setHelpOpen(true);
+          onDone();
+        }}
+      >
+        Help &amp; shortcuts
       </button>
       {message && (
         <small className="fine" role="status">

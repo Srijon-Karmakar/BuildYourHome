@@ -29,6 +29,19 @@ Planning/documentation: **Done** (2026-11-05)
 
 ## Log
 
+### [2026-11-05] P1-10 (guided start) — Welcome screen, templates, next-step tips, help
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done; 235 unit tests, **136/136 browser checks**, screenshots on desktop and a 390-px phone.
+- **What was done (FR-901, FR-907):**
+  - **Welcome screen** (first visit with an empty home, and after *Home › New home*): **A single room** (type width × depth — `4`, `350cm`, `12'6"` all work; 1.5–30 m, snapped to 5 cm; adds walls, a door and windows), **Studio** (6×5 m: living + bath), **Family home** (12×7 m: living, kitchen, 2 bedrooms, bath, brick exterior, arch, doors, 7 windows), **Furnished sample**, **Start from scratch**, *Open a saved file*, *Skip*. Remembered per browser; never appears on test/demo links (`?demo ?view ?walk ?perf ?persist`) unless `?welcome=1`.
+  - **Templates** (`plan/templates.ts`) are built with the real editor commands (proper junctions, rooms, named rooms, openings) and unit-tested: valid after a save/load round trip, expected rooms/doors/windows, size clamping, nothing dropped.
+  - **"Next:" tip card** above the caption, derived purely from what the home contains (`ui/tipsLogic.ts`): draw walls → close the room → add a door → furnish → walk. Its button does the step for you (selects Wall/Door tool, opens the catalog, starts Walk); × hides tips for good (remembered). Only on if chosen on the welcome screen ("Show me the next step as I go", default on).
+  - **Help & shortcuts** sheet: `?` key or Home › Help (drawing, editing, walking, typing sizes, phone gestures).
+- **Verified:** unit — templates (7), tip order (4); browser — first visit greets, bad size refused with a message, `12'6"` × `350cm` room, tip says furnish and its button opens the catalog, tips can be hidden, reload doesn't greet again and restores the autosaved room, `?` opens/Esc closes help, Family-home template gives 5 named rooms, scratch start says "Draw your walls" and its button selects the Wall tool.
+- **Files:** `plan/templates.ts(+test)`, `ui/{Welcome,Help,tipsLogic(+test),BottomBar,FileActions}.tsx`, `plan/session.ts`, `main.tsx`, `App.tsx`, `styles.css`, `e2e/smoke.mjs`.
+- **Known gaps:** no interactive tour with highlights; tips don't teach touch gestures beyond the help sheet; with four or more small rooms some wall-length labels overlap (a "dimensions" toggle belongs to Pro mode, P1-15); templates are fixed layouts (no mirroring/resizing); no English/Hindi i18n yet.
+- **Next step:** P1-11 tests + benchmark with the furnished, roofed sample on the owner's devices (Phase 1 exit check), P1-07 plot/ground, P1-15 Pro mode (dimensions, units). Then Phase 2.
+
 ### [2026-11-05] P1-08 — Roofs
 - **Model/Author:** Claude Sonnet 5.5
 - **Status:** Done; 224 unit tests, **117/117 browser checks**, screenshots of gable and hip roofs.

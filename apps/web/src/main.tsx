@@ -19,6 +19,21 @@ else if (!ephemeral) {
   const saved = await loadLocal();
   if (saved) editor.loadScene(saved);
 }
+// Greet first-time visitors with an empty home (never in test / demo links unless asked with ?welcome=1).
+{
+  const testFlags = ['view', 'walk', 'perf', 'persist'].some((k) => params.has(k));
+  let welcomed = false;
+  let tips = false;
+  try {
+    welcomed = localStorage.getItem('hd.welcomed') === '1';
+    tips = localStorage.getItem('hd.tips') === 'on';
+  } catch {
+    /* storage unavailable: treat as a first visit every time */
+  }
+  const empty = Object.keys(editor.getState().scene.walls).length === 0;
+  if (params.has('welcome') || (!ephemeral && !testFlags && !welcomed && empty)) useUi.getState().setWelcomeOpen(true);
+  else if (tips && !ephemeral) useUi.setState({ tipsOn: true });
+}
 if (!ephemeral || params.has('persist')) {
   const autosave = startAutosave(editor.subscribe, () => editor.getState().scene);
   // Don't lose the last second of work when the tab is hidden or closed.

@@ -613,6 +613,8 @@ try {
     check('New home needs a second tap', (await walls()) === 4);
     await page.getByRole('button', { name: 'Tap again to clear everything' }).click();
     check('second tap clears the home', (await walls()) === 0);
+    check('New home offers the starting choices', await page.getByRole('dialog', { name: /design your home/ }).isVisible());
+    await page.getByRole('button', { name: 'Skip' }).click();
     await page.getByRole('button', { name: 'Home' }).click();
     await page.locator('input[type=file]').setInputFiles(path);
     await page.waitForFunction(() => Object.keys(window.__hd.editor.getState().scene.walls).length === 4, null, { timeout: 8000 });
@@ -693,6 +695,85 @@ try {
     check('no page errors with roofs', errors.length === 0, errors.slice(0, 2).join(' | '));
     await page.screenshot({ path: `${SP}/e2e-roof.png` });
     await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2i. guided start
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    const scene = () => page.evaluate(() => window.__hd.editor.getState().scene);
+    const dialog = page.getByRole('dialog', { name: /design your home/ });
+
+    // A first visit (no test flags) greets you.
+    await page.goto(BASE);
+    await dialog.waitFor({ timeout: 8000 });
+    check('a first visit shows the welcome screen', true);
+
+    // Bad sizes are refused with a helpful message.
+    await dialog.getByLabel('Room width in metres').fill('banana');
+    await dialog.getByRole('button', { name: 'Create room' }).click();
+    check('invalid room size is refused', await dialog.getByRole('alert').isVisible());
+    await dialog.getByLabel('Room width in metres').fill("12'6\"");
+    await dialog.getByLabel('Room depth in metres').fill('350cm');
+    await dialog.getByRole('button', { name: 'Create room' }).click();
+    const sc = await scene();
+    const xs = Object.values(sc.nodes).map((n) => n.p[0]);
+    const zs = Object.values(sc.nodes).map((n) => n.p[1]);
+    check('quick room understands feet and cm: 12\'6" x 350cm', Math.abs(Math.max(...xs) - 3.81) < 0.03 && Math.abs(Math.max(...zs) - 3.5) < 0.03, `${Math.max(...xs)} x ${Math.max(...zs)}`);
+    check('it comes with a door and windows', Object.values(sc.openings).some((o) => o.type === 'door') && Object.values(sc.openings).some((o) => o.type === 'window'));
+    check('the welcome closes', (await dialog.count()) === 0);
+
+    // The tip card walks you through the next step.
+    const tip = page.getByRole('status').filter({ hasText: 'Next:' });
+    await tip.waitFor({ timeout: 5000 });
+    check('the next step is furnishing (room + door exist)', (await tip.innerText()).includes('Furnish'));
+    await tip.getByRole('button', { name: 'Furniture' }).click();
+    check('the tip button opens the catalog', await page.getByRole('complementary', { name: 'Furniture catalog' }).isVisible());
+    await page.keyboard.press('Escape');
+    await tip.getByRole('button', { name: 'Hide tips' }).click();
+    check('tips can be hidden', (await tip.count()) === 0);
+
+    // It remembers: a reload neither greets nor shows tips again, and the home was saved.
+    await page.waitForTimeout(1200);
+    await page.reload();
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForTimeout(700);
+    check('a returning visitor is not greeted again', (await dialog.count()) === 0);
+    check('the quick room was autosaved and restored', Object.keys((await scene()).walls).length === 4);
+    check('hidden tips stay hidden', (await page.getByRole('status').filter({ hasText: 'Next:' }).count()) === 0);
+
+    // Help sheet with the ? key.
+    await page.keyboard.press('?');
+    const help = page.getByRole('dialog', { name: /Help/ });
+    check('? opens the shortcuts', await help.isVisible());
+    check('it lists shortcuts', (await help.getByText('Rotate furniture 90°').count()) === 1);
+    await page.keyboard.press('Escape');
+    check('Esc closes it', (await help.count()) === 0);
+    await ctx.close();
+
+    // Template choice on a fresh forced welcome, and the tip sequence from an empty plan.
+    const page2 = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    page2.on('pageerror', (e) => errors.push(String(e)));
+    await page2.goto(BASE + '?welcome=1&fresh=1&view=2d');
+    const d2 = page2.getByRole('dialog', { name: /design your home/ });
+    await d2.getByRole('button', { name: /Family home/ }).click();
+    const rooms = await page2.evaluate(() => Object.values(window.__hd.editor.getState().scene.rooms).map((r) => r.name).sort());
+    check('Family home template: five named rooms', JSON.stringify(rooms) === JSON.stringify(['Bath', 'Bedroom', 'Bedroom 2', 'Kitchen', 'Living']), rooms.join(','));
+    await page2.close();
+
+    const page3 = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    page3.on('pageerror', (e) => errors.push(String(e)));
+    await page3.goto(BASE + '?welcome=1&fresh=1&view=2d');
+    await page3.getByRole('button', { name: /Start from scratch/ }).click();
+    const t3 = page3.getByRole('status').filter({ hasText: 'Next:' });
+    check('an empty plan starts with "draw your walls"', (await t3.innerText()).includes('Draw your walls'));
+    await t3.getByRole('button', { name: 'Wall tool' }).click();
+    check('its button selects the wall tool', (await page3.evaluate(() => window.__hd.useUi.getState().tool)) === 'wall');
+    check('no page errors in the guided start', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page3.close();
   }
 
   // ---------------------------------------------------------------- 3. benchmark

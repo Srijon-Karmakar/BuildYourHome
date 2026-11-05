@@ -1,5 +1,6 @@
 import { useStore } from 'zustand';
 import { editor, finishDrawing, useUi } from '../plan/session';
+import { nextTip } from './tipsLogic';
 
 const CAPTION = {
   wall: 'Click or tap to place points · Esc to finish',
@@ -21,6 +22,10 @@ export function BottomBar() {
   const kind = useUi((s) => s.newWallKind);
   const setKind = useUi((s) => s.setNewWallKind);
   const hasSelection = useStore(editor.store, (s) => s.selection.length > 0);
+  const scene = useStore(editor.store, (s) => s.scene);
+  const tipsOn = useUi((s) => s.tipsOn);
+  const hasWalked = useUi((s) => s.hasWalked);
+  const tip = tipsOn && !walk ? nextTip(scene, hasWalked) : null;
   const touch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
 
   const caption = walk
@@ -50,6 +55,31 @@ export function BottomBar() {
               {k === 'interior' ? 'Inside wall' : 'Outside wall'}
             </button>
           ))}
+        </div>
+      )}
+      {tip && !showDone && (
+        <div className="tip" role="status">
+          <span>
+            <b>Next:</b> {tip.text}
+          </span>
+          {tip.action && (
+            <button
+              type="button"
+              className="pill small solid"
+              onClick={() => {
+                const ui = useUi.getState();
+                if (tip.id === 'wall') ui.setTool('wall');
+                else if (tip.id === 'door') ui.setTool('door');
+                else if (tip.id === 'furnish') ui.setFurnitureOpen(true);
+                else if (tip.id === 'walk') ui.setWalk(true);
+              }}
+            >
+              {tip.action}
+            </button>
+          )}
+          <button type="button" className="ins-close" title="Hide tips" aria-label="Hide tips" onClick={() => useUi.getState().setTipsOn(false)}>
+            ×
+          </button>
         </div>
       )}
       {showDone && (
