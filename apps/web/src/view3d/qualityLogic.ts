@@ -18,12 +18,18 @@ export interface TierConfig {
   /** Procedural texture size in px (plaster / wood). */
   textureSize: number;
   normalMaps: boolean;
+  /** Photo-scan PBR textures are downloaded and used (Medium and up). */
+  photoTextures: boolean;
+  /** Ambient occlusion quality when `ao` is on (lighter on Medium so desktops stay fast). */
+  aoQuality: 'performance' | 'medium';
+  /** Sky shader instead of a flat background colour. */
+  sky: boolean;
 }
 
 export const TIERS: Record<Tier, TierConfig> = {
-  low: { dpr: [1, 1], shadows: false, shadowMapSize: 1024, envResolution: 64, ao: false, msaa: 0, textureSize: 256, normalMaps: false },
-  medium: { dpr: [1, 1.5], shadows: true, shadowMapSize: 1024, envResolution: 128, ao: false, msaa: 0, textureSize: 512, normalMaps: true },
-  high: { dpr: [1, 2], shadows: true, shadowMapSize: 2048, envResolution: 256, ao: true, msaa: 4, textureSize: 1024, normalMaps: true },
+  low: { dpr: [1, 1], shadows: false, shadowMapSize: 1024, envResolution: 64, ao: false, msaa: 0, textureSize: 256, normalMaps: false, photoTextures: false, aoQuality: 'performance', sky: false },
+  medium: { dpr: [1, 1.5], shadows: true, shadowMapSize: 1024, envResolution: 128, ao: true, msaa: 0, textureSize: 512, normalMaps: true, photoTextures: true, aoQuality: 'performance', sky: true },
+  high: { dpr: [1, 2], shadows: true, shadowMapSize: 2048, envResolution: 256, ao: true, msaa: 4, textureSize: 1024, normalMaps: true, photoTextures: true, aoQuality: 'medium', sky: true },
 };
 
 export const stepDown = (t: Tier): Tier => TIER_ORDER[Math.max(0, TIER_ORDER.indexOf(t) - 1)]!;

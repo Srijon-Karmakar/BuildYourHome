@@ -7,6 +7,7 @@ import { setItemTransform, solvePlacement } from '@hd/editor-core';
 import { editor, useUi } from '../../plan/session';
 import { canPick, CLICK_SLOP_PX, pickObject, SelectionBox, useIsSelected } from '../pick';
 import { buildFurniture } from './builders';
+import { contactShadowGeometry, contactShadowMaterial } from './contactShadow';
 
 /**
  * One placed item. Models are cloned from a shared template, so geometry and materials are shared between all
@@ -97,6 +98,9 @@ export function ItemMesh({ item, elevation }: { item: Item; elevation: number })
       }}
     >
       <primitive object={object} />
+      {asset && asset.mount === 'floor' && asset.size[2] >= 0.05 && (
+        <mesh geometry={contactShadowGeometry} material={contactShadowMaterial()} position={[0, 0.006, 0]} scale={[asset.size[0] * 1.3 + 0.1, 1, asset.size[1] * 1.3 + 0.1]} renderOrder={1} raycast={() => null} />
+      )}
       {selected && box && <SelectionBox center={box.center} size={box.size} />}
     </group>
   );

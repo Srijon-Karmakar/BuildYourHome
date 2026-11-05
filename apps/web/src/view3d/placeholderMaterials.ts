@@ -59,7 +59,7 @@ export const MATERIAL_CATALOG: readonly CatalogMaterial[] = [
   { id: 'wall-concrete', name: 'Concrete', group: 'wall', color: '#a8a6a1', roughness: 0.9, pattern: 'plain' },
   { id: 'wall-tile-navy', name: 'Navy tile', group: 'wall', color: '#4d6783', roughness: 0.25, pattern: 'subway', grout: '#d8d6cf' },
   // Floors
-  { id: 'floor-wood-oak', name: 'Oak', group: 'floor', color: '#ffffff', roughness: 0.52, pattern: 'wood' },
+  { id: 'floor-wood-oak', name: 'Oak', group: 'floor', color: '#e6b57f', roughness: 0.52, pattern: 'wood' },
   { id: 'floor-wood-ash', name: 'Ash', group: 'floor', color: '#e3d3b8', roughness: 0.52, pattern: 'wood' },
   { id: 'floor-wood-walnut', name: 'Walnut', group: 'floor', color: '#a98467', roughness: 0.5, pattern: 'wood' },
   { id: 'floor-tile-white', name: 'White tile', group: 'floor', color: '#efeeea', roughness: 0.3, pattern: 'tile', grout: '#b9b6ae' },

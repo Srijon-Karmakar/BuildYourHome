@@ -116,6 +116,15 @@ export const Stair = z.object({
   material: MaterialRef.optional(),
 });
 
+/** A balcony / porch slab attached to a floor. Railings run along the edges that are not against a house wall. */
+export const Balcony = z.object({
+  id: Id,
+  levelId: Id,
+  outline: z.array(Vec2),
+  railing: z.enum(['glass', 'metal', 'wall', 'none']),
+  floorMaterial: MaterialRef,
+});
+
 export const Viewpoint = z.object({
   id: Id,
   name: z.string(),
@@ -143,6 +152,7 @@ export const Scene = z.object({
   items: z.record(z.string(), Item),
   roofs: z.record(z.string(), Roof),
   stairs: z.record(z.string(), Stair),
+  balconies: z.record(z.string(), Balcony).default({}),
   terrain: z.object({ size: Vec2, groundMaterial: MaterialRef }),
   /** Project preferences used when creating new things. */
   defaults: z
@@ -168,5 +178,6 @@ export type Room = z.infer<typeof Room>;
 export type Item = z.infer<typeof Item>;
 export type Roof = z.infer<typeof Roof>;
 export type Stair = z.infer<typeof Stair>;
+export type Balcony = z.infer<typeof Balcony>;
 export type Viewpoint = z.infer<typeof Viewpoint>;
 export type Scene = z.infer<typeof Scene>;

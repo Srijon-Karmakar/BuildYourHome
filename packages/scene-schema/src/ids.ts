@@ -1,4 +1,4 @@
-export type IdPrefix = 'scene' | 'level' | 'node' | 'wall' | 'open' | 'room' | 'item' | 'roof' | 'stair' | 'view';
+export type IdPrefix = 'scene' | 'level' | 'node' | 'wall' | 'open' | 'room' | 'item' | 'roof' | 'stair' | 'balcony' | 'view';
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 

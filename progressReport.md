@@ -29,6 +29,19 @@ Planning/documentation: **Done** (2026-11-05)
 
 ## Log
 
+### [2026-11-05] P3-02 finished (balcony / porch) + realism pass (P3-04 first slice, P3-03 sun)
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified in the browser tests (285/285; unit tests: geometry 72, editor-core 142, web 79, assets 9, schema 8; typecheck, lint, build clean). **Not yet measured on the owner's phone.**
+- **What was done:**
+  - **Balcony / porch:** Balcony tool (key B, rail button): click corners, Enter or the first corner closes. Slab with floor and underside, **railing on every edge not against a house wall** (glass / metal / wall / none; floor material too, both in the inspector). Selectable in plan and 3D, draggable, nudge / Delete, undo. The walker is stopped by the railings. Scene gained `balconies` (defaults to `{}` for old files). No automatic door: add a door in the house wall to step out.
+  - **Photo textures (ADR-021):** 17 CC0 ambientCG sets, 512 px, about 3 MB total, lazy per set, Medium/High only; Low untouched. Floors, walls, brick / stone, tiles, carpet, terrazzo, marble, concrete, grass, sand, soil, paving, gravel, roof tiles and metal get photographic colour + normal + roughness. The ground is now a textured surface (was a flat colour); oak was re-tinted so it keeps its warm look.
+  - **Sky + sun:** sky shader (Medium/High) and a sun that follows Display > Time of day (slider + Morning / Noon / Evening / Night; saved in the home, undoable). Warm light at low sun, dark at night; shadow casting follows the sun.
+  - **Contact shadows + AO:** soft blob under floor furniture (all tiers; hidden when AO is on); AO now on Medium for non-touch devices (light settings).
+  - **Detail:** furniture boxes have a small bevel; window / door / railing glass reflects the environment.
+- **Files:** `packages/{scene-schema,geometry/balcony,editor-core/commands/balconies}`, `apps/web/src/view3d/{BalconyMesh,photoTextures,sun,materials,Scene3D,Effects,furniture/{kit,contactShadow,ItemMesh}}`, `ui/{DisplayMenu,Inspector,ToolRail,BottomBar}`, `apps/web/public/textures/*` (new), `docs/ASSET_LICENSES.md`, `e2e/smoke.mjs`.
+- **Problems / notes:** (1) The AO pass hides the soft blobs (they are transparent); acceptable since AO replaces them. (2) Photo roof tiles are slightly busy; contrast was softened. (3) Interior lights (lamps lighting rooms at night) are not done: night only dims the sun and environment. (4) **Owner action: run Display > Run benchmark on the phone at Medium** and paste the report; if it is below 60 fps tell me and I will trim texture size / set count.
+- **Next step:** owner benchmark; then export (P3-05), interior lights + night polish (P3-03), garden (P3-01).
+
 ### [2026-11-05] UI/UX: opening curtain + first-run quick tour
 - **Model/Author:** Claude Sonnet 5.5
 - **Status:** Done and verified (262/262 browser checks incl. phone width; typecheck, lint clean).

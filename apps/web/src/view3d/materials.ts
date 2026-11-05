@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { catalogMaterial } from './placeholderMaterials';
+import { upgradeWithPhoto } from './photoTextures';
 import { TIERS, type Tier } from './qualityLogic';
 import {
   brickTexture,
@@ -52,5 +53,6 @@ export function makeSurface(id: string, tier: Tier): THREE.MeshStandardMaterial 
       break;
     default:
   }
+  upgradeWithPhoto(mat, c, tier); // Medium / High: swap in the photo-scan set when it has loaded
   return mat;
 }

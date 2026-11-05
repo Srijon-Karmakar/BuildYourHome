@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useStore } from 'zustand';
 import { buildColliders, moveWithCollision, stairHeightAt, stairToLocal } from '@hd/geometry';
-import { itemColliders, layoutOf } from '@hd/editor-core';
+import { balconyColliders, itemColliders, layoutOf } from '@hd/editor-core';
 import { editor, useUi } from '../plan/session';
 import { rememberPose, resetWalkInput, spawnPose, walkInput, walkPose } from './walkState';
 
@@ -29,6 +29,7 @@ export function WalkControls() {
   const items = useStore(editor.store, (s) => s.scene.items);
   const levelId = useStore(editor.store, (s) => s.activeLevelId);
   const stairs = useStore(editor.store, (s) => s.scene.stairs);
+  const balconies = useStore(editor.store, (s) => s.scene.balconies);
   const levels = useStore(editor.store, (s) => s.scene.levels);
 
   const colliders = useMemo(
@@ -39,9 +40,10 @@ export function WalkControls() {
         Object.values(openings), // doors / arches leave gaps you can walk through
       ),
       ...itemColliders(editor.getState().scene, levelId), // large furniture blocks the way
+      ...balconyColliders(editor.getState().scene, levelId), // railings keep you on the balcony
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [nodes, walls, openings, items, levelId],
+    [nodes, walls, openings, items, levelId, balconies],
   );
   const collidersRef = useRef(colliders);
   collidersRef.current = colliders;

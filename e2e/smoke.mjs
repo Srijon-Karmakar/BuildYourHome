@@ -1491,6 +1491,113 @@ try {
     await ph.close();
   }
 
+  // ---------------------------------------------------------------- 2q. balcony / porch
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?view=split');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForTimeout(500);
+    const box = await page.locator('canvas.plan-canvas').boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    for (const [dx, dy] of [[-120, -90], [120, -90], [120, 90], [-120, 90], [-120, -90]]) await page.mouse.click(cx + dx, cy + dy);
+    await page.keyboard.press('Escape');
+    const B = () => page.evaluate(() => Object.values(window.__hd.editor.getState().scene.balconies));
+    await page.keyboard.press('b');
+    check('the Balcony tool is on (key B)', (await page.evaluate(() => window.__hd.useUi.getState().tool)) === 'balcony');
+    for (const [dx, dy] of [[-90, -90], [90, -90], [90, -170], [-90, -170]]) await page.mouse.click(cx + dx, cy + dy);
+    check('corners are collected', (await page.evaluate(() => window.__hd.useUi.getState().plotDraft.length)) === 4);
+    await page.keyboard.press('Enter');
+    let b = await B();
+    check('Enter closes the balcony', b.length === 1 && b[0].outline.length === 4 && b[0].railing === 'glass');
+    check('it is selected and the tool is back to Select', (await page.evaluate(() => window.__hd.editor.getState().selection[0])) === b[0]?.id);
+    const ins = page.getByRole('complementary', { name: 'Properties' });
+    check('the inspector offers Railing and Floor', (await ins.getByRole('group', { name: 'Railing' }).isVisible()) && (await ins.getByText('Floor').first().isVisible()));
+    await ins.getByRole('group', { name: 'Railing' }).getByRole('button', { name: 'Metal' }).click();
+    check('Railing › Metal applies', (await B())[0].railing === 'metal');
+    await ins.getByRole('radio', { name: 'Teak' }).click();
+    check('the floor can be changed', (await B())[0].floorMaterial.id === 'floor-wood-teak');
+    await page.screenshot({ path: `${SP}/e2e-balcony.png` });
+
+    // Drag it on the plan (one undo step), then undo.
+    const o0 = (await B())[0].outline[0];
+    await page.mouse.move(cx, cy - 130);
+    await page.mouse.down();
+    await page.mouse.move(cx + 60, cy - 130, { steps: 4 });
+    await page.mouse.up();
+    const o1 = (await B())[0].outline[0];
+    check('dragging moves the balcony', Math.abs(o1[0] - o0[0] - 1) < 0.1);
+    await page.keyboard.press('Control+z');
+    check('the drag is one undo step', Math.abs((await B())[0].outline[0][0] - o0[0]) < 1e-9);
+
+    // The walker cannot walk through the railing.
+    await page.evaluate(() => window.__hd.rememberPose({ x: 0, z: -2.1, yaw: 0 }));
+    await page.getByRole('button', { name: 'Walk' }).click();
+    await page.waitForFunction(() => window.__hd.walkPose.getState().active);
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(2500);
+    await page.keyboard.up('KeyW');
+    const z = await page.evaluate(() => window.__hd.walkPose.getState().z);
+    check('the railing stops the walker', z > -2.8 && z < -2.4, `z = ${z.toFixed(2)}`);
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => window.__hd.editor.select([Object.keys(window.__hd.editor.getState().scene.balconies)[0]]));
+    await page.keyboard.press('Delete');
+    check('Delete removes the balcony', (await B()).length === 0);
+    check('no page errors in the balcony flow', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2r. realism: photo textures per tier, time of day
+  {
+    const run = async (quality) => {
+      const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+      const errors = [];
+      const textures = [];
+      page.on('pageerror', (e) => errors.push(String(e)));
+      page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+      page.on('response', (r) => r.url().includes('/textures/') && textures.push({ url: r.url(), status: r.status() }));
+      await page.addInitScript((q) => localStorage.setItem('hd.quality', q), quality);
+      await page.goto(BASE + '?demo=1&view=3d');
+      await page.waitForFunction(() => window.__hd);
+      await page.waitForTimeout(4500);
+      return { page, errors, textures };
+    };
+
+    const low = await run('low');
+    check('Low quality downloads no photo textures', low.textures.length === 0, String(low.textures.length));
+    check('Low quality still renders without errors', low.errors.length === 0, low.errors.slice(0, 2).join(' | '));
+    await low.page.close();
+
+    const med = await run('medium');
+    const names = new Set(med.textures.map((t) => t.url.split('/textures/')[1]));
+    check('Medium loads photo textures (floor planks, brick walls, grass) lazily', ['planks-c.jpg', 'bricks-c.jpg', 'grass-c.jpg'].every((n) => names.has(n)), [...names].join(','));
+    check('every texture file loads (no 404)', med.textures.every((t) => t.status === 200), JSON.stringify(med.textures.filter((t) => t.status !== 200)));
+    check('only the sets the home actually uses are fetched', med.textures.length <= 30, String(med.textures.length));
+    await med.page.screenshot({ path: `${SP}/e2e-realism.png` });
+
+    // Time of day: slider and presets change the lighting and are saved in the home (one undo step per change).
+    await med.page.getByRole('button', { name: 'Display' }).click();
+    const tod = med.page.getByRole('slider', { name: 'Time of day' });
+    check('Display has a Time of day slider', await tod.isVisible());
+    await med.page.getByRole('button', { name: 'Evening' }).click();
+    const hour = () => med.page.evaluate(() => window.__hd.editor.getState().scene.lighting.timeOfDay);
+    check('Evening preset sets 5:30 pm', (await hour()) === 17.5);
+    await tod.fill('21');
+    await tod.evaluate((el) => el.blur()); // releasing the slider commits the change
+    await med.page.waitForTimeout(300);
+    check('the slider sets the hour', (await hour()) === 21);
+    check('the label follows', await med.page.getByText('9:00 pm').isVisible());
+    await med.page.evaluate(() => window.__hd.editor.undo());
+    check('a slider change is undoable', (await hour()) === 17.5);
+    await med.page.screenshot({ path: `${SP}/e2e-evening.png` });
+    check('no page errors on Medium with the sky and photo textures', med.errors.length === 0, med.errors.slice(0, 2).join(' | '));
+    await med.page.close();
+  }
+
   // ---------------------------------------------------------------- 3. benchmark
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });

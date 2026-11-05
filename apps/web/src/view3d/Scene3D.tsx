@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { Canvas, useThree } from '@react-three/fiber';
-import { AdaptiveDpr, Environment, Lightformer, OrbitControls } from '@react-three/drei';
+import { AdaptiveDpr, Environment, Lightformer, OrbitControls, Sky } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useStore } from 'zustand';
 import { stairOpenings } from '@hd/editor-core';
@@ -17,16 +17,28 @@ import { CUT_HEIGHT_M, levelVisibility, type LevelVis } from './floors';
 import { ItemMesh } from './furniture/ItemMesh';
 import { OpeningMesh } from './OpeningMesh';
 import { PerfProbe } from './PerfProbe';
+import { setTextureRedraw } from './photoTextures';
+import { sunAt } from './sun';
 import { canPick, CLICK_SLOP_PX, pickObject } from './pick';
 import { RoofMesh } from './RoofMesh';
+import { BalconyMesh } from './BalconyMesh';
 import { StairMesh } from './StairMesh';
 import { TIERS, type Tier } from './qualityLogic';
-import { catalogMaterial } from './placeholderMaterials';
 import { useTier } from './qualityStore';
 import { WallMesh } from './WallMesh';
 
 // Post-processing (AO) is only downloaded on devices that reach the high tier.
 const Effects = lazy(() => import('./Effects'));
+
+/** Photo textures arrive after first paint; the demand-driven canvas needs a nudge to show them. */
+function TextureRedraw() {
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    setTextureRedraw(invalidate);
+    return () => setTextureRedraw(() => {});
+  }, [invalidate]);
+  return null;
+}
 
 /** Orbit target/camera framing for the whole plan. */
 function CameraFit() {
@@ -168,6 +180,20 @@ function Stairs({ tier }: { tier: Tier }) {
   );
 }
 
+/** Balconies and porches are drawn with the floor they are attached to. */
+function Balconies({ tier }: { tier: Tier }) {
+  const scene = useStore(editor.store, (s) => s.scene);
+  const vis = useLevelVis();
+  return (
+    <>
+      {Object.values(scene.balconies).map((b) => {
+        const level = scene.levels[b.levelId];
+        return level && vis[b.levelId]?.visible ? <BalconyMesh key={b.id} balcony={b} scene={scene} elevation={level.elevation} tier={tier} /> : null;
+      })}
+    </>
+  );
+}
+
 /** Furniture on every drawn floor (also on a cut floor, so you can see how rooms are furnished from above). */
 function Items() {
   const items = useStore(editor.store, (s) => s.scene.items);
@@ -232,9 +258,28 @@ function Ceilings({ tier }: { tier: Tier }) {
  */
 function Lighting({ tier }: { tier: Tier }) {
   const cfg = TIERS[tier];
+  const hour = useStore(editor.store, (s) => s.scene.lighting.timeOfDay);
+  const sun = useMemo(() => sunAt(hour), [hour]);
+  const invalidate = useThree((s) => s.invalidate);
+  const scene = useThree((s) => s.scene);
+  useEffect(() => {
+    // Flat background (Low tier, and behind the sky); the sky shader draws over it on Medium / High.
+    scene.background = new THREE.Color(sun.background);
+    invalidate();
+  }, [sun, scene, invalidate]);
   return (
     <>
-      <Environment resolution={cfg.envResolution} background={false} environmentIntensity={0.7}>
+      {cfg.sky && (
+        <Sky
+          distance={450}
+          sunPosition={sun.dir.map((v) => v * 100) as [number, number, number]}
+          turbidity={sun.night ? 20 : 6}
+          rayleigh={sun.night ? 0.05 : 1.6}
+          mieCoefficient={0.004}
+          mieDirectionalG={0.85}
+        />
+      )}
+      <Environment resolution={cfg.envResolution} background={false} environmentIntensity={sun.env}>
         <color attach="background" args={['#c9c4b9']} />
         <Lightformer form="rect" intensity={2.4} position={[0, 7, 0]} rotation-x={Math.PI / 2} scale={[24, 24, 1]} />
         <Lightformer form="rect" intensity={1.4} position={[-9, 3, 0]} rotation-y={Math.PI / 2} scale={[12, 6, 1]} />
@@ -244,9 +289,10 @@ function Lighting({ tier }: { tier: Tier }) {
       {/* Keyed by shadow-map size: three can't resize an existing shadow map in place. */}
       <directionalLight
         key={`${cfg.shadows}-${cfg.shadowMapSize}`}
-        position={[10, 16, 6]}
-        intensity={1.3}
-        castShadow={cfg.shadows}
+        position={sun.dir.map((v) => v * 22) as [number, number, number]}
+        intensity={sun.intensity}
+        color={sun.color}
+        castShadow={cfg.shadows && sun.intensity > 0.02}
         shadow-mapSize={[cfg.shadowMapSize, cfg.shadowMapSize]}
         shadow-camera-left={-25}
         shadow-camera-right={25}
@@ -261,11 +307,15 @@ function Lighting({ tier }: { tier: Tier }) {
   );
 }
 
+/** Phones keep Medium free of post-processing (the 60 fps rule); desktops get the light AO pass. */
+const COARSE_POINTER = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
+const BIG_GROUND: [number, number][] = [[-150, -150], [150, -150], [150, 150], [-150, 150]];
+
 /** The surface around the house (grass, sand, paving…), chosen in the Home menu. */
 function Ground({ tier }: { tier: Tier }) {
   const id = useStore(editor.store, (s) => s.scene.terrain.groundMaterial.id);
   const plot = useStore(editor.store, (s) => s.scene.plot?.boundary);
-  const m = catalogMaterial(id);
   if (plot && plot.length >= 3) {
     // The chosen ground covers only the plot; everything around it is a neutral verge.
     return (
@@ -278,12 +328,7 @@ function Ground({ tier }: { tier: Tier }) {
       </>
     );
   }
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.002, 0]} receiveShadow>
-      <planeGeometry args={[300, 300]} />
-      <meshStandardMaterial color={m.color} roughness={m.roughness} />
-    </mesh>
-  );
+  return <FloorMesh polygon={BIG_GROUND} elevation={-0.004} materialId={id} tier={tier} />;
 }
 
 /** Where the last pointer press happened (to tell a click from an orbit drag). */
@@ -315,12 +360,13 @@ export function Scene3D() {
         pickObject(null, undefined, e.shiftKey || useUi.getState().additive);
       }}
     >
-      <color attach="background" args={['#e6e4e0']} />
       <Lighting tier={tier} />
+      <TextureRedraw />
       <Ground tier={tier} />
       <Floors tier={tier} />
       <Walls tier={tier} />
       <Stairs tier={tier} />
+      <Balconies tier={tier} />
       <Items />
       <Roofs tier={tier} />
       {walk && <Ceilings tier={tier} />}
@@ -333,9 +379,9 @@ export function Scene3D() {
         </>
       )}
       <AdaptiveDpr pixelated={false} />
-      {cfg.ao && (
+      {cfg.ao && (tier === 'high' || !COARSE_POINTER) && (
         <Suspense fallback={null}>
-          <Effects msaa={cfg.msaa} />
+          <Effects msaa={cfg.msaa} quality={cfg.aoQuality} />
         </Suspense>
       )}
       <PerfProbe />

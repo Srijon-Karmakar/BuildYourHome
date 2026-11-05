@@ -22,7 +22,10 @@ describe('tiers', () => {
     expect(TIERS.low.dpr[1]).toBeLessThanOrEqual(TIERS.medium.dpr[1]);
     expect(TIERS.medium.dpr[1]).toBeLessThanOrEqual(TIERS.high.dpr[1]);
     expect(TIERS.low.textureSize).toBeLessThan(TIERS.high.textureSize);
-    expect(TIERS.low.ao || TIERS.medium.ao).toBe(false);
+    expect(TIERS.low.ao).toBe(false);
+    expect(TIERS.medium.ao && TIERS.high.ao).toBe(true);
+    expect(TIERS.low.photoTextures).toBe(false);
+    expect(TIERS.medium.photoTextures && TIERS.high.photoTextures).toBe(true);
     expect(TIERS.high.ao).toBe(true);
   });
 

@@ -3,6 +3,8 @@ import { useStore } from 'zustand';
 import { editor, useUi } from '../plan/session';
 import { startBenchmark } from '../view3d/benchmark';
 import type { FloorView } from '../view3d/floors';
+import { setTimeOfDay } from '@hd/editor-core';
+import { hourLabel } from '../view3d/sun';
 import type { QualitySetting } from '../view3d/qualityLogic';
 import { useBench, useQuality } from '../view3d/qualityStore';
 
@@ -30,6 +32,7 @@ export function DisplayMenu() {
   const floorView = useUi((s) => s.floorView);
   const setFloorView = useUi((s) => s.setFloorView);
   const levelCount = useStore(editor.store, (s) => s.scene.levelOrder.length);
+  const hour = useStore(editor.store, (s) => s.scene.lighting.timeOfDay);
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -77,6 +80,39 @@ export function DisplayMenu() {
               <div className="radio" />
             </button>
           ))}
+
+          <h4 style={{ marginTop: 12 }}>Time of day</h4>
+          <div className="f-row" style={{ alignItems: 'center' }}>
+            <input
+              type="range"
+              className="tod-range"
+              aria-label="Time of day"
+              min={0}
+              max={24}
+              step={0.25}
+              value={hour}
+              onChange={(e) => {
+                if (!editor.getState().inTransaction) editor.beginTransaction('Change time of day');
+                editor.preview(setTimeOfDay(Number(e.target.value)));
+              }}
+              onPointerUp={() => editor.getState().inTransaction && editor.commitTransaction()}
+              onKeyUp={() => editor.getState().inTransaction && editor.commitTransaction()}
+              onBlur={() => editor.getState().inTransaction && editor.commitTransaction()}
+            />
+            <small className="tod-label">{hourLabel(hour)}</small>
+          </div>
+          <div className="f-chips">
+            {[
+              ['Morning', 8],
+              ['Noon', 12],
+              ['Evening', 17.5],
+              ['Night', 22],
+            ].map(([label, h]) => (
+              <button key={label} type="button" aria-pressed={Math.abs(hour - Number(h)) < 0.01} onClick={() => editor.execute(setTimeOfDay(Number(h)))}>
+                {label}
+              </button>
+            ))}
+          </div>
 
           {levelCount > 1 && (
             <>

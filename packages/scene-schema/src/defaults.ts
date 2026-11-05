@@ -31,6 +31,7 @@ export function createEmptyScene(opts: CreateSceneOptions = {}): Scene {
     items: {},
     roofs: {},
     stairs: {},
+    balconies: {},
     terrain: {
       size: [DEFAULT_TERRAIN_SIZE_M, DEFAULT_TERRAIN_SIZE_M],
       groundMaterial: { id: DEFAULT_MATERIAL_GROUND },

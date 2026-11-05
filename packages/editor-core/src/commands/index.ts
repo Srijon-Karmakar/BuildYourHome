@@ -7,4 +7,5 @@ export * from './items';
 export * from './roof';
 export * from './plot';
 export * from './stairs';
+export * from './balconies';
 export * from './batch';

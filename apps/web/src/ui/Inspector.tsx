@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from 'zustand';
 import { getAsset, CATEGORIES } from '@hd/assets';
-import type { Item, Opening, Room, RoomType, Stair, Wall } from '@hd/scene-schema';
+import type { Balcony, Item, Opening, Room, RoomType, Stair, Wall } from '@hd/scene-schema';
 import { DOOR_STYLES, FRAME_COLORS, LEAF_COLORS, WINDOW_STYLES } from '@hd/scene-schema';
-import { batch, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
+import { batch, updateBalconies, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
 import { formatArea, formatLength } from '../lib/units';
 import { requireAccess } from '../cloud/store';
 import { deleteSelection } from '../plan/PlanController';
@@ -70,8 +70,9 @@ export function Inspector() {
     if (empty) setCollapsed(isPhone());
   }, [empty]);
 
-  const { walls, openings, rooms, items, stairs } = useMemo(() => {
+  const { walls, openings, rooms, items, stairs, balconies } = useMemo(() => {
     const it: Item[] = [];
+    const bl: Balcony[] = [];
     const st: Stair[] = [];
     const w: Wall[] = [];
     const o: Opening[] = [];
@@ -82,14 +83,15 @@ export function Inspector() {
       else if (scene.rooms[id]) r.push(scene.rooms[id]!);
       else if (scene.items[id]) it.push(scene.items[id]!);
       else if (scene.stairs[id]) st.push(scene.stairs[id]!);
+      else if (scene.balconies[id]) bl.push(scene.balconies[id]!);
     }
-    return { walls: w, openings: o, rooms: r, items: it, stairs: st };
+    return { walls: w, openings: o, rooms: r, items: it, stairs: st, balconies: bl };
   }, [selection, scene]);
 
   if (walk || empty) return null;
 
   // ------------------------------------------------------------------ header
-  const total = walls.length + openings.length + rooms.length + items.length + stairs.length;
+  const total = walls.length + openings.length + rooms.length + items.length + stairs.length + balconies.length;
   let title: string;
   let subtitle = '';
   if (total === 1 && rooms[0]) {
@@ -106,6 +108,9 @@ export function Inspector() {
     const asset = getAsset(items[0].assetId);
     title = asset?.name ?? 'Item';
     subtitle = asset ? `${CATEGORIES.find((c) => c.id === asset.category)?.name ?? ''} · ${formatLength(asset.size[0] * items[0].scale[0], scene.meta.units)} × ${formatLength(asset.size[1] * items[0].scale[2], scene.meta.units)}` : '';
+  } else if (total === 1 && balconies[0]) {
+    title = 'Balcony';
+    subtitle = `${scene.levels[balconies[0].levelId]?.name ?? ''}`;
   } else if (total === 1 && stairs[0]) {
     const s = stairs[0];
     const l = layoutOf(scene, s);
@@ -149,7 +154,9 @@ export function Inspector() {
   const editStairs = (props: Parameters<typeof updateStairs>[1]) => editor.execute(updateStairs(stairIds, props));
   const stairRooms = (lid: string) => levelRooms(scene, lid).map((r) => r.polygon);
   const needsRoom = stairs.length === 1 ? stairNeedsRoom(scene, stairs[0]!, stairRooms) : null;
-  const canDelete = walls.length + openings.length + items.length + stairs.length > 0;
+  const balconyIds = balconies.map((b) => b.id);
+  const editBalconies = (props: Parameters<typeof updateBalconies>[1]) => editor.execute(updateBalconies(balconyIds, props));
+  const canDelete = walls.length + openings.length + items.length + stairs.length + balconies.length > 0;
 
   return (
     <aside className={`inspector${collapsed ? ' collapsed' : ''}`} aria-label="Properties">
@@ -288,6 +295,29 @@ export function Inspector() {
                   Duplicate
                 </button>
               </div>
+            </Section>
+          )}
+
+          {balconies.length > 0 && (
+            <Section title="Balcony">
+              <Segmented
+                label="Railing"
+                value={common(balconies.map((b) => b.railing))}
+                options={[
+                  { id: 'glass', label: 'Glass' },
+                  { id: 'metal', label: 'Metal' },
+                  { id: 'wall', label: 'Wall' },
+                  { id: 'none', label: 'None' },
+                ]}
+                onChange={(railing) => editBalconies({ railing })}
+              />
+              <Swatches
+                label="Floor"
+                items={materialsFor('floor')}
+                value={common(balconies.map((b) => b.floorMaterial.id))}
+                onPick={(id) => editBalconies({ floorMaterial: { id } })}
+              />
+              <p className="f-note">The railing stays off the side that touches your house wall. Add a door in that wall to step out.</p>
             </Section>
           )}
 

@@ -5,7 +5,10 @@ import {
   addLevel,
   addOpening,
   addStair,
+  balconyRailings,
   batch,
+  removeBalconies,
+  translateBalconies,
   layoutOf,
   levelAbove,
   removeStairs,
@@ -47,7 +50,7 @@ const NODE_HIT_PX = 16;
 const WALL_HIT_PX = 10;
 const TAP_SLOP_PX = 5;
 
-type Mode = 'none' | 'pan' | 'place' | 'placeOpening' | 'placeItem' | 'placeStair' | 'select' | 'dragNode' | 'dragOpening' | 'dragItem' | 'dragStair' | 'gesture';
+type Mode = 'none' | 'pan' | 'place' | 'placeOpening' | 'placeItem' | 'placeStair' | 'select' | 'dragNode' | 'dragOpening' | 'dragItem' | 'dragStair' | 'dragBalcony' | 'gesture';
 
 /**
  * Owns the 2D plan canvas: view transform, pointer/touch/keyboard handling, rendering on demand.
@@ -87,6 +90,8 @@ export class PlanController {
   private dragOpeningId: Id | null = null;
   private dragItemId: Id | null = null;
   private dragStairId: Id | null = null;
+  private dragBalconyId: Id | null = null;
+  private dragBalconyLast: Vec2 = [0, 0];
   /** Pointer offset from the item's centre when the drag began (so it doesn't jump). */
   private dragGrab: Vec2 = [0, 0];
   private dragBaseRotation = 0;
@@ -124,7 +129,7 @@ export class PlanController {
     on(canvas, 'wheel', (e: WheelEvent) => this.onWheel(e), { passive: false });
     on(canvas, 'dblclick', () => {
       if (useUi.getState().tool === 'wall') this.endChain();
-      else if (useUi.getState().tool === 'plot') finishPlot();
+      else if (isDraftTool()) finishPlot();
     });
     on(canvas, 'contextmenu', (e: Event) => e.preventDefault());
     on(window, 'keydown', (e: KeyboardEvent) => this.onKey(e, true));
@@ -175,7 +180,7 @@ export class PlanController {
   /** Fit the whole plan (or reset to origin) into view. */
   fitToPlan(): void {
     const scene = editor.getState().scene;
-    const nodes: { p: Vec2 }[] = [...Object.values(scene.nodes), ...(scene.plot?.boundary ?? []).map((p) => ({ p }))];
+    const nodes: { p: Vec2 }[] = [...Object.values(scene.nodes), ...(scene.plot?.boundary ?? []).map((p) => ({ p })), ...Object.values(scene.balconies).flatMap((b) => b.outline.map((p) => ({ p })))];
     if (nodes.length === 0) {
       this.view = { scale: 60, ox: this.cssW / 2, oy: this.cssH / 2 };
     } else {
@@ -263,10 +268,13 @@ export class PlanController {
       tool: ui.tool,
       hover: this.hover,
       drawingFrom: ui.tool === 'wall' ? wallTool.last : null,
+      balconies: Object.values(st.scene.balconies)
+        .filter((b) => b.levelId === st.activeLevelId)
+        .map((b) => ({ outline: b.outline, railings: balconyRailings(st.scene, b.id), selected: st.selection.includes(b.id) })),
       stairs: [...this.stairDraws(), ...(this.stairGhost ? [this.stairGhost] : [])],
       plot: {
         boundary: st.scene.plot?.boundary ?? null,
-        draft: ui.tool === 'plot' ? ui.plotDraft : null,
+        draft: isDraftTool() ? ui.plotDraft : null,
         outside: nodesOutsidePlot(st.scene).flatMap((id) => {
           const n = st.scene.nodes[id];
           return n && n.levelId === st.activeLevelId ? [n.p as Vec2] : [];
@@ -292,7 +300,7 @@ export class PlanController {
       settings: exclude ? { ...ui.snap, walls: false } : ui.snap,
       gridStep: niceGridStep(this.view.scale),
       thresholdM: SNAP_PX / this.view.scale,
-      from: ui.tool === 'wall' ? (wallTool.last ?? undefined) : ui.tool === 'plot' ? (ui.plotDraft[ui.plotDraft.length - 1] ?? undefined) : undefined,
+      from: ui.tool === 'wall' ? (wallTool.last ?? undefined) : isDraftTool() ? (ui.plotDraft[ui.plotDraft.length - 1] ?? undefined) : undefined,
       excludeNodeIds: exclude,
     });
   }
@@ -476,6 +484,21 @@ export class PlanController {
     };
   }
 
+  private hitBalcony(sx: number, sy: number): Id | null {
+    const st = editor.getState();
+    const [px, pz] = toWorld(this.view, sx, sy);
+    let hit: Id | null = null;
+    for (const b of Object.values(st.scene.balconies)) {
+      if (b.levelId === st.activeLevelId && pointInPolygon(px, pz, b.outline)) hit = b.id;
+    }
+    return hit;
+  }
+
+  private selectedBalconyIds(): Id[] {
+    const st = editor.getState();
+    return st.selection.filter((id) => st.scene.balconies[id]);
+  }
+
   private selectedStairIds(): Id[] {
     const st = editor.getState();
     return st.selection.filter((id) => st.scene.stairs[id]);
@@ -545,7 +568,7 @@ export class PlanController {
 
     if (this.pointers.size === 2) {
       // Second finger: abandon whatever the first one started and switch to pinch/pan.
-      if ((this.mode === 'dragNode' || this.mode === 'dragOpening' || this.mode === 'dragItem' || this.mode === 'dragStair') && editor.getState().inTransaction) editor.cancelTransaction();
+      if ((this.mode === 'dragNode' || this.mode === 'dragOpening' || this.mode === 'dragItem' || this.mode === 'dragStair' || this.mode === 'dragBalcony') && editor.getState().inTransaction) editor.cancelTransaction();
       this.dragNodeId = null;
       this.dragOpeningId = null;
       this.dragItemId = null;
@@ -566,7 +589,7 @@ export class PlanController {
       this.mode = 'pan';
       return;
     }
-    if (tool === 'wall' || tool === 'plot') {
+    if (tool === 'wall' || tool === 'plot' || tool === 'balcony') {
       this.mode = 'place';
       this.hover = this.snapAt(p.x, p.y);
     } else if (tool === 'door' || tool === 'window') {
@@ -583,6 +606,7 @@ export class PlanController {
       const openingId = nodeId ? null : this.hitOpening(p.x, p.y);
       const itemId = nodeId || openingId ? null : this.hitItem(p.x, p.y);
       const stairId = nodeId || openingId || itemId ? null : this.hitStair(p.x, p.y);
+      const balconyId = nodeId || openingId || itemId || stairId ? null : this.hitBalcony(p.x, p.y);
       if (nodeId) {
         this.mode = 'dragNode';
         this.dragNodeId = nodeId;
@@ -591,6 +615,12 @@ export class PlanController {
         // The transaction only starts once the pointer really moves, so a plain tap just selects.
         this.mode = 'dragOpening';
         this.dragOpeningId = openingId;
+        this.dragStarted = false;
+      } else if (balconyId) {
+        const w = toWorld(this.view, p.x, p.y) as Vec2;
+        this.mode = 'dragBalcony';
+        this.dragBalconyId = balconyId;
+        this.dragBalconyLast = w;
         this.dragStarted = false;
       } else if (stairId) {
         const s = editor.getState().scene.stairs[stairId]!;
@@ -626,7 +656,7 @@ export class PlanController {
     if (!prev) {
       // Hovering mouse (no button down).
       const tool = useUi.getState().tool;
-      if ((tool === 'wall' || tool === 'plot') && e.pointerType === 'mouse') {
+      if ((tool === 'wall' || tool === 'plot' || tool === 'balcony') && e.pointerType === 'mouse') {
         this.hover = this.snapAt(p.x, p.y);
         this.invalidate();
       } else if ((tool === 'door' || tool === 'window') && e.pointerType === 'mouse') {
@@ -666,6 +696,17 @@ export class PlanController {
       case 'placeStair':
         this.stairGhost = this.stairGhostAt(p.x, p.y);
         this.invalidate();
+        break;
+      case 'dragBalcony':
+        if (this.dragBalconyId && this.moved) {
+          if (!this.dragStarted) {
+            editor.beginTransaction('Move balcony');
+            this.dragStarted = true;
+          }
+          const w = toWorld(this.view, p.x, p.y) as Vec2;
+          editor.preview(translateBalconies([this.dragBalconyId], w[0] - this.dragBalconyLast[0], w[1] - this.dragBalconyLast[1]));
+          this.dragBalconyLast = w;
+        }
         break;
       case 'dragStair':
         if (this.dragStairId && this.moved) {
@@ -735,7 +776,7 @@ export class PlanController {
     const mode = this.mode;
     this.mode = 'none';
 
-    if (mode === 'place' && useUi.getState().tool === 'plot') {
+    if (mode === 'place' && isDraftTool()) {
       const s = this.snapAt(p.x, p.y);
       const ui = useUi.getState();
       const first = ui.plotDraft[0];
@@ -761,6 +802,12 @@ export class PlanController {
     } else if (mode === 'placeStair') {
       const g = this.stairGhostAt(p.x, p.y);
       if (g) this.placeStair(g);
+    } else if (mode === 'dragBalcony') {
+      const id = this.dragBalconyId;
+      if (this.dragStarted) editor.commitTransaction();
+      else if (id) this.pick(id, e.shiftKey || useUi.getState().additive);
+      this.dragBalconyId = null;
+      this.dragStarted = false;
     } else if (mode === 'dragStair') {
       const id = this.dragStairId;
       if (this.dragStarted) editor.commitTransaction();
@@ -802,6 +849,7 @@ export class PlanController {
     this.dragOpeningId = null;
     this.dragItemId = null;
     this.dragStairId = null;
+    this.dragBalconyId = null;
     this.dragStarted = false;
     if (this.pointers.size === 0) this.mode = 'none';
     this.hover = null;
@@ -914,7 +962,7 @@ export class PlanController {
       editor.redo();
     } else if (e.key === 'Escape') {
       this.endChain();
-      if (useUi.getState().tool === 'plot') {
+      if (isDraftTool()) {
         if (useUi.getState().plotDraft.length) cancelPlot();
         else useUi.getState().setTool('select');
       }
@@ -924,7 +972,7 @@ export class PlanController {
       editor.select([]);
     } else if (e.key === 'Enter') {
       if (useUi.getState().tool === 'wall') this.endChain();
-      else if (useUi.getState().tool === 'plot') finishPlot();
+      else if (isDraftTool()) finishPlot();
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       deleteSelection();
     } else if (!mod && key === 'w') {
@@ -947,14 +995,17 @@ export class PlanController {
         this.stairGhost = null;
       } else if (ids.length) editor.execute(rotateItems(ids, delta));
       else if (stairIds.length) editor.execute(rotateStairs(stairIds, delta));
-    } else if (!mod && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') && (this.selectedItemIds().length || this.selectedStairIds().length)) {
+    } else if (!mod && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') && (this.selectedItemIds().length || this.selectedStairIds().length || this.selectedBalconyIds().length)) {
       // Nudge selected furniture or stairs: 5 cm, Shift = 25 cm.
       e.preventDefault();
       const d = e.shiftKey ? 0.25 : 0.05;
       const dx = e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0;
       const dz = e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0;
       if (this.selectedItemIds().length) editor.execute(translateItems(this.selectedItemIds(), dx, dz));
-      else editor.execute(translateStairs(this.selectedStairIds(), dx, dz));
+      else if (this.selectedStairIds().length) editor.execute(translateStairs(this.selectedStairIds(), dx, dz));
+      else editor.execute(translateBalconies(this.selectedBalconyIds(), dx, dz));
+    } else if (!mod && key === 'b') {
+      useUi.getState().setTool('balcony');
     } else if (!mod && key === 's') {
       useUi.getState().setTool('stair');
     } else if (!mod && key === 'v') {
@@ -969,12 +1020,20 @@ export class PlanController {
   }
 }
 
+/** The wall-like tools that collect corner points (plot outline, balcony slab). */
+function isDraftTool(): boolean {
+  const t = useUi.getState().tool;
+  return t === 'plot' || t === 'balcony';
+}
+
 export function deleteSelection(): void {
   const st = editor.getState();
   const items = st.selection.filter((id) => st.scene.items[id]);
   const openings = st.selection.filter((id) => st.scene.openings[id]);
   const walls = st.selection.filter((id) => st.scene.walls[id]);
   const stairs = st.selection.filter((id) => st.scene.stairs[id]);
+  const balconies = st.selection.filter((id) => st.scene.balconies[id]);
+  if (balconies.length && !items.length && !openings.length && !walls.length && !stairs.length) return void editor.execute(removeBalconies(balconies));
   if (stairs.length && !items.length && !openings.length && !walls.length) editor.execute(removeStairs(stairs));
   else if (items.length) editor.execute(removeItems(items));
   else if (openings.length) editor.execute(removeOpenings(openings));

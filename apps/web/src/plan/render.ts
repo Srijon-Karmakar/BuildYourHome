@@ -82,10 +82,12 @@ export interface RenderState {
   scene: Scene;
   levelId: string;
   selection: readonly string[];
-  tool: 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair';
+  tool: 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony';
   hover: SnapResult | null;
   drawingFrom: Vec2 | null;
   gridStep: number;
+  /** Balconies of this floor with their railing runs. */
+  balconies: readonly { outline: readonly Vec2[]; railings: readonly { a: Vec2; b: Vec2 }[]; selected: boolean }[];
   /** Stairs that start or end on this floor, plus the ghost of the ones about to be placed. */
   stairs: readonly StairDraw[];
   /** The property outline, the outline being drawn, and house points that stick out of the plot. */
@@ -761,6 +763,35 @@ function drawPlotAfter(ctx: CanvasRenderingContext2D, s: RenderState): void {
   }
 }
 
+function drawBalconies(ctx: CanvasRenderingContext2D, s: RenderState): void {
+  const { view: v } = s;
+  for (const b of s.balconies) {
+    ctx.beginPath();
+    b.outline.forEach((p, i) => {
+      const [x, y] = toScreen(v, p[0], p[1]);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.fill();
+    ctx.strokeStyle = b.selected ? C.wallSel : 'rgba(17,17,17,0.55)';
+    ctx.lineWidth = b.selected ? 2.2 : 1.2;
+    ctx.stroke();
+    // Railing: a doubled line along the open edges.
+    ctx.strokeStyle = b.selected ? C.wallSel : C.wall;
+    ctx.lineWidth = 3;
+    for (const r of b.railings) {
+      const [ax, ay] = toScreen(v, r.a[0], r.a[1]);
+      const [bx, by] = toScreen(v, r.b[0], r.b[1]);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+    }
+  }
+}
+
 function drawStairs(ctx: CanvasRenderingContext2D, s: RenderState): void {
   const { view: v } = s;
   for (const d of s.stairs) {
@@ -870,6 +901,7 @@ export function drawPlan(ctx: CanvasRenderingContext2D, s: RenderState): void {
   }
   drawPlotBefore(ctx, s);
   drawRooms(ctx, s, 'fills');
+  drawBalconies(ctx, s);
   drawStairs(ctx, s);
   drawItems(ctx, s);
   drawWalls(ctx, s);

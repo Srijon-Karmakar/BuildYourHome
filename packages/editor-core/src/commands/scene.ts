@@ -13,6 +13,17 @@ export function setSceneName(name: string): Command {
   };
 }
 
+/** Time of day for the 3D lighting (0–24 hours). */
+export function setTimeOfDay(hours: number): Command {
+  return {
+    type: 'SetTimeOfDay',
+    label: 'Change time of day',
+    apply(d) {
+      if (Number.isFinite(hours)) d.lighting.timeOfDay = Math.min(24, Math.max(0, hours));
+    },
+  };
+}
+
 /** Surface around the house (grass, sand, paving…). */
 export function setGround(material: MaterialRef): Command {
   return {

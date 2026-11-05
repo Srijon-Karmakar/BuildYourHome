@@ -1,6 +1,6 @@
 import { useStore } from 'zustand';
 import { editor, useUi } from '../plan/session';
-import { IconDoor, IconFurniture, IconStairs, IconRedo, IconSelect, IconUndo, IconWall, IconWindow } from './icons';
+import { IconBalcony, IconDoor, IconFurniture, IconStairs, IconRedo, IconSelect, IconUndo, IconWall, IconWindow } from './icons';
 import { SnapMenu } from './SnapMenu';
 
 export function ToolRail() {
@@ -70,6 +70,18 @@ export function ToolRail() {
       >
         <IconStairs />
         <span>Stairs</span>
+      </button>
+
+      <button
+        type="button"
+        className="tool"
+        title="Add a balcony or porch (B)"
+        aria-pressed={editable && tool === 'balcony'}
+        disabled={!editable}
+        onClick={() => setTool('balcony')}
+      >
+        <IconBalcony />
+        <span>Balcony</span>
       </button>
 
       <button

@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import { createEmptyScene, type Vec2 } from '@hd/scene-schema';
 import type { StairKind } from '@hd/geometry';
-import { cleanPolygon, createEditor, createWallTool, DEFAULT_SNAP, plotProblem, setPlot, type SnapSettings } from '@hd/editor-core';
+import { addBalcony, balconyProblem, cleanPolygon, createEditor, createWallTool, DEFAULT_SNAP, plotProblem, setPlot, type SnapSettings } from '@hd/editor-core';
 
 /** App-wide singletons for the editing session (one project open at a time). */
 export const editor = createEditor(createEmptyScene());
 export const wallTool = createWallTool(editor, () => useUi.getState().newWallKind);
 
-export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair';
+export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony';
 export type ViewMode = '2d' | '3d' | 'split';
 export type { FloorView } from '../view3d/floors';
 
@@ -189,6 +189,19 @@ export function finishPlot(): void {
   const pts = cleanPolygon(ui.plotDraft);
   if (pts.length === 0) {
     ui.setTool('select');
+    return;
+  }
+  if (ui.tool === 'balcony') {
+    const bad = balconyProblem(pts);
+    if (bad) {
+      useUi.setState({ plotError: bad });
+      return;
+    }
+    const before = new Set(Object.keys(editor.getState().scene.balconies));
+    editor.execute(addBalcony({ levelId: editor.getState().activeLevelId, outline: pts }));
+    const added = Object.keys(editor.getState().scene.balconies).filter((id) => !before.has(id));
+    useUi.setState({ plotDraft: [], plotError: null, tool: 'select' });
+    if (added.length) editor.select(added);
     return;
   }
   const problem = plotProblem(pts);

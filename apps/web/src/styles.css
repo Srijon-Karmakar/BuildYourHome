@@ -2042,3 +2042,17 @@ a.pill.solid {
 .tour-dots i.on {
   background: var(--brick);
 }
+
+.tod-range {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--brick);
+}
+
+.tod-label {
+  min-width: 62px;
+  margin-left: 10px;
+  text-align: right;
+  color: var(--ink-2);
+  font-size: 12px;
+}

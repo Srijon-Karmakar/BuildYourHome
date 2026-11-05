@@ -74,6 +74,9 @@ export function postProcess(d: Scene): void {
     if (!d.levels[s.fromLevel] || !d.levels[s.toLevel] || from < 0 || to <= from) delete d.stairs[id];
   }
 
+  // 4d. Balconies on missing floors.
+  for (const [id, b] of Object.entries(d.balconies)) if (!d.levels[b.levelId]) delete d.balconies[id];
+
   // 5. Rooms are derived from closed wall loops (identity carried across edits).
   syncRooms(d);
 }

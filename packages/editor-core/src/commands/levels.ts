@@ -95,6 +95,7 @@ export function removeLevel(levelId: Id): Command {
       for (const [id, it] of Object.entries(d.items)) if (it.levelId === levelId) delete d.items[id];
       for (const [id, r] of Object.entries(d.roofs)) if (r.levelId === levelId) delete d.roofs[id];
       for (const [id, s] of Object.entries(d.stairs)) if (s.fromLevel === levelId || s.toLevel === levelId) delete d.stairs[id];
+      for (const [id, b] of Object.entries(d.balconies)) if (b.levelId === levelId) delete d.balconies[id];
       delete d.levels[levelId];
       d.levelOrder = d.levelOrder.filter((id) => id !== levelId);
     },

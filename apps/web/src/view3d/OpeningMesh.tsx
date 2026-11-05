@@ -18,7 +18,8 @@ const GLASS = new THREE.MeshStandardMaterial({
   color: '#bcd4e6',
   transparent: true,
   opacity: 0.28,
-  roughness: 0.05,
+  roughness: 0.03,
+  envMapIntensity: 1.5,
   depthWrite: false,
 });
 const HANDLE = new THREE.MeshStandardMaterial({

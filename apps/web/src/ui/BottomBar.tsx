@@ -7,6 +7,7 @@ const CAPTION = {
   door: 'Move over a wall and click to add a door · it opens toward your side',
   window: 'Move over a wall and click to add a window',
   plot: 'Click each corner of your land · click the first corner or press Enter to close · Esc to cancel',
+  balcony: 'Click the corners of the balcony or porch · click the first corner or press Enter to close · Esc to cancel',
   stair: 'Click to place the stairs · R turns them · they climb to the floor above (one is added if needed) · Esc to stop',
   place: 'Click to place · R turns it · Esc to stop',
   select: 'Tap a wall, room, door or furniture to edit it · drag to move',
@@ -41,7 +42,7 @@ export function BottomBar() {
       : CAPTION[tool];
 
   const showDone = drawing && !walk && tool === 'wall';
-  const showPlotDone = tool === 'plot' && !walk && view !== '3d';
+  const showPlotDone = (tool === 'plot' || tool === 'balcony') && !walk && view !== '3d';
   const showKind = tool === 'wall' && !walk && view !== '3d';
   const showStairKind = tool === 'stair' && !walk && view !== '3d';
   const newStair = useUi((s) => s.newStair);

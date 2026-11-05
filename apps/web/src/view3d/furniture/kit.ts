@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { Asset } from '@hd/assets';
 
 /** Shared building blocks for the procedural furniture models (see builders.ts / builders2.ts). */
@@ -15,7 +16,7 @@ export function mat(color: string, roughness = 0.6, metalness = 0, extra?: Parti
   return m;
 }
 
-export const GLASS = () => mat('#bcd4e6', 0.05, 0, { transparent: true, opacity: 0.3, depthWrite: false });
+export const GLASS = () => mat('#bcd4e6', 0.03, 0, { transparent: true, opacity: 0.3, depthWrite: false, envMapIntensity: 1.5 });
 export const WHITE = () => mat('#f2f1ed', 0.35);
 export const CHROME = () => mat('#c9cbcd', 0.2, 0.9);
 export const BLACK = () => mat('#262626', 0.5);
@@ -31,7 +32,9 @@ export function shade(hex: string, amount: number): string {
 
 /** Box with its bottom face at y0, centred at (x, z). */
 export function box(g: THREE.Group, [w, h, d]: V3, [x, y0, z]: V3, m: THREE.Material, rotY = 0): THREE.Mesh {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+  // Real objects have softened edges: a small bevel catches the light and reads as "made", not "modelled".
+  const r = Math.min(0.012, Math.min(w, h, d) * 0.3);
+  const mesh = new THREE.Mesh(r >= 0.002 ? new RoundedBoxGeometry(w, h, d, 1, r) : new THREE.BoxGeometry(w, h, d), m);
   mesh.position.set(x, y0 + h / 2, z);
   mesh.rotation.y = rotY;
   mesh.castShadow = mesh.receiveShadow = true;
