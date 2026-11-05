@@ -2,6 +2,8 @@ import type { Id, Vec2 } from '@hd/scene-schema';
 import { moveNode, niceGridStep, removeWalls, snapPoint, type SnapResult } from '@hd/editor-core';
 import { editor, finishDrawing, useUi, wallTool } from './session';
 import { drawPlan } from './render';
+import { levelRooms } from './rooms';
+import { walkPose } from '../walk/walkState';
 import { toWorld, zoomAt, type View } from './viewport';
 
 const SNAP_PX = 14;
@@ -83,6 +85,7 @@ export class PlanController {
     this.cleanup.push(() => ro.disconnect());
 
     this.cleanup.push(editor.subscribe(() => this.invalidate()));
+    this.cleanup.push(walkPose.subscribe(() => this.invalidate()));
     let prevTool = useUi.getState().tool;
     this.cleanup.push(
       useUi.subscribe((s) => {
@@ -90,12 +93,20 @@ export class PlanController {
           prevTool = s.tool;
           this.endChain();
           this.hover = null;
+          this.updateCursor();
         }
         this.invalidate();
       }),
     );
 
     this.resize();
+    // Canvas text must be redrawn once the web font is available.
+    void document.fonts?.load('400 13px "Outfit Variable"').then(() => this.invalidate());
+    this.updateCursor();
+  }
+
+  private updateCursor(): void {
+    this.canvas.style.cursor = useUi.getState().tool === 'wall' ? 'crosshair' : 'default';
   }
 
   dispose(): void {
@@ -117,14 +128,21 @@ export class PlanController {
         minX = Math.min(minX, n.p[0]); maxX = Math.max(maxX, n.p[0]);
         minZ = Math.min(minZ, n.p[1]); maxZ = Math.max(maxZ, n.p[1]);
       }
-      const pad = 80;
+      // Keep clear of the floating chrome: tool rail on the left (bottom on phones), top bar, caption.
+      const phone = window.matchMedia('(max-width: 699px)').matches;
+      const padL = phone ? 28 : 120;
+      const padR = 40;
+      const padT = 90;
+      const padB = phone && useUi.getState().view === '2d' ? 200 : 110;
+      const availW = Math.max(this.cssW - padL - padR, 50);
+      const availH = Math.max(this.cssH - padT - padB, 50);
       const w = Math.max(maxX - minX, 1);
       const h = Math.max(maxZ - minZ, 1);
-      const scale = Math.min(500, Math.max(8, Math.min((this.cssW - 2 * pad) / w, (this.cssH - 2 * pad) / h)));
+      const scale = Math.min(500, Math.max(8, Math.min(availW / w, availH / h)));
       this.view = {
         scale,
-        ox: this.cssW / 2 - ((minX + maxX) / 2) * scale,
-        oy: this.cssH / 2 - ((minZ + maxZ) / 2) * scale,
+        ox: padL + availW / 2 - ((minX + maxX) / 2) * scale,
+        oy: padT + availH / 2 - ((minZ + maxZ) / 2) * scale,
       };
     }
     this.invalidate();
@@ -151,6 +169,8 @@ export class PlanController {
       this.view.ox = rect.width / 2;
       this.view.oy = rect.height / 2;
       this.centered = true;
+      // A project opened with content (sample home, later: saved projects) starts framed.
+      if (Object.keys(editor.getState().scene.nodes).length > 0) this.fitToPlan();
     }
     this.invalidate();
   }
@@ -160,6 +180,13 @@ export class PlanController {
     const ui = useUi.getState();
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     drawPlan(this.ctx, {
+      rooms: levelRooms(st.scene, st.activeLevelId).map((r) => ({
+        polygon: r.polygon,
+        centroid: r.centroid,
+        area: r.area,
+        name: r.room?.name ?? 'Room',
+      })),
+      walker: walkPose.getState().active ? walkPose.getState() : null,
       view: this.view,
       width: this.cssW,
       height: this.cssH,
@@ -185,7 +212,8 @@ export class PlanController {
     const ui = useUi.getState();
     const raw = toWorld(this.view, sx, sy) as Vec2;
     return snapPoint(raw, st.scene, st.activeLevelId, {
-      settings: ui.snap,
+      // Dragging a point onto a wall body would not join them (only drawing splits walls), so don't offer it.
+      settings: exclude ? { ...ui.snap, walls: false } : ui.snap,
       gridStep: niceGridStep(this.view.scale),
       thresholdM: SNAP_PX / this.view.scale,
       from: ui.tool === 'wall' ? (wallTool.last ?? undefined) : undefined,
@@ -421,6 +449,8 @@ export class PlanController {
       return;
     }
     if (!isDown) return;
+    // While walking, WASD & friends belong to the walker, not the tool shortcuts.
+    if (useUi.getState().walk && !(e.ctrlKey || e.metaKey) && e.key !== 'Escape') return;
 
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();

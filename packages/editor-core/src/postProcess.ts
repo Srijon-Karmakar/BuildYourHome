@@ -1,12 +1,12 @@
 import type { Scene } from '@hd/scene-schema';
+import { syncRooms } from './rooms';
 
 /** Opening must keep at least this distance from a wall end. */
 const MIN_END_MARGIN_M = 0.05;
 
 /**
  * Run after every command to restore invariants, so commands stay simple.
- * Order matters: walls → nodes → openings → rooms.
- * (Room re-detection from wall loops arrives in P0-06; for now rooms with broken loops are dropped.)
+ * Order matters: walls → nodes → openings → items → rooms (rooms last: they depend on the walls).
  */
 export function postProcess(d: Scene): void {
   // 1. Walls with missing/identical endpoints.
@@ -40,13 +40,11 @@ export function postProcess(d: Scene): void {
     o.offset = Math.min(Math.max(o.offset, half), len - half);
   }
 
-  // 4. Rooms referencing missing walls.
-  for (const [id, r] of Object.entries(d.rooms)) {
-    if (r.wallLoop.some((wid) => !d.walls[wid])) delete d.rooms[id];
-  }
-
-  // 5. Items on missing levels.
+  // 4. Items on missing levels.
   for (const [id, it] of Object.entries(d.items)) {
     if (!d.levels[it.levelId]) delete d.items[id];
   }
+
+  // 5. Rooms are derived from closed wall loops (identity carried across edits).
+  syncRooms(d);
 }

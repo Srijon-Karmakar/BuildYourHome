@@ -2,21 +2,36 @@ import type { Scene, Vec2 } from '@hd/scene-schema';
 import type { SnapResult } from '@hd/editor-core';
 import { toScreen, toWorld, type View } from './viewport';
 
+/** Canvas colours mirror the CSS tokens in styles.css (docs/DESIGN.md §4). */
 const C = {
-  bg: '#1b1e24',
-  gridMinor: 'rgba(255,255,255,0.05)',
-  gridMajor: 'rgba(255,255,255,0.11)',
-  axis: 'rgba(255,255,255,0.22)',
-  wallEdge: '#0e1013',
-  wall: '#d4d8df',
-  wallSel: '#4da3ff',
+  bg: '#e6e4e0',
+  gridMinor: 'rgba(17,17,17,0.045)',
+  gridMajor: 'rgba(17,17,17,0.10)',
+  axis: 'rgba(17,17,17,0.24)',
+  wallEdge: '#111111',
+  wall: '#111111',
+  wallSel: '#7a4236',
   node: '#ffffff',
-  accent: '#ffb347',
-  guide: 'rgba(255,179,71,0.65)',
-  text: '#e8eaee',
+  accent: '#111111',
+  brick: '#7a4236',
+  guide: 'rgba(17,17,17,0.4)',
+  roomFill: 'rgba(201,191,160,0.38)',
+  text: '#111111',
+  textSoft: '#5b5852',
 };
+const FONT = '"Outfit Variable", system-ui, sans-serif';
+
+export interface RoomDraw {
+  polygon: readonly Vec2[];
+  centroid: Vec2;
+  area: number;
+  name: string;
+}
 
 export interface RenderState {
+  /** First-person walker (shown as a view cone) while the walkthrough is active. */
+  walker: { x: number; z: number; yaw: number } | null;
+  rooms: readonly RoomDraw[];
   view: View;
   width: number;
   height: number;
@@ -63,10 +78,48 @@ function drawGrid(ctx: CanvasRenderingContext2D, s: RenderState): void {
 
 function halo(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void {
   ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
   ctx.strokeStyle = C.bg;
   ctx.strokeText(text, x, y);
   ctx.fillStyle = C.text;
   ctx.fillText(text, x, y);
+}
+
+function pointInPolygon(x: number, z: number, poly: readonly Vec2[]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i]!;
+    const [xj, zj] = poly[j]!;
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function drawRooms(ctx: CanvasRenderingContext2D, s: RenderState): void {
+  const { view: v } = s;
+  for (const r of s.rooms) {
+    ctx.beginPath();
+    r.polygon.forEach((p, i) => {
+      const [x, y] = toScreen(v, p[0], p[1]);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = C.roomFill;
+    ctx.fill();
+  }
+  // Labels after fills so neighbouring rooms never paint over them.
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const r of s.rooms) {
+    const [cx, cy] = toScreen(v, r.centroid[0], r.centroid[1]);
+    // Skip when the room is too small on screen to hold text.
+    if (Math.sqrt(r.area) * v.scale < 56) continue;
+    ctx.font = `400 14px ${FONT}`;
+    halo(ctx, r.name, cx, cy - 8);
+    ctx.font = `300 12.5px ${FONT}`;
+    halo(ctx, `${r.area.toFixed(1)} m²`, cx, cy + 9);
+  }
 }
 
 function drawWalls(ctx: CanvasRenderingContext2D, s: RenderState): void {
@@ -91,12 +144,11 @@ function drawWalls(ctx: CanvasRenderingContext2D, s: RenderState): void {
       ctx.stroke();
     }
   };
-  stroke(C.wallEdge, 2); // outline pass
   stroke(C.wall, 0, (id) => !sel.has(id));
   stroke(C.wallSel, 0, (id) => sel.has(id));
 
   // Length labels.
-  ctx.font = '12px system-ui, sans-serif';
+  ctx.font = `400 12px ${FONT}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (const w of walls) {
@@ -107,11 +159,23 @@ function drawWalls(ctx: CanvasRenderingContext2D, s: RenderState): void {
     const [ax, ay] = toScreen(v, a.p[0], a.p[1]);
     const [bx, by] = toScreen(v, b.p[0], b.p[1]);
     const len = Math.hypot(b.p[0] - a.p[0], b.p[1] - a.p[1]);
+    const text = `${len.toFixed(2)} m`;
     const dx = bx - ax;
     const dy = by - ay;
     const n = Math.hypot(dx, dy) || 1;
-    const off = (w.thickness * v.scale) / 2 + 12;
-    halo(ctx, `${len.toFixed(2)} m`, (ax + bx) / 2 - (dy / n) * off, (ay + by) / 2 + (dx / n) * off);
+    const nx = -dy / n;
+    const ny = dx / n;
+    // Clear the wall by its half thickness plus half the text's extent along the normal.
+    const off = (w.thickness * v.scale) / 2 + 7 + (Math.abs(nx) * ctx.measureText(text).width) / 2 + Math.abs(ny) * 7;
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    // Prefer the side that lies inside a room (reads like a floor-plan dimension).
+    const inside = (sx: number, sy: number) => {
+      const [wx, wz] = toWorld(v, sx, sy);
+      return s.rooms.some((r) => pointInPolygon(wx, wz, r.polygon));
+    };
+    const side = !inside(mx + nx * off, my + ny * off) && inside(mx - nx * off, my - ny * off) ? -1 : 1;
+    halo(ctx, text, mx + side * nx * off, my + side * ny * off);
   }
 
   // Node handles.
@@ -126,6 +190,28 @@ function drawWalls(ctx: CanvasRenderingContext2D, s: RenderState): void {
     ctx.fill();
     ctx.stroke();
   }
+}
+
+function drawWalker(ctx: CanvasRenderingContext2D, s: RenderState): void {
+  if (!s.walker) return;
+  const { x, z, yaw } = s.walker;
+  const [px, py] = toScreen(s.view, x, z);
+  // Forward in plan = (−sin yaw, −cos yaw); canvas angle uses atan2(dz, dx).
+  const heading = Math.atan2(-Math.cos(yaw), -Math.sin(yaw));
+  const reach = Math.max(1.8 * s.view.scale, 30);
+  ctx.fillStyle = 'rgba(122,66,54,0.16)';
+  ctx.beginPath();
+  ctx.moveTo(px, py);
+  ctx.arc(px, py, reach, heading - Math.PI / 4, heading + Math.PI / 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = C.brick;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(px, py, Math.max(0.25 * s.view.scale, 6), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
 }
 
 function drawOverlay(ctx: CanvasRenderingContext2D, s: RenderState): void {
@@ -149,8 +235,8 @@ function drawOverlay(ctx: CanvasRenderingContext2D, s: RenderState): void {
 
   if (s.drawingFrom) {
     const [fx, fy] = toScreen(v, s.drawingFrom[0], s.drawingFrom[1]);
-    ctx.strokeStyle = 'rgba(77,163,255,0.8)';
-    ctx.lineWidth = 0.115 * v.scale;
+    ctx.strokeStyle = 'rgba(122,66,54,0.7)';
+    ctx.lineWidth = Math.max(0.115 * v.scale, 3);
     ctx.lineCap = 'square';
     ctx.beginPath();
     ctx.moveTo(fx, fy);
@@ -163,7 +249,7 @@ function drawOverlay(ctx: CanvasRenderingContext2D, s: RenderState): void {
     if (len > 1e-6) {
       let deg = (Math.atan2(-dz, dx) * 180) / Math.PI;
       if (deg < 0) deg += 360;
-      ctx.font = '13px system-ui, sans-serif';
+      ctx.font = `400 13px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       halo(ctx, `${len.toFixed(2)} m   ${deg.toFixed(0)}°`, px, py - 22);
@@ -177,6 +263,13 @@ function drawOverlay(ctx: CanvasRenderingContext2D, s: RenderState): void {
   ctx.beginPath();
   if (hover.kind === 'node') {
     ctx.rect(px - 7, py - 7, 14, 14);
+    ctx.stroke();
+  } else if (hover.kind === 'wall') {
+    ctx.moveTo(px, py - 8);
+    ctx.lineTo(px + 8, py);
+    ctx.lineTo(px, py + 8);
+    ctx.lineTo(px - 8, py);
+    ctx.closePath();
     ctx.stroke();
   } else if (hover.kind === 'angle') {
     ctx.moveTo(px, py - 7);
@@ -194,6 +287,8 @@ export function drawPlan(ctx: CanvasRenderingContext2D, s: RenderState): void {
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, s.width, s.height);
   drawGrid(ctx, s);
+  drawRooms(ctx, s);
   drawWalls(ctx, s);
+  drawWalker(ctx, s);
   drawOverlay(ctx, s);
 }

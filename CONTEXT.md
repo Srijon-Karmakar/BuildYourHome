@@ -11,8 +11,13 @@ HomeDesigner is a cross-platform (web + Capacitor mobile app) tool to design a h
 ## 2. Current state
 - **Phase:** Phase 0 (prototype / spike) in progress.
 - **Last completed task:** P0-03 — `@hd/editor-core` (Immer-patch undo/redo, transactions, wall/level commands, postProcess invariants; 14 tests incl. property test). Earlier: P0-02 scene-schema; P0-01 hello-cube (owner: smooth on desktop+phone, "not realistic" yet — expected, see P0-10/P1-12).
-- **P0-04 also done in code** (2D plan editor: grid, pan/zoom, wall tool, snapping, select/move/delete, undo/redo UI) but **not yet visually verified by anyone** — awaiting owner's desktop + phone test feedback (note any bugs in progressReport).
-- **Next task:** P0-05 — `packages/geometry`: mitered wall meshes + 3D view of the drawn plan. See `docs/PHASES.md`.
+- **Done:** P0-04 2D plan editor, P0-05 mitered walls + live 3D + 2D/Split/3D switcher (owner tested: ok), P0-06 room detection + floors (rooms auto-follow wall loops, keep names; 2D labels with m²; 3D floors). 66 unit tests pass. P0-06 visuals awaiting owner test.
+- **P0-06b done:** `addWall` auto-splits at T/X junctions and existing nodes; new `wall` snap kind (ray∩wall, wall body). 76 unit tests pass, incl. a no-unjoined-crossings property test. Awaiting owner test.
+- **Known gaps:** dragging a corner onto another wall doesn't join/split; halves of a split wall aren't re-merged when the junction wall is deleted.
+- **P0-07 done in code:** first-person walkthrough (WASD/Shift + drag-look on desktop; floating touch stick + drag-look on phone), sliding wall collision (`geometry/collision`), "you are here" marker on the plan. 86 unit tests pass. **Needs owner device test** (feel, speed, touch comfort).
+- **P0-08 done: design-language pass.** Owner wants a CLEAN, MINIMAL, MOST USER-FRIENDLY UI like the reference in `docs/design/reference-brand-guidelines.png`. **Read `docs/DESIGN.md` before touching any UI** (tokens, Outfit font, floating chrome, one brick accent, text labels, contextual actions, phone bottom rail). ADR-016.
+- **Tip:** open `http://localhost:5173/?demo=1` for a ready sample home. Headless Edge screenshots work for visual checks: `msedge --headless=new --enable-unsafe-swiftshader --use-angle=swiftshader --window-size=1440,900 --virtual-time-budget=15000 --screenshot=out.png URL` (the Chrome extension is usually not connected).
+- **Next task:** P0-09 perf baseline (owner devices), P0-10 realism spike, P0-11 progressive rendering. See `docs/PHASES.md`.
 - **Commands:** `pnpm dev | typecheck | test | lint | build`.
 - **Owner profile:** solo developer, no team; region India first (global later); project name is a placeholder.
 - **Run it:** `pnpm install` then `pnpm dev` (http://localhost:5173, also on LAN for phone testing).
@@ -44,7 +49,7 @@ homeDesigner/
   packages/assets/           # catalog JSON + asset build scripts
   services/                  # Supabase migrations / edge functions
 ```
-Status: **created so far:** root workspace config, `apps/web`, `packages/scene-schema`, `packages/editor-core`. Everything else is planned.
+Status: **created so far:** root workspace config, `apps/web`, `packages/scene-schema`, `packages/editor-core`, `packages/geometry`. Everything else is planned.
 
 ## 5. Conventions that must not be forgotten
 - Coordinates: metres, Y-up, plan on X/Z. Angles in radians internally.
@@ -56,6 +61,7 @@ Status: **created so far:** root workspace config, `apps/web`, `packages/scene-s
 - Never hard-block opening a scene because of locked assets; gate edit/export only (entitlements).
 - Ads/billing only via `AdProvider` / `BillingProvider` interfaces; never show ads in editor or walkthrough.
 - All rendering features must respect the quality tier + progressive rendering rules.
+- UI must follow `docs/DESIGN.md`: minimal, light "paper" theme, one accent (brick), text labels on tools, contextual actions only when relevant, touch targets ≥ 44 px, works on mouse + touch + keyboard. New colours/sizes go in CSS tokens first.
 
 ## 6. How to update docs after each task (mandatory)
 1. Append an entry to `progressReport.md` (template at top of that file).

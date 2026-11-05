@@ -89,6 +89,13 @@ Format: Status · Context · Decision · Consequences. Never delete an ADR; mark
 - **Decision:** `PlanController` draws the plan with Canvas 2D (DPR capped at 2, redraw on demand via rAF). The 3D view stays Three/R3F. Both read the same editor store.
 - **Consequences:** + crisp text, easy SVG/PDF export later, cheap on mobile. − two renderers to maintain; the 2D↔3D camera transition (polish) must be faked with a cross-fade.
 
+---
+## ADR-016 — Design language: minimal "architectural paper" UI (see docs/DESIGN.md)
+- **Status:** Accepted (owner brief + reference image, 2026-11-05)
+- **Context:** Owner wants a clean, minimal, maximally user-friendly UI in the style of an architecture-studio brand sheet (warm greys, black type, brick accent, light geometric sans, lots of whitespace). Audience spans beginners to engineers (ADR-014).
+- **Decision:** Light theme with CSS-variable tokens + mirrored canvas colours; Outfit variable font (bundled, free stand-in for ABC Visby CF); floating chrome at the edges (top bar, left tool rail that becomes a bottom bar on phones, contextual pills, one-line caption); text labels on every tool; one accent colour (brick). Snap options hidden behind one popover; Delete/Done only appear when relevant.
+- **Consequences:** + calm, consistent, themeable (dark theme later = new token values). − less discoverability for advanced options (mitigated by tooltips + Pro mode later); canvas colours are duplicated in `render.ts` and must be kept in sync with `styles.css` (move to a shared `theme.ts` when a second canvas needs them).
+
 ## Template
 ```
 ## ADR-0xx — Title

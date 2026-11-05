@@ -10,7 +10,7 @@ export interface WallTool {
   readonly last: Vec2 | null;
   /**
    * Place a point. First click starts a chain; each further click adds a wall (one undo step each).
-   * Landing on an existing node ends the chain (that is how loops close).
+   * Landing on an existing node or wall ends the chain (that is how loops close and dividers finish).
    */
   click(p: Vec2, snapKind: SnapKind): WallClickResult;
   /** End the current chain (Esc / double-click / Done). */
@@ -30,7 +30,7 @@ export function createWallTool(editor: Editor): WallTool {
       }
       if (Math.hypot(p[0] - last[0], p[1] - last[1]) < NODE_MERGE_EPS_M) return 'ignored';
       editor.execute(addWall({ levelId: editor.getState().activeLevelId, from: last, to: p }));
-      if (snapKind === 'node') {
+      if (snapKind === 'node' || snapKind === 'wall') {
         last = null;
         return 'closed';
       }

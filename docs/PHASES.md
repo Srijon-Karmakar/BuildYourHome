@@ -8,10 +8,11 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 - [x] P0-02 `scene-schema` v1 types + Zod + defaults
 - [x] P0-03 `editor-core`: store, command bus, undo/redo (Immer patches)
 - [x] P0-04 (code done; awaiting owner device test) 2D canvas: grid, pan/zoom, wall tool with snapping
-- [ ] P0-05 `geometry`: wall mesh with mitered corners → 3D view
-- [ ] P0-06 Room detection + floor mesh
-- [ ] P0-07 Orbit camera + FPS walkthrough with wall collision (desktop)
-- [ ] P0-08 Touch controls (pinch/pan, joystick) + test on mid-range Android + iPhone via LAN/PWA
+- [x] P0-05 (code done; awaiting owner device test) `geometry`: wall mesh with mitered corners → 3D view
+- [x] P0-06 Room detection + floor mesh (code done; awaiting owner device test)
+- [x] P0-06b T-junction auto-split: ending/starting a wall on the body of another wall splits it and joins them (needed so dividers create rooms) (code done; awaiting owner test)
+- [x] P0-07 (code done; awaiting owner device test) Orbit camera + FPS walkthrough with wall collision (desktop)
+- [x] P0-08 (done as a design-language + touch-layout pass, see ADR-016; real-device test still pending) Touch controls (pinch/pan, joystick) + test on mid-range Android + iPhone via LAN/PWA
 - [ ] P0-09 Perf baseline measurements recorded in `progressReport.md`
 - [ ] P0-10 Realism spike: PBR + HDRI + shadows + AO + tone mapping on the sample house; measure each quality tier on phone & desktop
 - [ ] P0-11 Progressive-rendering spike (degrade while moving, refine on idle) — validate it feels smooth

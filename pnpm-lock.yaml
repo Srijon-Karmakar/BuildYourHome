@@ -32,9 +32,15 @@ importers:
 
   apps/web:
     dependencies:
+      '@fontsource-variable/outfit':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@hd/editor-core':
         specifier: workspace:*
         version: link:../../packages/editor-core
+      '@hd/geometry':
+        specifier: workspace:*
+        version: link:../../packages/geometry
       '@hd/scene-schema':
         specifier: workspace:*
         version: link:../../packages/scene-schema
@@ -78,6 +84,9 @@ importers:
 
   packages/editor-core:
     dependencies:
+      '@hd/geometry':
+        specifier: workspace:*
+        version: link:../geometry
       '@hd/scene-schema':
         specifier: workspace:*
         version: link:../scene-schema
@@ -91,6 +100,25 @@ importers:
       fast-check:
         specifier: ^4.0.0
         version: 4.10.2
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7
+
+  packages/geometry:
+    dependencies:
+      '@hd/scene-schema':
+        specifier: workspace:*
+        version: link:../scene-schema
+      earcut:
+        specifier: ^3.0.0
+        version: 3.2.4
+    devDependencies:
+      '@types/earcut':
+        specifier: ^3.0.0
+        version: 3.2.4
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -397,6 +425,9 @@ packages:
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
+  '@fontsource-variable/outfit@5.3.0':
+    resolution: {integrity: sha512-fPb5XnYK0k7SbR++HEmm4+ZqDszmLKQ+sPRUr8oQ/KNC0vy6r6hazJFe8iYozv4cqlHbvJ/JECkJWrfDodUMVQ==}
+
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
     engines: {node: '>=18.18.0'}
@@ -646,6 +677,10 @@ packages:
 
   '@types/draco3d@1.4.10':
     resolution: {integrity: sha512-AX22jp8Y7wwaBgAixaSvkoG4M/+PlAcm3Qs4OW8yT9DM4xUpWKeFhLueTAyZF39pviAdcDdeJoACapiAceqNcw==}
+
+  '@types/earcut@3.2.4':
+    resolution: {integrity: sha512-I688mi107oflZOpzhs4EwasCN4ycLlZHf7XAGhM6EQIHEJkRTEuTL08lemIZOQ1YAACJoNoCzAiSDCJujpJLHA==}
+    deprecated: This is a stub types definition. earcut provides its own type definitions, so you do not need this installed.
 
   '@types/estree@1.0.10':
     resolution: {integrity: sha512-lTyOMnOcmRBzdCv6/4zUZCrEhV0xrqQiUZBZtVcbmLHBXKLnN8q89v/wKRF/Q0HbwVsqbIG3o5HDoFl9sduM+g==}
@@ -915,6 +950,9 @@ packages:
 
   draco3d@1.5.9:
     resolution: {integrity: sha512-MqC0eAfW5gPATGY3GABIyFWpHwdDGAyewTdek5R/e+mhI9ZDUMKb2mTDkTMUW0+Vm7an+ThEMUop3+svS72Uug==}
+
+  earcut@3.2.4:
+    resolution: {integrity: sha512-FHc6yNpnTORB0tM5kmZ03iD2mDuNakDE2lvf4Hw1XkfxtEHIGVi01B/GqUSwx+NcC1WGjidAfpTXzeALtPtfpg==}
 
   electron-to-chromium@1.5.477:
     resolution: {integrity: sha512-PN++F4zWZoVDGWinxMnSCpVqKhqFOJfLXxdU8bYJKudAEsHL/XKVITOKWVbfMt1r276Mi9RDLU9VHx9uKJ4RMQ==}
@@ -1830,6 +1868,8 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
+  '@fontsource-variable/outfit@5.3.0': {}
+
   '@humanfs/core@0.19.2':
     dependencies:
       '@humanfs/types': 0.15.0
@@ -2036,6 +2076,10 @@ snapshots:
   '@types/deep-eql@4.0.2': {}
 
   '@types/draco3d@1.4.10': {}
+
+  '@types/earcut@3.2.4':
+    dependencies:
+      earcut: 3.2.4
 
   '@types/estree@1.0.10': {}
 
@@ -2338,6 +2382,8 @@ snapshots:
       webgl-constants: 1.1.1
 
   draco3d@1.5.9: {}
+
+  earcut@3.2.4: {}
 
   electron-to-chromium@1.5.477: {}
 

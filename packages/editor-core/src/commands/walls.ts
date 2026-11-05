@@ -31,47 +31,148 @@ export interface AddWallParams {
   height?: number;
 }
 
-/** Adds a wall, reusing existing nodes at coincident points (so loops close automatically). */
+const EPS = NODE_MERGE_EPS_M;
+
+/** Projection of p onto segment a→b: parameter t (0..1 inside) and distance to the infinite-clamped segment. */
+function project(p: Vec2, a: Vec2, b: Vec2): { t: number; dist: number } {
+  const abx = b[0] - a[0];
+  const abz = b[1] - a[1];
+  const len2 = abx * abx + abz * abz;
+  const t = len2 === 0 ? 0 : ((p[0] - a[0]) * abx + (p[1] - a[1]) * abz) / len2;
+  const c = Math.max(0, Math.min(1, t));
+  return { t, dist: Math.hypot(p[0] - (a[0] + abx * c), p[1] - (a[1] + abz * c)) };
+}
+
+/** Intersection of segments a→b and c→d as parameters (t on ab, u on cd); null when parallel. */
+function intersect(a: Vec2, b: Vec2, c: Vec2, d: Vec2): { t: number; u: number } | null {
+  const rx = b[0] - a[0], rz = b[1] - a[1];
+  const sx = d[0] - c[0], sz = d[1] - c[1];
+  const den = rx * sz - rz * sx;
+  if (Math.abs(den) < 1e-12) return null;
+  const qx = c[0] - a[0], qz = c[1] - a[1];
+  return { t: (qx * sz - qz * sx) / den, u: (qx * rz - qz * rx) / den };
+}
+
+function uniqueId(taken: (id: string) => boolean, stem: string): string {
+  let id = stem;
+  for (let k = 1; taken(id); k++) id = `${stem}.${k}`;
+  return id;
+}
+
+/** Split every wall of the level whose BODY (not an endpoint) passes through node `nodeId`. */
+function splitWallsAtNode(d: Scene, levelId: Id, nodeId: Id, stem: string): void {
+  const node = d.nodes[nodeId];
+  if (!node) return;
+  for (const w of Object.values(d.walls)) {
+    if (w.levelId !== levelId || w.a === nodeId || w.b === nodeId) continue;
+    const a = d.nodes[w.a];
+    const b = d.nodes[w.b];
+    if (!a || !b) continue;
+    const { dist } = project(node.p, a.p, b.p);
+    if (dist >= EPS) continue;
+    const distA = Math.hypot(node.p[0] - a.p[0], node.p[1] - a.p[1]);
+    const distB = Math.hypot(node.p[0] - b.p[0], node.p[1] - b.p[1]);
+    if (distA < EPS || distB < EPS) continue;
+
+    // Second half keeps all properties; the first half keeps the original id (selection stays valid).
+    const secondId = uniqueId((x) => x in d.walls, `${stem}~${w.id}`);
+    d.walls[secondId] = {
+      ...w,
+      id: secondId,
+      a: nodeId,
+      b: w.b,
+      materialA: { ...w.materialA },
+      materialB: { ...w.materialB },
+    };
+    w.b = nodeId;
+    // Openings beyond the split move to the second half.
+    for (const o of Object.values(d.openings)) {
+      if (o.wallId === w.id && o.offset > distA) {
+        o.wallId = secondId;
+        o.offset -= distA;
+      }
+    }
+  }
+}
+
+/**
+ * Adds a wall. The new wall is cut wherever it touches or crosses the plan:
+ *  - existing nodes on its body become joints,
+ *  - existing walls it crosses are split at the crossing (X junction),
+ *  - existing walls whose body its endpoints land on are split (T junction).
+ * Coincident points reuse nodes, so loops close automatically. One undo step covers all splits.
+ */
 export function addWall(params: AddWallParams, rng?: () => number): Command {
-  const nodeA = newId('node', rng);
-  const nodeB = newId('node', rng);
-  const wallId = newId('wall', rng);
+  const base = newId('wall', rng);
   return {
     type: 'AddWall',
     label: 'Add wall',
     apply(d) {
-      const level = d.levels[params.levelId];
+      const { levelId, from: A, to: B } = params;
+      const level = d.levels[levelId];
       if (!level) return;
-      if (Math.hypot(params.to[0] - params.from[0], params.to[1] - params.from[1]) < NODE_MERGE_EPS_M) return;
+      const len = Math.hypot(B[0] - A[0], B[1] - A[1]);
+      if (len < EPS) return;
 
-      let a = findNodeAt(d, params.levelId, params.from);
-      if (!a) {
-        a = nodeA;
-        d.nodes[a] = { id: a, levelId: params.levelId, p: [...params.from] };
+      // 1. Cut points along the new wall (parameter t, plan position).
+      const cuts: Array<{ t: number; p: Vec2 }> = [
+        { t: 0, p: A },
+        { t: 1, p: B },
+      ];
+      for (const n of Object.values(d.nodes)) {
+        if (n.levelId !== levelId) continue;
+        const { t, dist } = project(n.p, A, B);
+        if (dist < EPS && t * len > EPS && (1 - t) * len > EPS) cuts.push({ t, p: n.p });
       }
-      let b = findNodeAt(d, params.levelId, params.to);
-      if (!b) {
-        b = nodeB;
-        d.nodes[b] = { id: b, levelId: params.levelId, p: [...params.to] };
+      for (const w of Object.values(d.walls)) {
+        if (w.levelId !== levelId) continue;
+        const a = d.nodes[w.a];
+        const b = d.nodes[w.b];
+        if (!a || !b) continue;
+        const hit = intersect(A, B, a.p, b.p);
+        if (!hit) continue;
+        const wlen = Math.hypot(b.p[0] - a.p[0], b.p[1] - a.p[1]);
+        if (hit.t * len > EPS && (1 - hit.t) * len > EPS && hit.u * wlen > EPS && (1 - hit.u) * wlen > EPS) {
+          cuts.push({ t: hit.t, p: [A[0] + (B[0] - A[0]) * hit.t, A[1] + (B[1] - A[1]) * hit.t] });
+        }
       }
-      const dup = Object.values(d.walls).some(
-        (w) => (w.a === a && w.b === b) || (w.a === b && w.b === a),
-      );
-      if (dup) return;
+      cuts.sort((x, y) => x.t - y.t);
 
+      // 2. Resolve cut points to nodes (reuse or create) and split walls whose body they touch.
+      const chain: Id[] = [];
+      cuts.forEach((c, i) => {
+        let nid = findNodeAt(d, levelId, c.p);
+        if (!nid) {
+          nid = uniqueId((x) => x in d.nodes, `${base}~n${i}`);
+          d.nodes[nid] = { id: nid, levelId, p: [c.p[0], c.p[1]] };
+        }
+        if (chain[chain.length - 1] === nid) return;
+        chain.push(nid);
+        splitWallsAtNode(d, levelId, nid, base);
+      });
+
+      // 3. Lay the new wall as one segment between consecutive joints.
       const kind = params.kind ?? 'interior';
-      d.walls[wallId] = {
-        id: wallId,
-        levelId: params.levelId,
-        a,
-        b,
-        kind,
-        thickness:
-          params.thickness ?? (kind === 'interior' ? WALL_THICKNESS_INTERIOR_M : WALL_THICKNESS_EXTERIOR_M),
-        height: params.height ?? level.height,
-        materialA: { id: DEFAULT_MATERIAL_WALL },
-        materialB: { id: DEFAULT_MATERIAL_WALL },
-      };
+      const thickness =
+        params.thickness ?? (kind === 'interior' ? WALL_THICKNESS_INTERIOR_M : WALL_THICKNESS_EXTERIOR_M);
+      for (let i = 0; i + 1 < chain.length; i++) {
+        const a = chain[i]!;
+        const b = chain[i + 1]!;
+        const dup = Object.values(d.walls).some((w) => (w.a === a && w.b === b) || (w.a === b && w.b === a));
+        if (dup) continue;
+        const id = uniqueId((x) => x in d.walls, i === 0 ? base : `${base}~${i}`);
+        d.walls[id] = {
+          id,
+          levelId,
+          a,
+          b,
+          kind,
+          thickness,
+          height: params.height ?? level.height,
+          materialA: { id: DEFAULT_MATERIAL_WALL },
+          materialB: { id: DEFAULT_MATERIAL_WALL },
+        };
+      }
     },
   };
 }

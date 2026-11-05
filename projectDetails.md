@@ -64,6 +64,7 @@ Rationale: one codebase, fastest iteration, strong 3D ecosystem. Main risk is mo
 | `CLAUDE.md` | Pointer for Claude Code to load `CONTEXT.md` + rules for updating docs |
 | `progressReport.md` | Living log of completed work; updated after every task |
 | `projectDetails.md` | This file — vision, scope, approach |
+| `docs/DESIGN.md` | **UI design language** (owner's minimal "architectural paper" brief + reference image in `docs/design/`) |
 | `docs/REQUIREMENTS.md` | Functional + non-functional requirements with IDs |
 | `docs/HLD.md` | High-level design: architecture, components, data flow |
 | `docs/LLD.md` | Low-level design: modules, algorithms, APIs, state |

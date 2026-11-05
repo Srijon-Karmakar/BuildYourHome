@@ -1,20 +1,33 @@
 import { PlanCanvas } from './plan/PlanCanvas';
 import { useUi } from './plan/session';
-import { Toolbar } from './ui/Toolbar';
+import { BottomBar } from './ui/BottomBar';
+import { ToolRail } from './ui/ToolRail';
+import { TopBar } from './ui/TopBar';
+import { Scene3D } from './view3d/Scene3D';
+import { WalkOverlay } from './walk/WalkOverlay';
 
-const HINTS = {
-  wall: 'Click or tap to place points · Esc / Done to finish · scroll or pinch to zoom · Space+drag to pan',
-  select: 'Tap a wall to select · drag a corner point to move it · Del to delete',
-} as const;
-
-/** P0-04: 2D plan editor. The 3D view arrives in P0-05. */
+/** Editor shell: plan and/or 3D fill the screen; the chrome floats at the edges (docs/DESIGN.md). */
 export function App() {
-  const tool = useUi((s) => s.tool);
+  const view = useUi((s) => s.view);
+  const walk = useUi((s) => s.walk);
+  const show2d = view !== '3d';
+  const show3d = view !== '2d';
   return (
-    <div className="app">
-      <PlanCanvas />
-      <Toolbar />
-      <div className="hint">{HINTS[tool]}</div>
+    <div className={`app panes-${view}`}>
+      {show2d && (
+        <div className="pane">
+          <PlanCanvas />
+        </div>
+      )}
+      {show3d && (
+        <div className="pane">
+          <Scene3D />
+          {walk && <WalkOverlay />}
+        </div>
+      )}
+      <TopBar />
+      <ToolRail />
+      <BottomBar />
     </div>
   );
 }
