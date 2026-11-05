@@ -3,5 +3,7 @@ export * from './editor';
 export * from './postProcess';
 export * from './commands';
 export * from './openings';
+export * from './placement';
+export * from './itemColliders';
 export * from './snapping';
 export * from './tools/wallTool';

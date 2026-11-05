@@ -1,6 +1,9 @@
 import { PlanCanvas } from './plan/PlanCanvas';
 import { useUi } from './plan/session';
 import { BottomBar } from './ui/BottomBar';
+import { FurniturePanel } from './ui/FurniturePanel';
+import { Inspector } from './ui/Inspector';
+import { LevelSwitcher } from './ui/LevelSwitcher';
 import { PerfPanel } from './ui/PerfPanel';
 import { ToolRail } from './ui/ToolRail';
 import { TopBar } from './ui/TopBar';
@@ -29,6 +32,9 @@ export function App() {
       <TopBar />
       <ToolRail />
       <BottomBar />
+      <Inspector />
+      <FurniturePanel />
+      <LevelSwitcher />
       <PerfPanel />
     </div>
   );

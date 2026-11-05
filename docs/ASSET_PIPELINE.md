@@ -6,6 +6,9 @@
 - Mark every such entry `placeholder: true`; assign a mix of `tier` values (free/premium/rewarded) so monetization flows can be tested with fake premium items.
 - The pipeline below stays the target; when real assets arrive they replace placeholders by id without code changes.
 
+## 0b. What exists today (P1-05)
+`packages/assets/src/catalog.ts` holds 34 catalog entries (id, name, category, tags, size, shape, mount, solid, tier, colour palette). Models are built in code (`apps/web/src/view3d/furniture/builders.ts`), thumbnails are rendered from them on demand. A test guarantees every entry has a model that matches its declared size and stands on the floor. To swap in a real GLB: add the file + keep the `id`; the placeholder builder is then retired for that id.
+
 ## 1. Sources (check license before use; record in catalog `license`)
 | Source | Use | License |
 |---|---|---|

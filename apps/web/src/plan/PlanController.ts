@@ -1,7 +1,15 @@
 import type { Id, Vec2 } from '@hd/scene-schema';
+import { getAsset, pointInItem } from '@hd/assets';
 import {
+  addItem,
   addOpening,
   defaultSize,
+  duplicateItems,
+  removeItems,
+  rotateItems,
+  setItemTransform,
+  solvePlacement,
+  translateItems,
   freeOffset,
   moveNode,
   moveOpening,
@@ -13,7 +21,7 @@ import {
   type SnapResult,
 } from '@hd/editor-core';
 import { editor, finishDrawing, useUi, wallTool } from './session';
-import { drawPlan, type OpeningPreview } from './render';
+import { drawPlan, pointInPolygon, type ItemGhost, type OpeningPreview } from './render';
 import { levelRooms } from './rooms';
 import { levelGeometry } from './wallGeom';
 import { walkPose } from '../walk/walkState';
@@ -24,7 +32,7 @@ const NODE_HIT_PX = 16;
 const WALL_HIT_PX = 10;
 const TAP_SLOP_PX = 5;
 
-type Mode = 'none' | 'pan' | 'place' | 'placeOpening' | 'select' | 'dragNode' | 'dragOpening' | 'gesture';
+type Mode = 'none' | 'pan' | 'place' | 'placeOpening' | 'placeItem' | 'select' | 'dragNode' | 'dragOpening' | 'dragItem' | 'gesture';
 
 /**
  * Owns the 2D plan canvas: view transform, pointer/touch/keyboard handling, rendering on demand.
@@ -44,6 +52,7 @@ export class PlanController {
   view: View = { scale: 60, ox: 0, oy: 0 };
   hover: SnapResult | null = null;
   preview: OpeningPreview | null = null;
+  itemGhost: ItemGhost | null = null;
 
   private ctx: CanvasRenderingContext2D;
   private cssW = 0;
@@ -60,6 +69,10 @@ export class PlanController {
   private spaceDown = false;
   private dragNodeId: Id | null = null;
   private dragOpeningId: Id | null = null;
+  private dragItemId: Id | null = null;
+  /** Pointer offset from the item's centre when the drag began (so it doesn't jump). */
+  private dragGrab: Vec2 = [0, 0];
+  private dragBaseRotation = 0;
   private dragStarted = false;
   private gesture: { dist: number; scale: number; wx: number; wz: number } | null = null;
 
@@ -113,6 +126,7 @@ export class PlanController {
           this.endChain();
           this.hover = null;
           this.preview = null;
+          this.itemGhost = null;
           this.updateCursor();
         }
         this.invalidate();
@@ -153,7 +167,7 @@ export class PlanController {
       const phone = window.matchMedia('(max-width: 699px)').matches;
       const padL = phone ? 28 : 120;
       const padR = 40;
-      const padT = phone ? 140 : 90;
+      const padT = phone ? 190 : 90;
       const padB = phone && useUi.getState().view === '2d' ? 200 : 110;
       const availW = Math.max(this.cssW - padL - padR, 50);
       const availH = Math.max(this.cssH - padT - padB, 50);
@@ -202,12 +216,16 @@ export class PlanController {
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     drawPlan(this.ctx, {
       geom: levelGeometry(st.scene, st.activeLevelId),
+      ghost: this.ghostBelow(),
       preview: this.preview,
+      itemGhost: this.itemGhost,
+      paintSide: ui.paintSide,
       rooms: levelRooms(st.scene, st.activeLevelId).map((r) => ({
         polygon: r.polygon,
         centroid: r.centroid,
         area: r.area,
         name: r.room?.name ?? 'Room',
+        selected: !!r.room && st.selection.includes(r.room.id),
       })),
       walker: walkPose.getState().active ? walkPose.getState() : null,
       view: this.view,
@@ -283,6 +301,14 @@ export class PlanController {
     return best;
   }
 
+  /** Wall pieces of the floor directly below the active one (for tracing). */
+  private ghostBelow(): Vec2[][] {
+    const st = editor.getState();
+    const i = st.scene.levelOrder.indexOf(st.activeLevelId);
+    const below = i > 0 ? st.scene.levelOrder[i - 1] : undefined;
+    return below ? Object.values(levelGeometry(st.scene, below).pieces).flat() : [];
+  }
+
   /** Ghost opening for the Door/Window tools at a screen position (null when no wall is near or it can't fit). */
   private previewAt(sx: number, sy: number): OpeningPreview | null {
     const tool = useUi.getState().tool;
@@ -324,6 +350,63 @@ export class PlanController {
     return best;
   }
 
+  /** Ghost of the catalog item being placed, snapped to the floor / a wall (null when it cannot go there). */
+  private itemGhostAt(sx: number, sy: number): ItemGhost | null {
+    const ui = useUi.getState();
+    const asset = ui.placing ? getAsset(ui.placing) : undefined;
+    if (ui.tool !== 'place' || !asset) return null;
+    const st = editor.getState();
+    const world = toWorld(this.view, sx, sy) as Vec2;
+    const p = solvePlacement(st.scene, st.activeLevelId, asset, world, {
+      rotationY: ui.placeRotation,
+      snapWalls: ui.snap.walls,
+      grid: ui.snap.grid ? 0.05 : 0,
+    });
+    return p && { assetId: asset.id, position: p.position, rotationY: p.rotationY, scale: [1, 1, 1] };
+  }
+
+  /** Topmost item under a screen point (later items are drawn on top). */
+  private hitItem(sx: number, sy: number): Id | null {
+    const st = editor.getState();
+    const [px, pz] = toWorld(this.view, sx, sy);
+    const margin = 4 / this.view.scale;
+    let solid: Id | null = null;
+    let flat: Id | null = null;
+    for (const it of Object.values(st.scene.items)) {
+      if (it.levelId !== st.activeLevelId) continue;
+      const asset = getAsset(it.assetId);
+      if (!asset || !pointInItem(asset, [it.position[0], it.position[2]], it.rotationY, it.scale, [px, pz], margin)) continue;
+      if (asset.size[2] < 0.05) flat = it.id;
+      else solid = it.id;
+    }
+    // A rug never hides the furniture standing on it.
+    return solid ?? flat;
+  }
+
+  /** Room under a screen point (rooms are derived from wall loops; only those with an identity can be selected). */
+  private hitRoom(sx: number, sy: number): Id | null {
+    const st = editor.getState();
+    const [px, pz] = toWorld(this.view, sx, sy);
+    for (const r of levelRooms(st.scene, st.activeLevelId)) {
+      if (r.room && pointInPolygon(px, pz, r.polygon)) return r.room.id;
+    }
+    return null;
+  }
+
+  /** Replace the selection, or toggle membership when Shift is held / "Add more" is on. */
+  private pick(id: Id | null, additive: boolean): void {
+    const cur = editor.getState().selection;
+    if (id === null) {
+      if (!additive) editor.select([]);
+    } else if (additive) editor.select(cur.includes(id) ? cur.filter((i) => i !== id) : [...cur, id]);
+    else editor.select([id]);
+  }
+
+  private selectedItemIds(): Id[] {
+    const st = editor.getState();
+    return st.selection.filter((id) => st.scene.items[id]);
+  }
+
   private endChain(): void {
     finishDrawing();
     this.invalidate();
@@ -338,9 +421,10 @@ export class PlanController {
 
     if (this.pointers.size === 2) {
       // Second finger: abandon whatever the first one started and switch to pinch/pan.
-      if ((this.mode === 'dragNode' || this.mode === 'dragOpening') && editor.getState().inTransaction) editor.cancelTransaction();
+      if ((this.mode === 'dragNode' || this.mode === 'dragOpening' || this.mode === 'dragItem') && editor.getState().inTransaction) editor.cancelTransaction();
       this.dragNodeId = null;
       this.dragOpeningId = null;
+      this.dragItemId = null;
       this.dragStarted = false;
       this.beginGesture();
       this.mode = 'gesture';
@@ -364,9 +448,13 @@ export class PlanController {
     } else if (tool === 'door' || tool === 'window') {
       this.mode = 'placeOpening';
       this.preview = this.previewAt(p.x, p.y);
+    } else if (tool === 'place') {
+      this.mode = 'placeItem';
+      this.itemGhost = this.itemGhostAt(p.x, p.y);
     } else {
       const nodeId = this.hitNode(p.x, p.y);
       const openingId = nodeId ? null : this.hitOpening(p.x, p.y);
+      const itemId = nodeId || openingId ? null : this.hitItem(p.x, p.y);
       if (nodeId) {
         this.mode = 'dragNode';
         this.dragNodeId = nodeId;
@@ -376,6 +464,14 @@ export class PlanController {
         this.mode = 'dragOpening';
         this.dragOpeningId = openingId;
         this.dragStarted = false;
+      } else if (itemId) {
+        const it = editor.getState().scene.items[itemId]!;
+        const w = toWorld(this.view, p.x, p.y);
+        this.mode = 'dragItem';
+        this.dragItemId = itemId;
+        this.dragStarted = false;
+        this.dragGrab = [w[0] - it.position[0], w[1] - it.position[2]];
+        this.dragBaseRotation = it.rotationY;
       } else {
         this.mode = 'select';
       }
@@ -401,6 +497,9 @@ export class PlanController {
       } else if ((tool === 'door' || tool === 'window') && e.pointerType === 'mouse') {
         this.preview = this.previewAt(p.x, p.y);
         this.invalidate();
+      } else if (tool === 'place' && e.pointerType === 'mouse') {
+        this.itemGhost = this.itemGhostAt(p.x, p.y);
+        this.invalidate();
       }
       return;
     }
@@ -421,6 +520,30 @@ export class PlanController {
       case 'placeOpening':
         this.preview = this.previewAt(p.x, p.y);
         this.invalidate();
+        break;
+      case 'placeItem':
+        this.itemGhost = this.itemGhostAt(p.x, p.y);
+        this.invalidate();
+        break;
+      case 'dragItem':
+        if (this.dragItemId && this.moved) {
+          const st = editor.getState();
+          const it = st.scene.items[this.dragItemId];
+          const asset = it && getAsset(it.assetId);
+          if (!it || !asset) break;
+          if (!this.dragStarted) {
+            editor.beginTransaction('Move item');
+            this.dragStarted = true;
+          }
+          const w = toWorld(this.view, p.x, p.y);
+          const pl = solvePlacement(st.scene, it.levelId, asset, [w[0] - this.dragGrab[0], w[1] - this.dragGrab[1]], {
+            rotationY: this.dragBaseRotation,
+            scale: it.scale,
+            snapWalls: useUi.getState().snap.walls,
+            grid: useUi.getState().snap.grid ? 0.05 : 0,
+          });
+          if (pl) editor.preview(setItemTransform(it.id, { position: pl.position, rotationY: pl.rotationY }));
+        }
         break;
       case 'dragNode':
         if (this.dragNodeId) {
@@ -469,6 +592,16 @@ export class PlanController {
         editor.execute(addOpening({ wallId: pv.wallId, type: pv.type, offset: pv.offset, swing: pv.swing }));
       }
       this.preview = e.pointerType === 'mouse' ? this.previewAt(p.x, p.y) : null;
+    } else if (mode === 'placeItem') {
+      const g = this.itemGhostAt(p.x, p.y);
+      if (g) editor.execute(addItem({ levelId: editor.getState().activeLevelId, assetId: g.assetId, position: g.position, rotationY: g.rotationY }));
+      this.itemGhost = e.pointerType === 'mouse' ? this.itemGhostAt(p.x, p.y) : null;
+    } else if (mode === 'dragItem') {
+      const id = this.dragItemId;
+      if (this.dragStarted) editor.commitTransaction();
+      else if (id) this.pick(id, e.shiftKey || useUi.getState().additive);
+      this.dragItemId = null;
+      this.dragStarted = false;
     } else if (mode === 'dragNode') {
       editor.commitTransaction();
       this.dragNodeId = null;
@@ -477,17 +610,13 @@ export class PlanController {
       const id = this.dragOpeningId;
       if (this.dragStarted) editor.commitTransaction();
       else if (id) {
-        const cur = editor.getState().selection;
-        editor.select(e.shiftKey ? (cur.includes(id) ? cur.filter((i) => i !== id) : [...cur, id]) : [id]);
+        this.pick(id, e.shiftKey || useUi.getState().additive);
       }
       this.dragOpeningId = null;
       this.dragStarted = false;
     } else if (mode === 'select' && !this.moved) {
-      const hit = this.hitWall(p.x, p.y);
-      const cur = editor.getState().selection;
-      if (!hit) editor.select([]);
-      else if (e.shiftKey) editor.select(cur.includes(hit) ? cur.filter((i) => i !== hit) : [...cur, hit]);
-      else editor.select([hit]);
+      // Walls win over the room they bound; empty space clears.
+      this.pick(this.hitWall(p.x, p.y) ?? this.hitRoom(p.x, p.y), e.shiftKey || useUi.getState().additive);
     } else if (mode === 'pan' && this.down.button === 2 && !this.moved) {
       // Right-click without dragging = finish the chain.
       if (useUi.getState().tool === 'wall') this.endChain();
@@ -497,13 +626,15 @@ export class PlanController {
 
   private onCancel(e: PointerEvent): void {
     this.pointers.delete(e.pointerId);
-    if ((this.mode === 'dragNode' || this.mode === 'dragOpening') && editor.getState().inTransaction) editor.cancelTransaction();
+    if ((this.mode === 'dragNode' || this.mode === 'dragOpening' || this.mode === 'dragItem') && editor.getState().inTransaction) editor.cancelTransaction();
     this.dragNodeId = null;
     this.dragOpeningId = null;
+    this.dragItemId = null;
     this.dragStarted = false;
     if (this.pointers.size === 0) this.mode = 'none';
     this.hover = null;
     this.preview = null;
+    this.itemGhost = null;
     this.invalidate();
   }
 
@@ -571,12 +702,18 @@ export class PlanController {
       e.preventDefault();
       if (e.shiftKey) editor.redo();
       else editor.undo();
+    } else if (mod && key === 'a') {
+      e.preventDefault();
+      const st = editor.getState();
+      editor.select(Object.values(st.scene.walls).filter((w) => w.levelId === st.activeLevelId).map((w) => w.id));
     } else if (mod && key === 'y') {
       e.preventDefault();
       editor.redo();
     } else if (e.key === 'Escape') {
       this.endChain();
       this.preview = null;
+      this.itemGhost = null;
+      if (useUi.getState().tool === 'place') useUi.getState().setTool('select');
       editor.select([]);
     } else if (e.key === 'Enter') {
       if (useUi.getState().tool === 'wall') this.endChain();
@@ -584,6 +721,25 @@ export class PlanController {
       deleteSelection();
     } else if (!mod && key === 'w') {
       useUi.getState().setTool('wall');
+    } else if (mod && key === 'd') {
+      e.preventDefault();
+      const ids = this.selectedItemIds();
+      if (ids.length) editor.execute(duplicateItems(ids));
+    } else if (!mod && key === 'r') {
+      // Turn the item being placed, or the selected items, by 90° (Shift = the other way).
+      const delta = (e.shiftKey ? -1 : 1) * (Math.PI / 2);
+      const ids = this.selectedItemIds();
+      if (useUi.getState().tool === 'place') {
+        useUi.getState().rotatePlacing(delta);
+        this.itemGhost = null;
+      } else if (ids.length) editor.execute(rotateItems(ids, delta));
+    } else if (!mod && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') && this.selectedItemIds().length) {
+      // Nudge selected furniture: 5 cm, Shift = 25 cm.
+      e.preventDefault();
+      const d = e.shiftKey ? 0.25 : 0.05;
+      const dx = e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0;
+      const dz = e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0;
+      editor.execute(translateItems(this.selectedItemIds(), dx, dz));
     } else if (!mod && key === 'v') {
       useUi.getState().setTool('select');
     } else if (!mod && key === 'd') {
@@ -598,8 +754,10 @@ export class PlanController {
 
 export function deleteSelection(): void {
   const st = editor.getState();
+  const items = st.selection.filter((id) => st.scene.items[id]);
   const openings = st.selection.filter((id) => st.scene.openings[id]);
   const walls = st.selection.filter((id) => st.scene.walls[id]);
-  if (openings.length) editor.execute(removeOpenings(openings));
+  if (items.length) editor.execute(removeItems(items));
+  else if (openings.length) editor.execute(removeOpenings(openings));
   else if (walls.length) editor.execute(removeWalls(walls));
 }

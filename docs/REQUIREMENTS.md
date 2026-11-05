@@ -98,7 +98,7 @@ Priority: **M** = MVP (Phase 1–2), **S** = Should (Phase 3–4), **C** = Could
 | FR-903 | Dimension annotations (aligned/linear/area) placed on the plan | M |
 | FR-904 | Scale-accurate PDF plan export; DXF export | S |
 | FR-905 | Layers (structure / furniture / annotations) with lock + visibility | S |
-| FR-906 | Imperial and metric input parsing (e.g. `12'6"`, `3.8m`) | M |
+| FR-906 | Imperial and metric input parsing (e.g. `12'6"`, `3.8m`) | M — **input done (P1-02)**; display units pending P1-15 |
 | FR-907 | Interactive tutorial / onboarding for first-time users | M |
 
 ## Non-functional (NFR)

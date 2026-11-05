@@ -158,3 +158,249 @@ export function plasterNormal(size: number): THREE.CanvasTexture {
   cache.set(key, tex);
   return tex;
 }
+
+/** World size of one tile pattern repeat (metres): 2 × 2 tiles of 0.6 m. */
+export const TILE_REPEAT_M = 1.2;
+
+/** Square tiles with grout lines and tiny per-tile brightness variation. White-ish base, tinted by the material colour. */
+export function tileTexture(size: number, grout: string): THREE.CanvasTexture {
+  const key = `tile:${size}:${grout}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d')!;
+  const rnd = mulberry32(23);
+  const n = 2;
+  const cell = size / n;
+  const gap = Math.max(2, size / 256);
+  g.fillStyle = grout;
+  g.fillRect(0, 0, size, size);
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const v = 238 + Math.round((rnd() - 0.5) * 12);
+      g.fillStyle = `rgb(${v},${v},${v - 2})`;
+      g.fillRect(x * cell + gap / 2, y * cell + gap / 2, cell - gap, cell - gap);
+    }
+  }
+  const tex = finish(c, true);
+  tex.repeat.set(1 / TILE_REPEAT_M, 1 / TILE_REPEAT_M);
+  cache.set(key, tex);
+  return tex;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Wall finishes and extra floors (all tileable, seeded, tinted by the material colour).
+// Light neutral bases + darker joints so the tint colours the faces and the joints read as mortar/grout.
+// ------------------------------------------------------------------------------------------------
+
+export const BRICK_TILE_M = 0.6;
+export const STONE_TILE_M = 1.2;
+export const PANEL_TILE_M = 0.6;
+export const SUBWAY_TILE_M = 0.6;
+export const TERRAZZO_TILE_M = 1.2;
+export const CARPET_TILE_M = 0.8;
+
+function newCanvas(size: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  return [c, c.getContext('2d')!];
+}
+
+const grey = (v: number) => `rgb(${Math.round(v)},${Math.round(v)},${Math.round(v - 3)})`;
+
+/** Running-bond brick: 4 bricks × 8 courses per tile. */
+export function brickTexture(size: number): THREE.CanvasTexture {
+  const key = `brick:${size}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const [c, g] = newCanvas(size);
+  const rnd = mulberry32(31);
+  const cols = 4;
+  const rows = 8;
+  const bw = size / cols;
+  const bh = size / rows;
+  const mortar = Math.max(2, size / 170);
+  g.fillStyle = grey(246); // mortar
+  g.fillRect(0, 0, size, size);
+  for (let r = 0; r < rows; r++) {
+    const shift = r % 2 ? bw / 2 : 0;
+    for (let k = -1; k < cols; k++) {
+      const x = k * bw + shift;
+      const v = 205 + (rnd() - 0.5) * 36;
+      g.fillStyle = grey(v);
+      g.fillRect(x + mortar / 2, r * bh + mortar / 2, bw - mortar, bh - mortar);
+      // speckle
+      for (let i = 0; i < 10; i++) {
+        g.fillStyle = `rgba(0,0,0,${0.03 + rnd() * 0.05})`;
+        g.fillRect(x + rnd() * bw, r * bh + rnd() * bh, 1 + rnd() * 2, 1 + rnd() * 2);
+      }
+    }
+  }
+  const tex = finish(c, true);
+  tex.repeat.set(1 / BRICK_TILE_M, 1 / BRICK_TILE_M);
+  cache.set(key, tex);
+  return tex;
+}
+
+/** Irregular ashlar stone: 3 courses of varying block width. */
+export function stoneTexture(size: number): THREE.CanvasTexture {
+  const key = `stone:${size}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const [c, g] = newCanvas(size);
+  const rnd = mulberry32(47);
+  const courses = [0.36, 0.28, 0.36];
+  g.fillStyle = grey(120);
+  g.fillRect(0, 0, size, size);
+  const gap = Math.max(3, size / 110);
+  let y = 0;
+  for (const frac of courses) {
+    const h = frac * size;
+    // block widths summing to `size`
+    const widths: number[] = [];
+    let used = 0;
+    while (used < size - 0.2 * size) {
+      const w = (0.22 + rnd() * 0.3) * size;
+      widths.push(w);
+      used += w;
+    }
+    widths.push(size - used);
+    let x = 0;
+    for (const w of widths) {
+      g.fillStyle = grey(196 + (rnd() - 0.5) * 40);
+      g.fillRect(x + gap / 2, y + gap / 2, w - gap, h - gap);
+      for (let i = 0; i < 24; i++) {
+        g.fillStyle = `rgba(0,0,0,${0.03 + rnd() * 0.06})`;
+        g.beginPath();
+        g.arc(x + rnd() * w, y + rnd() * h, 1 + rnd() * 3, 0, Math.PI * 2);
+        g.fill();
+      }
+      x += w;
+    }
+    y += h;
+  }
+  const tex = finish(c, true);
+  tex.repeat.set(1 / STONE_TILE_M, 1 / STONE_TILE_M);
+  cache.set(key, tex);
+  return tex;
+}
+
+/** Vertical wood slats (acoustic / feature panel). */
+export function panelTexture(size: number): THREE.CanvasTexture {
+  const key = `panel:${size}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const [c, g] = newCanvas(size);
+  const rnd = mulberry32(53);
+  const slats = 6;
+  const sw = size / slats;
+  const gap = Math.max(2, size / 150);
+  g.fillStyle = grey(70);
+  g.fillRect(0, 0, size, size);
+  for (let i = 0; i < slats; i++) {
+    g.fillStyle = grey(215 + (rnd() - 0.5) * 30);
+    g.fillRect(i * sw + gap / 2, 0, sw - gap, size);
+    for (let k = 0; k < 14; k++) {
+      g.strokeStyle = `rgba(0,0,0,${0.04 + rnd() * 0.07})`;
+      g.lineWidth = 0.7 + rnd();
+      const gx = i * sw + gap + rnd() * (sw - 2 * gap);
+      g.beginPath();
+      g.moveTo(gx, 0);
+      g.bezierCurveTo(gx + (rnd() - 0.5) * 4, size * 0.3, gx + (rnd() - 0.5) * 4, size * 0.7, gx, size);
+      g.stroke();
+    }
+  }
+  const tex = finish(c, true);
+  tex.repeat.set(1 / PANEL_TILE_M, 1 / PANEL_TILE_M);
+  cache.set(key, tex);
+  return tex;
+}
+
+/** Glossy subway tile (offset rows). */
+export function subwayTexture(size: number, grout: string): THREE.CanvasTexture {
+  const key = `subway:${size}:${grout}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const [c, g] = newCanvas(size);
+  const rnd = mulberry32(61);
+  const cols = 2;
+  const rows = 4;
+  const tw = size / cols;
+  const th = size / rows;
+  const gap = Math.max(2, size / 200);
+  g.fillStyle = grout;
+  g.fillRect(0, 0, size, size);
+  for (let r = 0; r < rows; r++) {
+    const shift = r % 2 ? tw / 2 : 0;
+    for (let k = -1; k < cols; k++) {
+      g.fillStyle = grey(242 + (rnd() - 0.5) * 8);
+      g.fillRect(k * tw + shift + gap / 2, r * th + gap / 2, tw - gap, th - gap);
+    }
+  }
+  const tex = finish(c, true);
+  tex.repeat.set(1 / SUBWAY_TILE_M, 1 / SUBWAY_TILE_M);
+  cache.set(key, tex);
+  return tex;
+}
+
+/** Terrazzo: pale matrix with random coloured chips. */
+export function terrazzoTexture(size: number): THREE.CanvasTexture {
+  const key = `terrazzo:${size}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const [c, g] = newCanvas(size);
+  const rnd = mulberry32(71);
+  g.fillStyle = grey(244);
+  g.fillRect(0, 0, size, size);
+  const chips = ['#b8a58c', '#8f8a80', '#c9b79c', '#6f6a62', '#d8cdb8', '#a28c74'];
+  const n = Math.round(size * 0.55);
+  for (let i = 0; i < n; i++) {
+    const x = rnd() * size;
+    const y = rnd() * size;
+    const r = (1.2 + rnd() * 4.5) * (size / 512);
+    g.fillStyle = chips[Math.floor(rnd() * chips.length)]!;
+    g.beginPath();
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2 + rnd();
+      const rr = r * (0.6 + rnd() * 0.6);
+      const px = x + Math.cos(a) * rr;
+      const py = y + Math.sin(a) * rr;
+      // wrap so the tile stays seamless
+      for (const [ox, oy] of [[0, 0], [size, 0], [-size, 0], [0, size], [0, -size]] as const) {
+        if (ox === 0 && oy === 0) {
+          if (k === 0) g.moveTo(px, py);
+          else g.lineTo(px, py);
+        }
+      }
+    }
+    g.closePath();
+    g.fill();
+  }
+  const tex = finish(c, true);
+  tex.repeat.set(1 / TERRAZZO_TILE_M, 1 / TERRAZZO_TILE_M);
+  cache.set(key, tex);
+  return tex;
+}
+
+/** Soft carpet pile: fine speckle. */
+export function carpetTexture(size: number): THREE.CanvasTexture {
+  const key = `carpet:${size}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const [c, g] = newCanvas(size);
+  const rnd = mulberry32(83);
+  g.fillStyle = grey(225);
+  g.fillRect(0, 0, size, size);
+  const n = size * size * 0.35;
+  for (let i = 0; i < n; i++) {
+    const v = 180 + rnd() * 70;
+    g.fillStyle = grey(v);
+    g.fillRect(rnd() * size, rnd() * size, 1, 1.4);
+  }
+  const tex = finish(c, true);
+  tex.repeat.set(1 / CARPET_TILE_M, 1 / CARPET_TILE_M);
+  cache.set(key, tex);
+  return tex;
+}

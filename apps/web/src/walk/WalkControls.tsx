@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useStore } from 'zustand';
 import { buildColliders, moveWithCollision } from '@hd/geometry';
+import { itemColliders } from '@hd/editor-core';
 import { editor, useUi } from '../plan/session';
 import { rememberPose, resetWalkInput, spawnPose, walkInput, walkPose } from './walkState';
 
@@ -21,16 +22,20 @@ export function WalkControls() {
   const nodes = useStore(editor.store, (s) => s.scene.nodes);
   const walls = useStore(editor.store, (s) => s.scene.walls);
   const openings = useStore(editor.store, (s) => s.scene.openings);
+  const items = useStore(editor.store, (s) => s.scene.items);
   const levelId = useStore(editor.store, (s) => s.activeLevelId);
 
   const colliders = useMemo(
-    () =>
-      buildColliders(
+    () => [
+      ...buildColliders(
         nodes,
         Object.values(walls).filter((w) => w.levelId === levelId),
         Object.values(openings), // doors / arches leave gaps you can walk through
       ),
-    [nodes, walls, openings, levelId],
+      ...itemColliders(editor.getState().scene, levelId), // large furniture blocks the way
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nodes, walls, openings, items, levelId],
   );
   const collidersRef = useRef(colliders);
   collidersRef.current = colliders;

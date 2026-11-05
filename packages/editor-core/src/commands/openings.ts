@@ -63,7 +63,7 @@ export function moveOpening(openingId: Id, wallId: Id, offset: number): Command 
   };
 }
 
-export type OpeningProps = Partial<Pick<Opening, 'width' | 'height' | 'sill'>> & {
+export type OpeningProps = Partial<Pick<Opening, 'width' | 'height' | 'sill' | 'style' | 'frameColor' | 'leafColor'>> & {
   flip?: Partial<Opening['flip']>;
 };
 
@@ -77,22 +77,27 @@ export function setOpeningProps(openingId: Id, props: OpeningProps): Command {
       const wall = o && d.walls[o.wallId];
       if (!o || !wall) return;
 
+      // A width that doesn't fit is ignored on its own — the other changes in the same edit still apply.
       let offset = o.offset;
-      if (props.width !== undefined && props.width !== o.width) {
-        if (props.width < 0.3) return;
+      let width = o.width;
+      if (props.width !== undefined && props.width !== o.width && props.width >= 0.3) {
         const spot = freeOffset(d, o.wallId, o.offset, props.width, openingId);
-        if (spot === null) return;
         // Resizing may nudge the opening to fit, but must never relocate it (e.g. hop over a neighbour).
-        if (Math.abs(spot - o.offset) > Math.abs(props.width - o.width) / 2 + 0.2) return;
-        offset = spot;
+        if (spot !== null && Math.abs(spot - o.offset) <= Math.abs(props.width - o.width) / 2 + 0.2) {
+          offset = spot;
+          width = props.width;
+        }
       }
       const sill = Math.max(0, props.sill ?? o.sill);
       const maxHeight = wall.height - OPENING_HEAD_CLEARANCE_M - sill;
       const height = Math.min(props.height ?? o.height, maxHeight);
       if (height < 0.2) return;
 
-      if (props.width !== undefined) o.width = props.width;
-      o.offset = offset;
+      if (width !== o.width) o.width = width;
+      if (offset !== o.offset) o.offset = offset;
+      if (props.style !== undefined) o.style = props.style;
+      if (props.frameColor !== undefined) o.frameColor = props.frameColor;
+      if (props.leafColor !== undefined) o.leafColor = props.leafColor;
       o.sill = sill;
       o.height = height;
       if (props.flip) o.flip = { ...o.flip, ...props.flip };

@@ -62,6 +62,12 @@ export const Opening = z.object({
   height: z.number().positive(),
   sill: z.number().min(0),
   flip: z.object({ swing: z.boolean(), side: z.boolean() }),
+  /** Look of the fixture (see DOOR_STYLES / WINDOW_STYLES); unset = the type's default. */
+  style: z.string().optional(),
+  /** Frame colour (hex). */
+  frameColor: z.string().optional(),
+  /** Door leaf colour (hex). */
+  leafColor: z.string().optional(),
 });
 
 export const Room = z.object({
@@ -135,6 +141,13 @@ export const Scene = z.object({
   roofs: z.record(z.string(), Roof),
   stairs: z.record(z.string(), Stair),
   terrain: z.object({ size: Vec2, groundMaterial: MaterialRef }),
+  /** Project preferences used when creating new things. */
+  defaults: z
+    .object({
+      interiorThickness: z.number().positive().optional(),
+      exteriorThickness: z.number().positive().optional(),
+    })
+    .optional(),
   lighting: z.object({ timeOfDay: z.number().min(0).max(24), date: z.string().optional() }),
   viewpoints: z.record(z.string(), Viewpoint),
 });

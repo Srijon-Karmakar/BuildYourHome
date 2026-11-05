@@ -1,4 +1,5 @@
-import type { Opening, Scene, Vec2 } from '@hd/scene-schema';
+import { getAsset, itemFootprint, frontOf } from '@hd/assets';
+import type { Opening, Scene, Vec2, Vec3 } from '@hd/scene-schema';
 import type { SnapResult } from '@hd/editor-core';
 import { facePoint, leftNormal, type WallFootprint } from '@hd/geometry';
 import { toScreen, toWorld, type View } from './viewport';
@@ -24,10 +25,19 @@ const C = {
 const FONT = '"Outfit Variable", system-ui, sans-serif';
 
 export interface RoomDraw {
+  selected?: boolean;
   polygon: readonly Vec2[];
   centroid: Vec2;
   area: number;
   name: string;
+}
+
+/** Ghost of the furniture item that the next click would place. */
+export interface ItemGhost {
+  assetId: string;
+  position: Vec3;
+  rotationY: number;
+  scale: Vec3;
 }
 
 /** Ghost of the door/window that the next click would place. */
@@ -41,6 +51,10 @@ export interface OpeningPreview {
 }
 
 export interface RenderState {
+  itemGhost: ItemGhost | null;
+  /** Walls of the floor below, drawn faintly as a tracing reference. */
+  ghost: readonly Vec2[][];
+  paintSide: 'both' | 'a' | 'b';
   geom: LevelGeometry;
   preview: OpeningPreview | null;
   /** First-person walker (shown as a view cone) while the walkthrough is active. */
@@ -52,7 +66,7 @@ export interface RenderState {
   scene: Scene;
   levelId: string;
   selection: readonly string[];
-  tool: 'select' | 'wall' | 'door' | 'window';
+  tool: 'select' | 'wall' | 'door' | 'window' | 'place';
   hover: SnapResult | null;
   drawingFrom: Vec2 | null;
   gridStep: number;
@@ -99,7 +113,7 @@ function halo(ctx: CanvasRenderingContext2D, text: string, x: number, y: number)
   ctx.fillText(text, x, y);
 }
 
-function pointInPolygon(x: number, z: number, poly: readonly Vec2[]): boolean {
+export function pointInPolygon(x: number, z: number, poly: readonly Vec2[]): boolean {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     const [xi, zi] = poly[i]!;
@@ -109,9 +123,9 @@ function pointInPolygon(x: number, z: number, poly: readonly Vec2[]): boolean {
   return inside;
 }
 
-function drawRooms(ctx: CanvasRenderingContext2D, s: RenderState): void {
+function drawRooms(ctx: CanvasRenderingContext2D, s: RenderState, part: 'fills' | 'labels'): void {
   const { view: v } = s;
-  for (const r of s.rooms) {
+  if (part === 'fills') for (const r of s.rooms) {
     ctx.beginPath();
     r.polygon.forEach((p, i) => {
       const [x, y] = toScreen(v, p[0], p[1]);
@@ -119,13 +133,18 @@ function drawRooms(ctx: CanvasRenderingContext2D, s: RenderState): void {
       else ctx.lineTo(x, y);
     });
     ctx.closePath();
-    ctx.fillStyle = C.roomFill;
+    ctx.fillStyle = r.selected ? 'rgba(122,66,54,0.2)' : C.roomFill;
     ctx.fill();
+    if (r.selected) {
+      ctx.strokeStyle = C.wallSel;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
   }
-  // Labels after fills so neighbouring rooms never paint over them.
+  // Labels are drawn last of all, above furniture, so names and areas stay readable.
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  for (const r of s.rooms) {
+  if (part === 'labels') for (const r of s.rooms) {
     const [cx, cy] = toScreen(v, r.centroid[0], r.centroid[1]);
     // Skip when the room is too small on screen to hold text.
     if (Math.sqrt(r.area) * v.scale < 56) continue;
@@ -232,7 +251,7 @@ function drawOpeningSymbol(
   ctx: CanvasRenderingContext2D,
   v: View,
   fp: WallFootprint,
-  o: { type: Opening['type']; offset: number; width: number; flip: Opening['flip'] },
+  o: { type: Opening['type']; offset: number; width: number; flip: Opening['flip']; style?: string },
   color: string,
   alpha = 1,
 ): void {
@@ -261,13 +280,29 @@ function drawOpeningSymbol(
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    // Glazing line along the centre.
-    const [cx0, cy0] = P(s0, 1), [cx1, cy1] = P(s1, 1);
-    const [dx0, dy0] = P(s0, -1), [dx1, dy1] = P(s1, -1);
-    ctx.beginPath();
-    ctx.moveTo((cx0 + dx0) / 2, (cy0 + dy0) / 2);
-    ctx.lineTo((cx1 + dx1) / 2, (cy1 + dy1) / 2);
-    ctx.stroke();
+    if (o.style === 'sliding') {
+      // Two offset glazing lines (two sashes on separate tracks).
+      const lineAt = (a: number, b: number, side: number) => {
+        const pa = facePoint(fp, a, 1), pb = facePoint(fp, b, 1), qa = facePoint(fp, a, -1), qb = facePoint(fp, b, -1);
+        const mix = (p: Vec2, q: Vec2): [number, number] => toScreen(v, p[0] * (0.5 - side) + q[0] * (0.5 + side), p[1] * (0.5 - side) + q[1] * (0.5 + side));
+        const [ax, ay] = mix(pa, qa);
+        const [bx, by] = mix(pb, qb);
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+      };
+      lineAt(s0, s0 + o.width * 0.55, 0.18);
+      lineAt(s1 - o.width * 0.55, s1, -0.18);
+    } else {
+      // Glazing line along the centre.
+      const [cx0, cy0] = P(s0, 1), [cx1, cy1] = P(s1, 1);
+      const [dx0, dy0] = P(s0, -1), [dx1, dy1] = P(s1, -1);
+      ctx.beginPath();
+      ctx.moveTo((cx0 + dx0) / 2, (cy0 + dy0) / 2);
+      ctx.lineTo((cx1 + dx1) / 2, (cy1 + dy1) / 2);
+      ctx.stroke();
+    }
   } else if (o.type === 'arch') {
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.2;
@@ -278,41 +313,63 @@ function drawOpeningSymbol(
     ctx.lineTo(rx1, ry1);
     ctx.stroke();
   } else {
-    // Door: leaf hinged at one jamb, opening toward the L side (swing = false) or the R side.
-    const hingeAtEnd = o.flip.side;
-    const hs = hingeAtEnd ? s1 : s0;
-    const hinge = facePoint(fp, hs, 1);
-    const hingeR = facePoint(fp, hs, -1);
-    const cx = (hinge[0] + hingeR[0]) / 2;
-    const cz = (hinge[1] + hingeR[1]) / 2;
+    // Door: leaf hinged at one jamb (two leaves for a double door), opening toward the L side (swing = false) or the R side.
     const n = leftNormal(fp);
     const sgn = o.flip.swing ? -1 : 1;
-    const along = hingeAtEnd ? -1 : 1; // closed leaf lies from the hinge toward the other jamb
-    const closed: Vec2 = [cx + fp.dir[0] * along * o.width, cz + fp.dir[1] * along * o.width];
-    const open: Vec2 = [cx + n[0] * sgn * o.width, cz + n[1] * sgn * o.width];
-    const [hx, hy] = toScreen(v, cx, cz);
-    const [ox, oy] = toScreen(v, open[0], open[1]);
-    const [kx, ky] = toScreen(v, closed[0], closed[1]);
-
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(hx, hy);
-    ctx.lineTo(ox, oy);
-    ctx.stroke();
-
-    const a0 = Math.atan2(ky - hy, kx - hx);
-    const a1 = Math.atan2(oy - hy, ox - hx);
-    let delta = a1 - a0;
-    while (delta > Math.PI) delta -= 2 * Math.PI;
-    while (delta < -Math.PI) delta += 2 * Math.PI;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.arc(hx, hy, o.width * v.scale, a0, a0 + delta, delta < 0);
-    ctx.stroke();
+    const leafAt = (hs: number, along: 1 | -1, len: number) => {
+      const hinge = facePoint(fp, hs, 1);
+      const hingeR = facePoint(fp, hs, -1);
+      const cx = (hinge[0] + hingeR[0]) / 2;
+      const cz = (hinge[1] + hingeR[1]) / 2;
+      const closed: Vec2 = [cx + fp.dir[0] * along * len, cz + fp.dir[1] * along * len]; // toward the other jamb
+      const open: Vec2 = [cx + n[0] * sgn * len, cz + n[1] * sgn * len];
+      const [hx, hy] = toScreen(v, cx, cz);
+      const [ox, oy] = toScreen(v, open[0], open[1]);
+      const [kx, ky] = toScreen(v, closed[0], closed[1]);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(hx, hy);
+      ctx.lineTo(ox, oy);
+      ctx.stroke();
+      const a0 = Math.atan2(ky - hy, kx - hx);
+      const a1 = Math.atan2(oy - hy, ox - hx);
+      let delta = a1 - a0;
+      while (delta > Math.PI) delta -= 2 * Math.PI;
+      while (delta < -Math.PI) delta += 2 * Math.PI;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(hx, hy, len * v.scale, a0, a0 + delta, delta < 0);
+      ctx.stroke();
+    };
+    if (o.style === 'double') {
+      leafAt(s0, 1, o.width / 2);
+      leafAt(s1, -1, o.width / 2);
+    } else {
+      leafAt(o.flip.side ? s1 : s0, o.flip.side ? -1 : 1, o.width);
+    }
   }
   ctx.restore();
+}
+
+/** When painting one face of the selected walls, show which side that is with a thin brick line. */
+function drawPaintSide(ctx: CanvasRenderingContext2D, s: RenderState): void {
+  if (s.paintSide === 'both') return;
+  const side: 1 | -1 = s.paintSide === 'a' ? 1 : -1;
+  ctx.strokeStyle = C.brick;
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'butt';
+  for (const id of s.selection) {
+    const fp = s.geom.footprints[id];
+    if (!fp) continue;
+    const [ax, ay] = toScreen(s.view, ...(facePoint(fp, 0, side) as [number, number]));
+    const [bx, by] = toScreen(s.view, ...(facePoint(fp, fp.length, side) as [number, number]));
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+  }
 }
 
 function drawOpenings(ctx: CanvasRenderingContext2D, s: RenderState): void {
@@ -350,6 +407,78 @@ function drawOpenings(ctx: CanvasRenderingContext2D, s: RenderState): void {
       drawOpeningSymbol(ctx, v, fp, { type: pv.type, offset: pv.offset, width: pv.width, flip: { swing: pv.swing, side: false } }, C.brick, 0.75);
     }
   }
+}
+
+/** Plan symbol of furniture: footprint with a small chevron on the front edge (and its name when there is room). */
+function drawItem(
+  ctx: CanvasRenderingContext2D,
+  s: RenderState,
+  it: { assetId: string; position: Vec3; rotationY: number; scale: Vec3 },
+  style: { fill: string; stroke: string; width: number; ghost?: boolean },
+): void {
+  const asset = getAsset(it.assetId);
+  if (!asset) return;
+  const v = s.view;
+  const poly = itemFootprint(asset, [it.position[0], it.position[2]], it.rotationY, it.scale);
+  ctx.beginPath();
+  poly.forEach((p, i) => {
+    const [x, y] = toScreen(v, p[0], p[1]);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = style.fill;
+  ctx.fill();
+  ctx.setLineDash(asset.mount === 'ceiling' ? [4, 3] : []);
+  ctx.strokeStyle = style.stroke;
+  ctx.lineWidth = style.width;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Which way it faces: a chevron just inside the front edge.
+  const f = frontOf(it.rotationY);
+  const halfD = (asset.size[1] * it.scale[2]) / 2;
+  const [cx, cy] = toScreen(v, it.position[0] + f[0] * (halfD * 0.72), it.position[2] + f[1] * (halfD * 0.72));
+  const px = f[0];
+  const py = f[1];
+  const k = Math.min(7, Math.max(3, halfD * v.scale * 0.35));
+  ctx.beginPath();
+  ctx.moveTo(cx - py * k - px * k * 0.6, cy + px * k - py * k * 0.6);
+  ctx.lineTo(cx + px * k * 0.6, cy + py * k * 0.6);
+  ctx.lineTo(cx + py * k - px * k * 0.6, cy - px * k - py * k * 0.6);
+  ctx.strokeStyle = style.stroke;
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  // Name, only when it fits comfortably.
+  const [mx, my] = toScreen(v, it.position[0], it.position[2]);
+  const wpx = asset.size[0] * it.scale[0] * v.scale;
+  const dpx = asset.size[1] * it.scale[2] * v.scale;
+  if (!style.ghost && asset.size[2] >= 0.05 && Math.min(wpx, dpx) > 46 && wpx > 90) {
+    ctx.font = `300 11px ${FONT}`;
+    ctx.fillStyle = C.textSoft;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(asset.name, mx, my);
+  }
+}
+
+function drawItems(ctx: CanvasRenderingContext2D, s: RenderState): void {
+  const sel = new Set(s.selection);
+  const items = Object.values(s.scene.items).filter((it) => it.levelId === s.levelId);
+  // Flat things (rugs) first so furniture draws on top of them.
+  const flat = (id: string) => (getAsset(id)?.size[2] ?? 1) < 0.05;
+  items.sort((a, b) => Number(flat(b.assetId)) - Number(flat(a.assetId)));
+  for (const it of items) {
+    const selected = sel.has(it.id);
+    drawItem(ctx, s, it, {
+      fill: selected ? 'rgba(122,66,54,0.16)' : flat(it.assetId) ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.72)',
+      stroke: selected ? C.wallSel : C.wall,
+      width: selected ? 2.4 : 1.2,
+    });
+  }
+  if (s.itemGhost) drawItem(ctx, s, s.itemGhost, { fill: 'rgba(122,66,54,0.18)', stroke: C.brick, width: 2, ghost: true });
 }
 
 function drawWalker(ctx: CanvasRenderingContext2D, s: RenderState): void {
@@ -447,9 +576,24 @@ export function drawPlan(ctx: CanvasRenderingContext2D, s: RenderState): void {
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, s.width, s.height);
   drawGrid(ctx, s);
-  drawRooms(ctx, s);
+  // Floor below as a faint reference (walls only).
+  ctx.fillStyle = 'rgba(17,17,17,0.11)';
+  for (const piece of s.ghost) {
+    ctx.beginPath();
+    piece.forEach((p, i) => {
+      const [x, y] = toScreen(s.view, p[0], p[1]);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.fill();
+  }
+  drawRooms(ctx, s, 'fills');
+  drawItems(ctx, s);
   drawWalls(ctx, s);
+  drawPaintSide(ctx, s);
   drawOpenings(ctx, s);
+  drawRooms(ctx, s, 'labels');
   drawWalker(ctx, s);
   drawOverlay(ctx, s);
 }

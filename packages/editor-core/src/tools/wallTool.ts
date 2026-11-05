@@ -17,7 +17,8 @@ export interface WallTool {
   finish(): void;
 }
 
-export function createWallTool(editor: Editor): WallTool {
+/** `kind` is read at each click so the UI can switch Inside/Outside while drawing. */
+export function createWallTool(editor: Editor, kind: () => 'interior' | 'exterior' = () => 'interior'): WallTool {
   let last: Vec2 | null = null;
   return {
     get last() {
@@ -29,7 +30,7 @@ export function createWallTool(editor: Editor): WallTool {
         return 'started';
       }
       if (Math.hypot(p[0] - last[0], p[1] - last[1]) < NODE_MERGE_EPS_M) return 'ignored';
-      editor.execute(addWall({ levelId: editor.getState().activeLevelId, from: last, to: p }));
+      editor.execute(addWall({ levelId: editor.getState().activeLevelId, from: last, to: p, kind: kind() }));
       if (snapKind === 'node' || snapKind === 'wall') {
         last = null;
         return 'closed';

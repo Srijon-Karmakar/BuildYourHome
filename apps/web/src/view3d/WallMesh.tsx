@@ -11,17 +11,20 @@ interface Props {
   cuts: readonly OpeningCut[];
   elevation: number;
   tier: Tier;
+  /** Draw the wall only up to this height (cutaway mode). */
+  maxHeight?: number;
 }
 
 const TOP_COLOR = '#d9d5cc';
 const END_COLOR = '#e6e2d9';
 
-export function WallMesh({ wall, fp, cuts, elevation, tier }: Props) {
+export function WallMesh({ wall, fp, cuts, elevation, tier, maxHeight }: Props) {
+  const shownHeight = maxHeight === undefined ? wall.height : Math.min(wall.height, maxHeight);
   // Footprint arrays are recomputed per scene change; key on their values so unchanged walls keep their geometry.
   const key = fp.footprint.flat().map((n) => n.toFixed(5)).join(',') + `|${fp.capA}|${fp.capB}|` + cuts.map((c) => `${c.offset.toFixed(4)},${c.width.toFixed(4)},${c.height.toFixed(4)},${c.sill.toFixed(4)}`).join(';');
 
   const geometry = useMemo(() => {
-    const m = buildWallMesh(fp, elevation, wall.height, cuts);
+    const m = buildWallMesh(fp, elevation, shownHeight, cuts);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
     g.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));
@@ -33,7 +36,7 @@ export function WallMesh({ wall, fp, cuts, elevation, tier }: Props) {
     g.computeBoundingSphere();
     return g;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, elevation, wall.height]);
+  }, [key, elevation, shownHeight]);
 
   const materials = useMemo(
     () => [

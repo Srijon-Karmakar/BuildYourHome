@@ -12,9 +12,13 @@ import { BenchmarkRunner } from './BenchmarkRunner';
 import { CeilingMesh } from './CeilingMesh';
 import { FloorMesh } from './FloorMesh';
 import { computeFraming } from './framing';
+import { CUT_HEIGHT_M, levelVisibility, type LevelVis } from './floors';
+import { ItemMesh } from './furniture/ItemMesh';
 import { OpeningMesh } from './OpeningMesh';
 import { PerfProbe } from './PerfProbe';
+import { RoofMesh } from './RoofMesh';
 import { TIERS, type Tier } from './qualityLogic';
+import { catalogMaterial } from './placeholderMaterials';
 import { useTier } from './qualityStore';
 import { WallMesh } from './WallMesh';
 
@@ -46,7 +50,22 @@ function CameraFit() {
   return null;
 }
 
+/** Which floors are drawn (and whether the current one is cut low), from the Display / floor-switcher settings. */
+function useLevelVis(): Record<string, LevelVis> {
+  const levels = useStore(editor.store, (s) => s.scene.levels);
+  const order = useStore(editor.store, (s) => s.scene.levelOrder);
+  const active = useStore(editor.store, (s) => s.activeLevelId);
+  const floorView = useUi((s) => s.floorView);
+  const cutaway = useUi((s) => s.cutaway);
+  const walk = useUi((s) => s.walk);
+  return useMemo(
+    () => levelVisibility(order.map((id) => levels[id]!), active, floorView, cutaway, walk),
+    [levels, order, active, floorView, cutaway, walk],
+  );
+}
+
 function Walls({ tier }: { tier: Tier }) {
+  const vis = useLevelVis();
   const scene = useStore(editor.store, (s) => s.scene);
   const { walls, nodes, openings, levels, levelOrder } = scene;
 
@@ -66,18 +85,30 @@ function Walls({ tier }: { tier: Tier }) {
   return (
     <>
       {data.flatMap(({ level, walls: lw, geom }) =>
-        lw.map((w) => {
-          const fp = geom.footprints[w.id];
-          return fp ? (
-            <WallMesh key={w.id} wall={w} fp={fp} cuts={geom.cuts[w.id] ?? []} elevation={level.elevation} tier={tier} />
-          ) : null;
-        }),
+        vis[level.id]?.visible === false
+          ? []
+          : lw.map((w) => {
+              const fp = geom.footprints[w.id];
+              return fp ? (
+                <WallMesh
+                  key={w.id}
+                  wall={w}
+                  fp={fp}
+                  cuts={geom.cuts[w.id] ?? []}
+                  elevation={level.elevation}
+                  tier={tier}
+                  maxHeight={vis[level.id]?.cut ? CUT_HEIGHT_M : undefined}
+                />
+              ) : null;
+            }),
       )}
       {bySide.map((o) => {
         const w = walls[o.wallId];
         const level = w && levels[w.levelId];
         const fp = w && data.find((d) => d.level.id === w.levelId)?.geom.footprints[w.id];
-        return fp && level ? <OpeningMesh key={o.id} opening={o} fp={fp} elevation={level.elevation} /> : null;
+        const v = w && vis[w.levelId];
+        // Fixtures are hidden on floors that are not drawn and on a cut floor (they would float above the cut walls).
+        return fp && level && v && v.visible && !v.cut ? <OpeningMesh key={o.id} opening={o} fp={fp} elevation={level.elevation} /> : null;
       })}
     </>
   );
@@ -85,10 +116,11 @@ function Walls({ tier }: { tier: Tier }) {
 
 function Floors({ tier }: { tier: Tier }) {
   const scene = useStore(editor.store, (s) => s.scene);
+  const vis = useLevelVis();
   return (
     <>
       {scene.levelOrder.flatMap((lid) =>
-        levelRooms(scene, lid).map((r, i) => (
+        (vis[lid]?.visible === false ? [] : levelRooms(scene, lid)).map((r, i) => (
           <FloorMesh
             key={`${lid}:${r.room?.id ?? i}`}
             polygon={r.polygon}
@@ -102,13 +134,47 @@ function Floors({ tier }: { tier: Tier }) {
   );
 }
 
+/** Furniture on every drawn floor (also on a cut floor, so you can see how rooms are furnished from above). */
+function Items() {
+  const items = useStore(editor.store, (s) => s.scene.items);
+  const levels = useStore(editor.store, (s) => s.scene.levels);
+  const vis = useLevelVis();
+  return (
+    <>
+      {Object.values(items).map((it) => {
+        const level = levels[it.levelId];
+        return level && vis[it.levelId]?.visible ? <ItemMesh key={it.id} item={it} elevation={level.elevation} /> : null;
+      })}
+    </>
+  );
+}
+
+/** Roofs: hidden when the floor is not drawn, when it is cut (cutaway) or when the user turned roofs off. */
+function Roofs({ tier }: { tier: Tier }) {
+  const scene = useStore(editor.store, (s) => s.scene);
+  const vis = useLevelVis();
+  const showRoof = useUi((s) => s.showRoof);
+  if (!showRoof) return null;
+  return (
+    <>
+      {Object.values(scene.roofs).map((r) => {
+        const level = scene.levels[r.levelId];
+        const v = vis[r.levelId];
+        return level && v?.visible && !v.cut ? <RoofMesh key={r.id} roof={r} level={level} scene={scene} tier={tier} /> : null;
+      })}
+    </>
+  );
+}
+
 /** Ceilings only exist while walking: from above they would hide the plan. */
 function Ceilings({ tier }: { tier: Tier }) {
   const scene = useStore(editor.store, (s) => s.scene);
+  const vis = useLevelVis();
   return (
     <>
       {scene.levelOrder.flatMap((lid) => {
         const level = scene.levels[lid]!;
+        if (vis[lid]?.visible === false) return [];
         return levelRooms(scene, lid)
           .filter((r) => r.room?.hasCeiling !== false)
           .map((r, i) => (
@@ -160,6 +226,18 @@ function Lighting({ tier }: { tier: Tier }) {
   );
 }
 
+/** The surface around the house (grass, sand, paving…), chosen in the Home menu. */
+function Ground() {
+  const id = useStore(editor.store, (s) => s.scene.terrain.groundMaterial.id);
+  const m = catalogMaterial(id);
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.002, 0]} receiveShadow>
+      <planeGeometry args={[300, 300]} />
+      <meshStandardMaterial color={m.color} roughness={m.roughness} />
+    </mesh>
+  );
+}
+
 export function Scene3D() {
   const walk = useUi((s) => s.walk);
   const tier = useTier();
@@ -177,12 +255,11 @@ export function Scene3D() {
     >
       <color attach="background" args={['#e6e4e0']} />
       <Lighting tier={tier} />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.002, 0]} receiveShadow>
-        <planeGeometry args={[300, 300]} />
-        <meshStandardMaterial color="#d6d2c8" roughness={1} />
-      </mesh>
+      <Ground />
       <Floors tier={tier} />
       <Walls tier={tier} />
+      <Items />
+      <Roofs tier={tier} />
       {walk && <Ceilings tier={tier} />}
       {walk ? (
         <WalkControls />

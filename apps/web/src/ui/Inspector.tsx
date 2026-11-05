@@ -1,0 +1,361 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useStore } from 'zustand';
+import { getAsset, CATEGORIES } from '@hd/assets';
+import type { Item, Opening, Room, RoomType, Wall } from '@hd/scene-schema';
+import { DOOR_STYLES, FRAME_COLORS, LEAF_COLORS, WINDOW_STYLES } from '@hd/scene-schema';
+import { batch, duplicateItems, rotateItems, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
+import { deleteSelection } from '../plan/PlanController';
+import { levelRooms } from '../plan/rooms';
+import { editor, useUi } from '../plan/session';
+import { finishMaterials, materialsFor, paintMaterials } from '../view3d/placeholderMaterials';
+import { AngleField, Chips, ColorSwatches, LengthField, Section, SelectField, Segmented, Swatches, TextField, Toggle } from './fields';
+
+const ROOM_TYPES: Array<{ id: RoomType; label: string }> = [
+  { id: 'living', label: 'Living room' },
+  { id: 'bedroom', label: 'Bedroom' },
+  { id: 'kitchen', label: 'Kitchen' },
+  { id: 'bathroom', label: 'Bathroom' },
+  { id: 'dining', label: 'Dining' },
+  { id: 'study', label: 'Study' },
+  { id: 'hall', label: 'Hall' },
+  { id: 'balcony', label: 'Balcony' },
+  { id: 'utility', label: 'Utility' },
+  { id: 'garage', label: 'Garage' },
+  { id: 'other', label: 'Other' },
+];
+
+const THICKNESS_PRESETS = [
+  { label: '10 cm', value: 0.1 },
+  { label: '11.5 cm', value: 0.115 },
+  { label: '15 cm', value: 0.15 },
+  { label: '23 cm', value: 0.23 },
+];
+
+const isPhone = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 699px)').matches;
+
+/** The value shared by every item, or null when they differ ("mixed"). */
+function common<T>(values: readonly T[], eq: (a: T, b: T) => boolean = (a, b) => a === b): T | null {
+  const first = values[0];
+  if (first === undefined) return null;
+  return values.every((v) => eq(v, first)) ? first : null;
+}
+const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** The style an opening shows when none was chosen (matches the 3D fixture defaults). */
+const effectiveStyle = (o: Opening) => o.style ?? (o.type === 'door' ? 'flush' : o.type === 'window' ? (o.width > 1 ? 'double' : 'single') : 'none');
+const openingName = (o: Opening) => (o.type === 'arch' ? 'Archway' : o.type === 'window' ? 'Window' : 'Door');
+
+/**
+ * Property panel for the current selection (docs/DESIGN.md: floating, quiet, only when there is something to edit).
+ * Edits are single undoable commands; with several items selected, one edit applies to all of them.
+ */
+export function Inspector() {
+  const view = useUi((s) => s.view);
+  const walk = useUi((s) => s.walk);
+  const additive = useUi((s) => s.additive);
+  const toggleAdditive = useUi((s) => s.toggleAdditive);
+  const paintSide = useUi((s) => s.paintSide);
+  const setPaintSide = useUi((s) => s.setPaintSide);
+  const scene = useStore(editor.store, (s) => s.scene);
+  const selection = useStore(editor.store, (s) => s.selection);
+  const levelId = useStore(editor.store, (s) => s.activeLevelId);
+  const [collapsed, setCollapsed] = useState(isPhone);
+  const empty = selection.length === 0;
+
+  // On phones the panel starts as a slim bar; reset that whenever the selection is cleared.
+  useEffect(() => {
+    if (empty) setCollapsed(isPhone());
+  }, [empty]);
+
+  const { walls, openings, rooms, items } = useMemo(() => {
+    const it: Item[] = [];
+    const w: Wall[] = [];
+    const o: Opening[] = [];
+    const r: Room[] = [];
+    for (const id of selection) {
+      if (scene.walls[id]) w.push(scene.walls[id]!);
+      else if (scene.openings[id]) o.push(scene.openings[id]!);
+      else if (scene.rooms[id]) r.push(scene.rooms[id]!);
+      else if (scene.items[id]) it.push(scene.items[id]!);
+    }
+    return { walls: w, openings: o, rooms: r, items: it };
+  }, [selection, scene]);
+
+  if (walk || view === '3d' || empty) return null;
+
+  // ------------------------------------------------------------------ header
+  const total = walls.length + openings.length + rooms.length + items.length;
+  let title: string;
+  let subtitle = '';
+  if (total === 1 && rooms[0]) {
+    title = rooms[0].name;
+    const a = levelRooms(scene, levelId).find((r) => r.room?.id === rooms[0]!.id)?.area;
+    subtitle = a ? `${a.toFixed(1)} m²` : 'Room';
+  } else if (total === 1 && walls[0]) {
+    const w = walls[0];
+    const a = scene.nodes[w.a]?.p;
+    const b = scene.nodes[w.b]?.p;
+    title = 'Wall';
+    subtitle = a && b ? `${Math.hypot(b[0] - a[0], b[1] - a[1]).toFixed(2)} m long` : '';
+  } else if (total === 1 && items[0]) {
+    const asset = getAsset(items[0].assetId);
+    title = asset?.name ?? 'Item';
+    subtitle = asset ? `${CATEGORIES.find((c) => c.id === asset.category)?.name ?? ''} · ${(asset.size[0] * items[0].scale[0]).toFixed(2)} × ${(asset.size[1] * items[0].scale[2]).toFixed(2)} m` : '';
+  } else if (total === 1 && openings[0]) {
+    title = openingName(openings[0]);
+    subtitle = `${openings[0].width.toFixed(2)} × ${openings[0].height.toFixed(2)} m`;
+  } else {
+    title = plural(total, 'item');
+    subtitle = [walls.length && plural(walls.length, 'wall'), openings.length && plural(openings.length, 'opening'), rooms.length && plural(rooms.length, 'room'), items.length && plural(items.length, 'furnishing')]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  // ----------------------------------------------------------------- edits
+  const wallIds = walls.map((w) => w.id);
+  const editWalls = (props: Parameters<typeof setWallsProps>[1]) => editor.execute(setWallsProps(wallIds, props));
+  const editRooms = (props: Parameters<typeof setRoomProps>[1]) =>
+    editor.execute(batch(rooms.length > 1 ? 'Edit rooms' : 'Edit room', rooms.map((r) => setRoomProps(r.id, props))));
+  const editOpenings = (props: Parameters<typeof setOpeningProps>[1]) =>
+    editor.execute(batch(openings.length > 1 ? 'Edit openings' : 'Edit opening', openings.map((o) => setOpeningProps(o.id, props))));
+
+  const faceIds = walls.flatMap((w) => (paintSide === 'a' ? [w.materialA.id] : paintSide === 'b' ? [w.materialB.id] : [w.materialA.id, w.materialB.id]));
+  const faceValue = common(faceIds);
+  const paintWalls = (id: string) =>
+    editWalls(paintSide === 'a' ? { materialA: { id } } : paintSide === 'b' ? { materialB: { id } } : { materialA: { id }, materialB: { id } });
+  const oneType = openings.length > 0 && openings.every((o) => o.type === openings[0]!.type) ? openings[0]!.type : null;
+
+  const itemIds = items.map((i) => i.id);
+  const sameAsset = items.length > 0 && items.every((i) => i.assetId === items[0]!.assetId) ? getAsset(items[0]!.assetId) : undefined;
+  const editItems = (props: Parameters<typeof setItemsProps>[1]) => editor.execute(setItemsProps(itemIds, props));
+  const SCALE_PRESETS = [
+    { label: '75 %', value: 0.75 },
+    { label: '100 %', value: 1 },
+    { label: '125 %', value: 1.25 },
+    { label: '150 %', value: 1.5 },
+  ];
+
+  const canDelete = walls.length + openings.length + items.length > 0;
+
+  return (
+    <aside className={`inspector${collapsed ? ' collapsed' : ''}`} aria-label="Properties">
+      <header>
+        <button type="button" className="ins-title" onClick={() => setCollapsed((c) => !c)} aria-expanded={!collapsed}>
+          <strong>{title}</strong>
+          <small>{subtitle}</small>
+        </button>
+        <div className="ins-actions">
+          <button
+            type="button"
+            className="pill small"
+            title="Tap more items to add them to the selection"
+            aria-pressed={additive}
+            onClick={toggleAdditive}
+          >
+            Add more
+          </button>
+          <button type="button" className="ins-close" title="Clear selection (Esc)" aria-label="Clear selection" onClick={() => editor.select([])}>
+            ×
+          </button>
+        </div>
+      </header>
+
+      {!collapsed && (
+        <div className="ins-body">
+          {rooms.length > 0 && (
+            <Section title={rooms.length > 1 ? 'Rooms' : 'Room'}>
+              {rooms.length === 1 && <TextField label="Name" value={rooms[0]!.name} onCommit={(name) => editRooms({ name })} />}
+              <SelectField
+                label="Type"
+                value={common(rooms.map((r) => r.type)) ?? 'other'}
+                options={ROOM_TYPES}
+                onChange={(type) => editRooms({ type })}
+              />
+              <Swatches
+                label="Floor"
+                items={materialsFor('floor')}
+                value={common(rooms.map((r) => r.floorMaterial.id))}
+                onPick={(id) => editRooms({ floorMaterial: { id } })}
+              />
+              <Toggle
+                label="Ceiling"
+                hint="Shown when you walk through"
+                checked={rooms.every((r) => r.hasCeiling)}
+                onChange={(hasCeiling) => editRooms({ hasCeiling })}
+              />
+              {rooms.every((r) => r.hasCeiling) && (
+                <Swatches
+                  label="Ceiling paint"
+                  items={paintMaterials()}
+                  value={common(rooms.map((r) => r.ceilingMaterial?.id ?? 'paint-white'))}
+                  onPick={(id) => editRooms({ ceilingMaterial: { id } })}
+                />
+              )}
+            </Section>
+          )}
+
+          {walls.length > 0 && (
+            <Section title={walls.length > 1 ? 'Walls' : 'Wall'}>
+              <LengthField
+                label="Thickness"
+                value={common(walls.map((w) => w.thickness), near)}
+                min={0.05}
+                max={1}
+                step={0.005}
+                onCommit={(thickness) => editWalls({ thickness })}
+              />
+              <Chips
+                items={THICKNESS_PRESETS}
+                current={common(walls.map((w) => w.thickness), near)}
+                onPick={(thickness) => editWalls({ thickness })}
+              />
+              <LengthField
+                label="Height"
+                value={common(walls.map((w) => w.height), near)}
+                min={1}
+                max={10}
+                onCommit={(height) => editWalls({ height })}
+              />
+              <Segmented
+                label="Kind"
+                value={common(walls.map((w) => w.kind))}
+                options={[
+                  { id: 'interior', label: 'Inside' },
+                  { id: 'exterior', label: 'Outside' },
+                ]}
+                onChange={(kind) => editWalls({ kind })}
+              />
+              <Segmented
+                label="Surface"
+                value={paintSide}
+                options={[
+                  { id: 'both', label: 'Both sides' },
+                  { id: 'a', label: 'Side 1' },
+                  { id: 'b', label: 'Side 2' },
+                ]}
+                onChange={setPaintSide}
+              />
+              {paintSide !== 'both' && <p className="f-note">The brick line on the plan shows which side you are painting.</p>}
+              <Swatches label="Paint" items={paintMaterials()} value={faceValue} onPick={paintWalls} />
+              <Swatches label="Finish" items={finishMaterials()} value={faceValue} onPick={paintWalls} />
+            </Section>
+          )}
+
+          {items.length > 0 && (
+            <Section title={items.length > 1 ? 'Furniture' : 'Item'}>
+              {sameAsset?.colors && (
+                <ColorSwatches
+                  label="Colour"
+                  items={sameAsset.colors}
+                  value={common(items.map((i) => i.variant ?? sameAsset.colors![0]!.id))}
+                  onPick={(variant) => editItems({ variant })}
+                />
+              )}
+              <AngleField
+                label="Rotation"
+                value={common(items.map((i) => (i.rotationY * 180) / Math.PI), near)}
+                onCommit={(deg) => editItems({ rotationY: (deg * Math.PI) / 180 })}
+              />
+              <div className="f-chips">
+                <button type="button" onClick={() => editor.execute(rotateItems(itemIds, -Math.PI / 2))}>
+                  ↺ 90°
+                </button>
+                <button type="button" onClick={() => editor.execute(rotateItems(itemIds, Math.PI / 2))}>
+                  ↻ 90°
+                </button>
+              </div>
+              <div className="f-label" style={{ margin: '6px 0 6px' }}>
+                Size
+              </div>
+              <Chips items={SCALE_PRESETS} current={common(items.map((i) => i.scale[0]), near)} onPick={(scale) => editItems({ scale })} />
+              <Toggle label="Lock in place" hint="Stops it being moved by accident" checked={items.every((i) => i.locked)} onChange={(locked) => editItems({ locked })} />
+              <div className="ins-footer" style={{ paddingTop: 4 }}>
+                <button type="button" className="pill" title="Copy (Ctrl+D)" onClick={() => editor.execute(duplicateItems(itemIds))}>
+                  Duplicate
+                </button>
+              </div>
+            </Section>
+          )}
+
+          {openings.length > 0 && (
+            <Section title={openings.length > 1 ? 'Openings' : openingName(openings[0]!)}>
+              <LengthField
+                label="Width"
+                value={common(openings.map((o) => o.width), near)}
+                min={0.3}
+                max={6}
+                onCommit={(width) => editOpenings({ width })}
+              />
+              <LengthField
+                label="Height"
+                value={common(openings.map((o) => o.height), near)}
+                min={0.3}
+                max={4}
+                onCommit={(height) => editOpenings({ height })}
+              />
+              <LengthField
+                label="Sill"
+                hint="Height above floor"
+                value={common(openings.map((o) => o.sill), near)}
+                max={3}
+                disabled={openings.every((o) => o.type !== 'window')}
+                onCommit={(sill) => editOpenings({ sill })}
+              />
+              {(oneType === 'door' || oneType === 'window') && (
+                <Segmented
+                  label="Style"
+                  value={common(openings.map(effectiveStyle))}
+                  options={(oneType === 'door' ? DOOR_STYLES : WINDOW_STYLES).map((s) => ({ id: s as string, label: cap(s) }))}
+                  onChange={(style) =>
+                    // A double door needs room for two leaves.
+                    editOpenings(style === 'double' && oneType === 'door' ? { style, width: Math.max(1.4, ...openings.map((o) => o.width)) } : { style })
+                  }
+                />
+              )}
+              {oneType !== 'arch' && oneType !== null && (
+                <ColorSwatches
+                  label="Frame colour"
+                  items={FRAME_COLORS}
+                  value={common(openings.map((o) => o.frameColor ?? FRAME_COLORS[0].id))}
+                  onPick={(frameColor) => editOpenings({ frameColor })}
+                />
+              )}
+              {oneType === 'door' && (
+                <ColorSwatches
+                  label="Door colour"
+                  items={LEAF_COLORS}
+                  value={common(openings.map((o) => o.leafColor ?? LEAF_COLORS[0].id))}
+                  onPick={(leafColor) => editOpenings({ leafColor })}
+                />
+              )}
+              {openings.every((o) => o.type === 'door') && (
+                <>
+                  <Toggle
+                    label="Opens to the other side"
+                    checked={openings.every((o) => o.flip.swing)}
+                    onChange={(swing) => editOpenings({ flip: { swing } })}
+                  />
+                  <Toggle
+                    label="Hinge on the other side"
+                    checked={openings.every((o) => o.flip.side)}
+                    onChange={(side) => editOpenings({ flip: { side } })}
+                  />
+                </>
+              )}
+            </Section>
+          )}
+
+          {canDelete && (
+            <div className="ins-footer">
+              <button type="button" className="pill" onClick={deleteSelection}>
+                Delete {total > 1 ? 'selected' : ''}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </aside>
+  );
+}

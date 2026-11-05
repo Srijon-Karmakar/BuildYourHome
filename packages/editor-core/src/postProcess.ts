@@ -1,6 +1,7 @@
 import type { Scene } from '@hd/scene-schema';
 import { OPENING_END_MARGIN_M } from '@hd/geometry';
 import { OPENING_GAP_M, OPENING_HEAD_CLEARANCE_M, wallLength } from './openings';
+import { restackLevels } from './commands/levels';
 import { syncRooms } from './rooms';
 
 /**
@@ -8,6 +9,9 @@ import { syncRooms } from './rooms';
  * Order matters: walls → nodes → openings → items → rooms (rooms last: they depend on the walls).
  */
 export function postProcess(d: Scene): void {
+  // 0. Floors are stacked without gaps (changing a floor's height moves the ones above).
+  restackLevels(d);
+
   // 1. Walls with missing/identical endpoints.
   for (const [id, w] of Object.entries(d.walls)) {
     if (w.a === w.b || !d.nodes[w.a] || !d.nodes[w.b]) delete d.walls[id];
@@ -59,6 +63,9 @@ export function postProcess(d: Scene): void {
   for (const [id, it] of Object.entries(d.items)) {
     if (!d.levels[it.levelId]) delete d.items[id];
   }
+
+  // 4b. Roofs on missing floors.
+  for (const [id, r] of Object.entries(d.roofs)) if (!d.levels[r.levelId]) delete d.roofs[id];
 
   // 5. Rooms are derived from closed wall loops (identity carried across edits).
   syncRooms(d);

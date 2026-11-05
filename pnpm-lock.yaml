@@ -38,6 +38,9 @@ importers:
       '@fontsource-variable/outfit':
         specifier: ^5.3.0
         version: 5.3.0
+      '@hd/assets':
+        specifier: workspace:*
+        version: link:../../packages/assets
       '@hd/editor-core':
         specifier: workspace:*
         version: link:../../packages/editor-core
@@ -94,8 +97,20 @@ importers:
         specifier: ^3.0.0
         version: 3.2.7
 
+  packages/assets:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7
+
   packages/editor-core:
     dependencies:
+      '@hd/assets':
+        specifier: workspace:*
+        version: link:../assets
       '@hd/geometry':
         specifier: workspace:*
         version: link:../geometry

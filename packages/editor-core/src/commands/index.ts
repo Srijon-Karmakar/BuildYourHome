@@ -2,4 +2,7 @@ export * from './walls';
 export * from './levels';
 export * from './rooms';
 export * from './openings';
+export * from './scene';
+export * from './items';
+export * from './roof';
 export * from './batch';

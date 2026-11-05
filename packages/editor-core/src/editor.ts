@@ -188,7 +188,8 @@ export function createEditor(initial: Scene): Editor {
     },
 
     setActiveLevel(id) {
-      if (store.getState().scene.levels[id]) store.setState({ activeLevelId: id });
+      const s = store.getState();
+      if (s.scene.levels[id] && s.activeLevelId !== id) store.setState({ activeLevelId: id, selection: [] });
     },
   };
 }

@@ -48,6 +48,15 @@ export const IconTrash = () =>
     </>,
   );
 
+export const IconFurniture = () =>
+  wrap(
+    <>
+      <path d="M5 11V8a2 2 0 012-2h10a2 2 0 012 2v3" />
+      <path d="M3.5 17v-4a1.5 1.5 0 013 0v1.5h11V13a1.5 1.5 0 013 0v4" />
+      <path d="M6 17v2M18 17v2M6.5 14.5h11" />
+    </>,
+  );
+
 export const IconDoor = () =>
   wrap(
     <>

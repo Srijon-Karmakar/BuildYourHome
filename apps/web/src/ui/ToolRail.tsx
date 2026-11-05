@@ -1,6 +1,6 @@
 import { useStore } from 'zustand';
 import { editor, useUi } from '../plan/session';
-import { IconDoor, IconRedo, IconSelect, IconUndo, IconWall, IconWindow } from './icons';
+import { IconDoor, IconFurniture, IconRedo, IconSelect, IconUndo, IconWall, IconWindow } from './icons';
 import { SnapMenu } from './SnapMenu';
 
 export function ToolRail() {
@@ -10,6 +10,8 @@ export function ToolRail() {
   const canUndo = useStore(editor.store, (s) => s.canUndo);
   const canRedo = useStore(editor.store, (s) => s.canRedo);
   const editable = view !== '3d';
+  const furnitureOpen = useUi((s) => s.furnitureOpen);
+  const setFurnitureOpen = useUi((s) => s.setFurnitureOpen);
 
   return (
     <nav className="rail" aria-label="Tools">
@@ -57,6 +59,18 @@ export function ToolRail() {
       >
         <IconWindow />
         <span>Window</span>
+      </button>
+
+      <button
+        type="button"
+        className="tool"
+        title="Furniture catalog"
+        aria-pressed={editable && (furnitureOpen || tool === 'place')}
+        disabled={!editable}
+        onClick={() => setFurnitureOpen(!furnitureOpen)}
+      >
+        <IconFurniture />
+        <span>Furniture</span>
       </button>
 
       <div className="rail-sep" />

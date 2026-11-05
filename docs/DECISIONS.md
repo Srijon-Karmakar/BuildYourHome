@@ -111,6 +111,12 @@ Format: Status · Context · Decision · Consequences. Never delete an ADR; mark
   - Ceilings are rendered in walk mode only.
 - **Consequences:** + measurable, tunable, offline. − three code paths to keep visually consistent; procedural wood looks good but generic; draw-call counts include post passes.
 
+---
+## ADR-018 — Furniture: data-only catalog package, code-built placeholder models, snap-aware placement solver
+- **Status:** Accepted (P1-05/06)
+- **Decision:** The catalog is plain data in `@hd/assets` (no Three.js) so editor-core can place items and compute footprints/colliders in Node. Placeholder models are procedural (ADR-013), cloned from per-(asset, colour) templates. All snapping logic (grid, back-to-wall, wall mounting, ceiling) lives in one pure function `solvePlacement`, used by the placement tool, dragging and the demo scene, and unit tested. Item position y is relative to the floor of its level.
+- **Consequences:** + testable, swap-in-GLB friendly, single source of truth for "where does this go". − Models are generic; collision uses footprint edges only; placement doesn't avoid other furniture.
+
 ## Template
 ```
 ## ADR-0xx — Title

@@ -1,12 +1,25 @@
 import { activePlan } from '../plan/PlanCanvas';
 import { useUi, type ViewMode } from '../plan/session';
 import { DisplayMenu } from './DisplayMenu';
+import { useSaveStatus } from '../lib/persistence';
+import { HomeMenu } from './HomeMenu';
 
 const VIEWS: Array<{ id: ViewMode; label: string; title: string }> = [
   { id: '2d', label: 'Plan', title: 'Floor plan only' },
   { id: 'split', label: 'Split', title: 'Plan and 3D side by side' },
   { id: '3d', label: '3D', title: '3D view only' },
 ];
+
+const SAVE_TEXT = { idle: '', saving: 'Saving…', saved: 'Saved', error: 'Could not save here — use Home › Save to file' } as const;
+
+function SaveState() {
+  const status = useSaveStatus((s) => s.status);
+  return (
+    <small className={`save-state ${status}`} role="status">
+      {SAVE_TEXT[status]}
+    </small>
+  );
+}
 
 export function TopBar() {
   const view = useUi((s) => s.view);
@@ -17,7 +30,10 @@ export function TopBar() {
 
   return (
     <header className="topbar">
-      <div className="wordmark">Home Designer</div>
+      <div className="brand">
+        <div className="wordmark">Home Designer</div>
+        <SaveState />
+      </div>
 
       <div className="segmented" role="group" aria-label="View">
         {VIEWS.map((v) => (
@@ -35,6 +51,7 @@ export function TopBar() {
       </div>
 
       <div className="topbar-right">
+        <HomeMenu />
         <DisplayMenu />
         <button
           type="button"

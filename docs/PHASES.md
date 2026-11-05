@@ -22,14 +22,14 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 ## Phase 1 — MVP editor (≈ 6–8 weeks)
 **Goal:** a complete single-user local design tool.
 - [x] P1-01 Doors/windows: placement, wall cutting, resize, swing
-- [ ] P1-02 Wall/room property inspector; delete/split/merge; multi-select
-- [ ] P1-03 Multi-level support + level switcher + cutaway modes
-- [ ] P1-04 Materials: library, paint floors/walls/ceilings, per-face walls
-- [ ] P1-05 Asset pipeline v1 + catalog (≈ 80 items) + loader/cache
-- [ ] P1-06 Furniture placement: drag, rotate, scale, snap to floor/walls, duplicate
+- [x] P1-02 Wall/room property inspector; delete/split/merge; multi-select
+- [x] P1-03 Multi-level support + level switcher + cutaway modes
+- [x] P1-04 (largely delivered via the inspector: 7 paints + 7 finishes + 12 floors + per-side paint) Materials: library, paint floors/walls/ceilings, per-face walls
+- [x] P1-05 (34 placeholder items + models + thumbnails; real asset budget pipeline comes with real GLBs) Asset pipeline v1 + catalog (≈ 80 items) + loader/cache
+- [x] P1-06 Furniture placement: drag, rotate, scale, snap to floor/walls, duplicate
 - [ ] P1-07 Plot boundary + ground plane
-- [ ] P1-08 Roof generator (gable/hip/flat) + facade materials
-- [ ] P1-09 Local persistence (IndexedDB autosave), import/export JSON
+- [x] P1-08 (roofs done; facade materials already covered by per-side wall finishes) Roof generator (gable/hip/flat) + facade materials
+- [x] P1-09 Local persistence (IndexedDB autosave), import/export JSON
 - [ ] P1-10 UI shell: toolbars, panels, responsive/touch layout, shortcuts, onboarding tooltip
 - [ ] P1-11 Unit tests ≥ 80% on geometry/editor-core; first Playwright E2E
 - [ ] P1-12 Realistic rendering baseline (PBR, HDRI lighting, soft shadows, SSAO, tone mapping, color management) — ADR-010

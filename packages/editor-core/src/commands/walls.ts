@@ -154,7 +154,10 @@ export function addWall(params: AddWallParams, rng?: () => number): Command {
       // 3. Lay the new wall as one segment between consecutive joints.
       const kind = params.kind ?? 'interior';
       const thickness =
-        params.thickness ?? (kind === 'interior' ? WALL_THICKNESS_INTERIOR_M : WALL_THICKNESS_EXTERIOR_M);
+        params.thickness ??
+        (kind === 'interior'
+          ? (d.defaults?.interiorThickness ?? WALL_THICKNESS_INTERIOR_M)
+          : (d.defaults?.exteriorThickness ?? WALL_THICKNESS_EXTERIOR_M));
       for (let i = 0; i + 1 < chain.length; i++) {
         const a = chain[i]!;
         const b = chain[i + 1]!;
@@ -188,13 +191,92 @@ export function moveNode(nodeId: Id, p: Vec2): Command {
   };
 }
 
+/** Largest sine of the angle between two wall directions that still counts as "in a straight line". */
+const COLLINEAR_SIN = 1e-4;
+
+/**
+ * Heal straight joints: a node left with exactly two walls that continue in a straight line, with identical
+ * properties, is dissolved and the two walls become one (the first wall keeps its id). Openings move
+ * across with corrected offsets (and mirrored swing/hinge when a wall's direction had to be reversed).
+ * Called after deleting walls, so removing a divider restores the wall it had split.
+ */
+export function mergeCollinearAt(d: Scene, nodeIds: Iterable<Id>): void {
+  for (const nid of nodeIds) {
+    const n = d.nodes[nid];
+    if (!n) continue;
+    const inc = Object.values(d.walls).filter((w) => w.a === nid || w.b === nid);
+    if (inc.length !== 2) continue;
+    const [w1, w2] = inc as [Wall, Wall];
+    const o1 = w1.a === nid ? w1.b : w1.a; // far ends
+    const o2 = w2.a === nid ? w2.b : w2.a;
+    const n1 = d.nodes[o1];
+    const n2 = d.nodes[o2];
+    if (!n1 || !n2 || o1 === o2) continue;
+
+    const v1: Vec2 = [n1.p[0] - n.p[0], n1.p[1] - n.p[1]];
+    const v2: Vec2 = [n2.p[0] - n.p[0], n2.p[1] - n.p[1]];
+    const len1 = Math.hypot(v1[0], v1[1]);
+    const len2 = Math.hypot(v2[0], v2[1]);
+    if (len1 < 1e-6 || len2 < 1e-6) continue;
+    const sin = Math.abs(v1[0] * v2[1] - v1[1] * v2[0]) / (len1 * len2);
+    const dot = v1[0] * v2[0] + v1[1] * v2[1];
+    if (sin > COLLINEAR_SIN || dot >= 0) continue; // not straight through the node
+
+    // New wall runs o1 → o2. w1 is reversed if it ran n → o1; w2 is reversed if it ran o2 → n.
+    const rev1 = w1.a === nid;
+    const rev2 = w2.b === nid;
+    const faces = (w: Wall, rev: boolean) => (rev ? [w.materialB.id, w.materialA.id] : [w.materialA.id, w.materialB.id]);
+    const f1 = faces(w1, rev1);
+    const f2 = faces(w2, rev2);
+    if (
+      w1.thickness !== w2.thickness ||
+      w1.height !== w2.height ||
+      w1.kind !== w2.kind ||
+      w1.levelId !== w2.levelId ||
+      f1[0] !== f2[0] ||
+      f1[1] !== f2[1]
+    ) {
+      continue;
+    }
+
+    for (const o of Object.values(d.openings)) {
+      if (o.wallId === w1.id) {
+        o.offset = rev1 ? len1 - o.offset : o.offset;
+        if (rev1) o.flip = { swing: !o.flip.swing, side: !o.flip.side };
+      } else if (o.wallId === w2.id) {
+        o.offset = len1 + (rev2 ? len2 - o.offset : o.offset);
+        if (rev2) o.flip = { swing: !o.flip.swing, side: !o.flip.side };
+        o.wallId = w1.id;
+      }
+    }
+    if (rev1) {
+      const a = w1.materialA;
+      w1.materialA = w1.materialB;
+      w1.materialB = a;
+    }
+    w1.a = o1;
+    w1.b = o2;
+    delete d.walls[w2.id];
+    delete d.nodes[nid];
+  }
+}
+
 export function removeWalls(wallIds: Id[]): Command {
   return {
     type: 'RemoveWalls',
     label: wallIds.length > 1 ? 'Delete walls' : 'Delete wall',
     apply(d) {
-      for (const id of wallIds) delete d.walls[id];
-      // postProcess removes orphan nodes, openings and broken rooms.
+      const touched = new Set<Id>();
+      for (const id of wallIds) {
+        const w = d.walls[id];
+        if (w) {
+          touched.add(w.a);
+          touched.add(w.b);
+        }
+        delete d.walls[id];
+      }
+      // Re-join walls that a deleted wall had been splitting. (postProcess removes orphan nodes etc.)
+      mergeCollinearAt(d, touched);
     },
   };
 }
@@ -202,12 +284,26 @@ export function removeWalls(wallIds: Id[]): Command {
 export type WallProps = Partial<Pick<Wall, 'thickness' | 'height' | 'kind' | 'materialA' | 'materialB'>>;
 
 export function setWallProps(wallId: Id, props: WallProps): Command {
+  return setWallsProps([wallId], props);
+}
+
+/** Edit several walls at once (one undo step). Thickness/height are clamped to sane limits. */
+export function setWallsProps(wallIds: readonly Id[], props: WallProps): Command {
   return {
     type: 'SetWallProps',
-    label: 'Edit wall',
+    label: wallIds.length > 1 ? 'Edit walls' : 'Edit wall',
     apply(d) {
-      const w = d.walls[wallId];
-      if (w) Object.assign(w, props);
+      const p: WallProps = { ...props };
+      if (p.thickness !== undefined) p.thickness = Math.min(1, Math.max(0.05, p.thickness));
+      if (p.height !== undefined) p.height = Math.min(10, Math.max(1, p.height));
+      for (const id of wallIds) {
+        const w = d.walls[id];
+        if (!w) continue;
+        Object.assign(w, p);
+        // A material object must never be shared between two walls.
+        if (p.materialA) w.materialA = { ...p.materialA };
+        if (p.materialB) w.materialB = { ...p.materialB };
+      }
     },
   };
 }
