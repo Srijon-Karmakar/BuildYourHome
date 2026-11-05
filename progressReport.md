@@ -18,16 +18,23 @@
 ## Dashboard
 | Phase | Status | Progress |
 |---|---|---|
-| Phase 0 — Prototype / spike | Not started | 0% |
-| Phase 1 — MVP editor | Not started | 0% |
-| Phase 2 — Interior depth + accounts | Not started | 0% |
-| Phase 3 — Exterior & lighting | Not started | 0% |
+| Phase 0 — Prototype / spike | Done (verdict GO) | 100% |
+| Phase 1 — MVP editor | Code complete; owner benchmark with furnished sample pending | ~97% |
+| Phase 2 — Interior depth + accounts | Built; Supabase live test + migrations 0002/0003 pending (owner) | ~90% |
+| Phase 3 — Exterior & lighting | In progress: stairs, balcony/porch, sun/sky, photo textures done; garden, export, interior lights, catalog growth to do | ~45% |
 | Phase 4 — Mobile app + polish | Not started | 0% |
 | Phase 5 — Growth features | Not started | 0% |
 
-Planning/documentation: **Done** (2026-11-05)
+Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-05 (end of session).
 
 ## Log
+
+### [2026-11-05] Session close-out — state for tomorrow
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Everything described in the entries below is committed to disk and passing (285/285 browser checks; unit tests green; lint, typecheck, build clean). No half-finished work.
+- **Done this session (newest first):** balcony/porch + realism pass (ADR-021) · opening curtain + quick tour · select/edit in 3D, edit-card column, 102-item catalog, more door/window styles + materials · stairs (ADR-020) · redeem codes · plot & site (P1-07) · coverage script.
+- **Where to look first tomorrow:** `CONTEXT.md` section 2, block ">>> RESUME HERE <<<".
+- **Next step:** P3-01 garden "draw an area" tool (lawn / paving / driveway / path + drawn fence runs), or P3-05 export if the owner prefers; owner items are listed in CONTEXT (phone benchmark at Medium, Supabase migrations + redeem code + live test).
 
 ### [2026-11-05] P3-02 finished (balcony / porch) + realism pass (P3-04 first slice, P3-03 sun)
 - **Model/Author:** Claude Sonnet 5.5

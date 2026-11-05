@@ -70,7 +70,7 @@ async function startEditor(): Promise<void> {
   const v = params.get('view');
   if (v === '2d' || v === 'split' || v === '3d') useUi.getState().setView(v as ViewMode);
   if (params.has('walk')) useUi.getState().setWalk(true);
-  // Opening curtain: never in test / demo links (unless `?curtain=1`). First visit = full with a button, later = brief.
+  // Opening curtain: never in test / demo links (unless `?curtain=1`). Always the full splash with a button.
   {
     const plain = ['view', 'walk', 'perf', 'persist', 'demo', 'bench', 'fresh', 'welcome'].some((k) => params.has(k));
     let visited = false;
@@ -85,8 +85,9 @@ async function startEditor(): Promise<void> {
       /* treat as a first visit */
     }
     if (params.has('curtain') || (!plain && !optOut)) {
+      // Always the full splash with the "Start designing" button (the workspace opens only after it is clicked).
       const first = params.get('curtain') === 'full' || !visited;
-      useUi.setState({ curtain: first ? 'full' : 'brief', tourPending: params.has('tour') || (first && !toured) });
+      useUi.setState({ curtain: 'full', tourPending: params.has('tour') || (first && !toured) });
       try {
         localStorage.setItem('hd.visited', '1');
       } catch {

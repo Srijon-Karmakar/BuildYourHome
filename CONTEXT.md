@@ -3,14 +3,20 @@
 > Purpose: let any model or developer resume work with **zero chat history**.
 > Rule: **update this file whenever a decision, status, or "next step" changes.** Keep it under ~150 lines.
 
-_Last updated: 2026-11-05 by Claude Sonnet 5.5_
+_Last updated: 2026-11-05 (end of session) by Claude Sonnet 5.5_
 
 ## 1. One-paragraph summary
 HomeDesigner is a cross-platform (web + Capacitor mobile app) tool to design a home's interior and exterior from a 2D plan, auto-generate it in 3D, and explore it via orbit and first-person walkthrough. Stack: React + TypeScript + Three.js/React Three Fiber, Capacitor for mobile, JSON scene graph as source of truth, glTF assets, Supabase (proposed) backend.
 
 ## 2. Current state
-- **Phase:** Phase 1 (MVP editor) — starting. Phase 0 done.
-- **Last completed task:** P0-03 — `@hd/editor-core` (Immer-patch undo/redo, transactions, wall/level commands, postProcess invariants; 14 tests incl. property test). Earlier: P0-02 scene-schema; P0-01 hello-cube (owner: smooth on desktop+phone, "not realistic" yet — expected, see P0-10/P1-12).
+- **>>> RESUME HERE (end of session 2026-11-05) <<<**
+  - **Phase:** Phase 0, 1 and 2 are built; **Phase 3 is in progress** (P3-02 stairs + balcony done, P3-03 sun/sky + P3-04 realism first slice done). Phase 4 (mobile / Capacitor / real ads + billing) not started.
+  - **Tests at last run:** 285/285 browser checks (`pnpm e2e`, needs `pnpm dev` running on :5173), unit tests geometry 72 / editor-core 142 / web 79 / assets 9 / schema 8; typecheck, lint, build clean. Coverage `pnpm coverage` (packages 91-98 %).
+  - **Next task to do (owner agreed):** **P3-01 garden = a "draw an area" tool** (like the balcony tool: click corners, pick a surface; for lawn / paving / driveway / path, plus fence runs drawn as lines). Alternative the owner may prefer first: **P3-05 export** (PNG of the 3D view, scaled PDF plan, DXF). Then P3-03 interior lights + night polish, P3-06 catalog growth (now 102 items, target ~250), P3-04 more realism.
+  - **WAITING ON OWNER (do not block on these):** (1) run **Display > Run benchmark on the phone at Medium** and paste the report (photo textures + sky are untested on hardware; fallback plan in ADR-021); also Phase 1 benchmark with the furnished sample. (2) Supabase: run `0002_delete_account.sql` and `0003_redeem_codes.sql`, create a redeem code (template at the bottom of 0003), set Auth Site/Redirect URLs, one live sign-up/save/share test with a real email. (3) Google sign-in needs the owner's OAuth client; privacy/terms pages before public launch.
+  - **How the owner works:** non-technical product owner, answers short option questions, wants clean minimal UI, asks "what's next" often; ask with options before big or ambiguous work; always update progressReport.md / CONTEXT.md / docs/PHASES.md after each task (CLAUDE.md rule). Reply in plain short language.
+- **Tooling gotchas (Windows):** long heredocs with quotes break in Git Bash: write files with the Write tool and run python patch scripts from the scratchpad; the Vite watcher sometimes serves a stale module, restart `pnpm dev`; never `taskkill` all node processes. Test links skip the curtain / tour; the e2e harness sets `localStorage hd.nocurtain=1` and `hd.backend=local` (dev builds only).
+- **Feature map (where things live):** plan tools in `apps/web/src/plan/PlanController.ts` (+ `session.ts`, `render.ts`); 3D in `apps/web/src/view3d/` (Scene3D, *Mesh, materials, photoTextures, sun, pick); walker in `walk/`; editor commands in `packages/editor-core/src/commands/` (walls, openings, items, levels, roof, plot, stairs, balconies, scene); pure geometry in `packages/geometry/src/` (wall, room, roof, stairs, balcony, collision); catalog in `packages/assets`; accounts/cloud in `apps/web/src/cloud/` + `services/supabase/migrations/`. Tools/keys: V select, W wall, D door, N window, S stairs, B balcony, F fit, R rotate, Esc cancel.
 - **Done:** P0-04 2D plan editor, P0-05 mitered walls + live 3D + 2D/Split/3D switcher (owner tested: ok), P0-06 room detection + floors (rooms auto-follow wall loops, keep names; 2D labels with m²; 3D floors). 66 unit tests pass. P0-06 visuals awaiting owner test.
 - **P0-06b done:** `addWall` auto-splits at T/X junctions and existing nodes; new `wall` snap kind (ray∩wall, wall body). 76 unit tests pass, incl. a no-unjoined-crossings property test. Awaiting owner test.
 - **Known gaps:** dragging a corner onto another wall doesn't join/split. (Split halves now re-merge when the junction wall is deleted.)

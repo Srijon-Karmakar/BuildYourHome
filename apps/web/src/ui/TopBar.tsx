@@ -4,6 +4,7 @@ import { AccountMenu } from './AccountMenu';
 import { DisplayMenu } from './DisplayMenu';
 import { useSaveStatus } from '../lib/persistence';
 import { HomeMenu } from './HomeMenu';
+import { BrandLogo } from './BrandLogo';
 
 const VIEWS: Array<{ id: ViewMode; label: string; title: string }> = [
   { id: '2d', label: 'Plan', title: 'Floor plan only' },
@@ -32,7 +33,9 @@ export function TopBar() {
   return (
     <header className="topbar">
       <div className="brand">
-        <div className="wordmark">Home Designer</div>
+        <div className="wordmark">
+          <BrandLogo />
+        </div>
         <SaveState />
       </div>
 
