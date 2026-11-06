@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { AdaptiveDpr, Environment, Lightformer, OrbitControls, Sky } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useStore } from 'zustand';
@@ -19,6 +19,8 @@ import { OpeningMesh } from './OpeningMesh';
 import { PerfProbe } from './PerfProbe';
 import { registerCapture } from '../export/capture3d';
 import { setTextureRedraw } from './photoTextures';
+import { lampLevel, lampsOf, nearestLamps } from './lights';
+import { setLampGlow } from './furniture/kit';
 import { sunAt } from './sun';
 import { canPick, CLICK_SLOP_PX, pickObject } from './pick';
 import { RoofMesh } from './RoofMesh';
@@ -54,6 +56,46 @@ function CaptureBridge() {
     [gl, scene, camera, invalidate],
   );
   return null;
+}
+
+/**
+ * Lamps. Their shades glow with the lamp level (all tiers, free); on Medium / High a small pool of real point lights
+ * is moved onto the lamps nearest the camera. The pool never changes size, so no shaders are rebuilt while you edit.
+ */
+function InteriorLights({ tier }: { tier: Tier }) {
+  const n = TIERS[tier].lamps;
+  const hour = useStore(editor.store, (s) => s.scene.lighting.timeOfDay);
+  const items = useStore(editor.store, (s) => s.scene.items);
+  const mode = useUi((s) => s.lights);
+  const invalidate = useThree((s) => s.invalidate);
+  const level = lampLevel(mode, sunAt(hour));
+  const lamps = useMemo(() => lampsOf(editor.getState().scene), [items]); // eslint-disable-line react-hooks/exhaustive-deps
+  const refs = useRef<Array<THREE.PointLight | null>>([]);
+
+  useEffect(() => {
+    setLampGlow(level);
+    invalidate();
+  }, [level, invalidate]);
+
+  useFrame(({ camera }) => {
+    const near = level > 0.02 ? nearestLamps(lamps, [camera.position.x, camera.position.y, camera.position.z], n) : [];
+    refs.current.forEach((light, i) => {
+      if (!light) return;
+      const lamp = near[i];
+      if (lamp) {
+        light.position.set(...lamp.pos);
+        light.intensity = lamp.power * 0.75 * level;
+      } else light.intensity = 0;
+    });
+  });
+
+  return (
+    <>
+      {Array.from({ length: n }, (_, i) => (
+        <pointLight key={i} ref={(l) => { refs.current[i] = l; }} color="#ffd9a0" intensity={0} distance={9} decay={2} />
+      ))}
+    </>
+  );
 }
 
 /** Photo textures arrive after first paint; the demand-driven canvas needs a nudge to show them. */
@@ -324,6 +366,7 @@ function Lighting({ tier }: { tier: Tier }) {
         <Lightformer form="rect" intensity={1.0} position={[9, 3, 5]} rotation-y={-Math.PI / 2} scale={[12, 6, 1]} />
         <Lightformer form="rect" intensity={0.7} position={[0, 3, -9]} scale={[14, 6, 1]} />
       </Environment>
+      {sun.night && <directionalLight position={[-6, 14, -8]} intensity={0.28} color="#9fb4ff" />}
       {/* Keyed by shadow-map size: three can't resize an existing shadow map in place. */}
       <directionalLight
         key={`${cfg.shadows}-${cfg.shadowMapSize}`}
@@ -400,6 +443,7 @@ export function Scene3D() {
     >
       <Lighting tier={tier} />
       <TextureRedraw />
+      <InteriorLights tier={tier} />
       <CaptureBridge />
       <Ground tier={tier} />
       <Zones tier={tier} />

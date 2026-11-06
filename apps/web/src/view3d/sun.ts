@@ -46,7 +46,7 @@ export function sunAt(hours: number): SunState {
     elevationDeg: el,
     intensity: 1.45 * strength * (0.72 + 0.28 * (el / MAX_ELEVATION_DEG)),
     color: mix('#fff4e2', '#ffa860', low),
-    env: day ? 0.2 + 0.5 * strength : 0.14 + 0.08 * twilight,
+    env: day ? 0.2 + 0.5 * strength : 0.2 + 0.08 * twilight,
     background: bg,
     hour,
     night: !day,

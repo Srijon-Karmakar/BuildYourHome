@@ -15,11 +15,11 @@ describe('material catalog', () => {
   });
 
   it('offers a good choice for every surface', () => {
-    expect(paintMaterials().length).toBeGreaterThanOrEqual(12);
-    expect(finishMaterials().length).toBeGreaterThanOrEqual(10);
-    expect(materialsFor('floor').length).toBeGreaterThanOrEqual(18);
-    expect(materialsFor('ground').length).toBeGreaterThanOrEqual(10);
-    expect(materialsFor('roof').length).toBeGreaterThanOrEqual(11);
+    expect(paintMaterials().length).toBeGreaterThanOrEqual(26);
+    expect(finishMaterials().length).toBeGreaterThanOrEqual(20);
+    expect(materialsFor('floor').length).toBeGreaterThanOrEqual(30);
+    expect(materialsFor('ground').length).toBeGreaterThanOrEqual(18);
+    expect(materialsFor('roof').length).toBeGreaterThanOrEqual(19);
   });
 
   it('names inside one picker are distinct (they are the swatch labels)', () => {

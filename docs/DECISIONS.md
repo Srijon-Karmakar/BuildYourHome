@@ -142,6 +142,12 @@ Format: Status · Context · Decision · Consequences. Never delete an ADR; mark
 - **Decision:** `export/drawing.ts` turns a floor into plain primitives (polygons + text on named layers: WALLS, DOORS, WINDOWS, ROOMS, FURNITURE, STAIRS, BALCONY, GARDEN, PLOT, DIMENSIONS). `export/pdf.ts` is a ~150-line vector PDF writer (built-in Helvetica, Latin-1) used by `pdfPlan.ts` (A4 / A3, one page per floor, standard scale 1:20…1:1000 picked to fit, title block, scale bar, north arrow, overall dimensions). `export/dxf.ts` writes AutoCAD R12 ASCII (POLYLINE / TEXT, millimetres, north up, layers prefixed by floor name). The 3D PNG re-renders one frame of the live canvas at up to 2.5x (max 4096 px) via `export/capture3d.ts`; it omits the screen-space AO pass.
 - **Consequences:** + no dependency, deterministic, unit-tested file structure (xref offsets, balanced DXF sections); - text is Latin-1 only (other scripts become "?" in the PDF), no hatch patterns, DXF has no blocks / dimensions entities (plain lines and text); - saved viewpoints and layer toggles from FR-905 are still open.
 
+## ADR-023 — Lamps: free glow everywhere, a fixed pool of real lights on Medium / High
+- **Status:** Accepted (Phase 3, P3-03)
+- **Context:** Night view needs lit rooms, but real lights multiply shader cost and changing their count recompiles shaders (a visible hitch on phones).
+- **Decision:** All light items (floor / table / arc lamps, ceiling light, pendant, chandelier, fan, wall light, garden lamp post) have a spec in `view3d/lights.ts`. Their shades are emissive materials registered in `furniture/kit.ts`; one call `setLampGlow(level)` scales them (cheap, every tier). On Medium (3) and High (6) a **fixed pool** of unshadowed PointLights is moved each rendered frame onto the lamps nearest the camera (pool size never changes, so no shader rebuilds); Low has none. `Display > Lamps: auto / on / off` (auto = on as daylight fades; remembered in localStorage). A dim blue directional "moon" light is added at night, ambient environment never drops below 0.2.
+- **Consequences:** + night looks lit with predictable cost; - lights have no shadows and do not respect walls (a lamp can faintly light the next room, limited by a 9 m range); - at most 3 / 6 lamps cast real light at once.
+
 ## Template
 ```
 ## ADR-0xx — Title

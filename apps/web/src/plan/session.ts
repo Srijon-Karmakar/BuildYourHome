@@ -39,6 +39,9 @@ interface UiState {
   hasWalked: boolean;
   helpOpen: boolean;
   setHelpOpen(open: boolean): void;
+  /** Lamps: on when it gets dark (auto), always on, or off. Remembered. */
+  lights: 'auto' | 'on' | 'off';
+  setLights(m: 'auto' | 'on' | 'off'): void;
   /** Draw roofs in 3D (turn off to look into the house from above). */
   showRoof: boolean;
   toggleRoof(): void;
@@ -99,6 +102,22 @@ interface UiState {
 
 export const useUi = create<UiState>((set) => ({
   showRoof: true,
+  lights: (() => {
+    try {
+      const v = localStorage.getItem('hd.lights');
+      return v === 'on' || v === 'off' ? v : 'auto';
+    } catch {
+      return 'auto';
+    }
+  })(),
+  setLights: (lights) => {
+    try {
+      localStorage.setItem('hd.lights', lights);
+    } catch {
+      /* ignore */
+    }
+    set({ lights });
+  },
   toggleRoof: () => set((s) => ({ showRoof: !s.showRoof })),
   pro: (() => {
     try {

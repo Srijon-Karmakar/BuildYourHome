@@ -6,7 +6,7 @@
  * Local frame of every item: origin at the centre of its floor footprint (ceiling items: at the ceiling,
  * wall items: at the back face centre at `mountHeight`), +x = width, +z = FRONT, +y up. Sizes in metres.
  */
-export type AssetCategory = 'living' | 'bedroom' | 'dining' | 'bathroom' | 'office' | 'decor' | 'lighting' | 'plants' | 'outdoor';
+export type AssetCategory = 'living' | 'bedroom' | 'dining' | 'bathroom' | 'office' | 'decor' | 'lighting' | 'plants' | 'outdoor' | 'appliances' | 'kids';
 export type AssetTier = 'free' | 'premium' | 'rewarded';
 export type MountKind = 'floor' | 'wall' | 'ceiling';
 
@@ -44,6 +44,8 @@ export const CATEGORIES: Array<{ id: AssetCategory; name: string }> = [
   { id: 'decor', name: 'Decor' },
   { id: 'lighting', name: 'Lighting' },
   { id: 'plants', name: 'Plants' },
+  { id: 'kids', name: 'Kids' },
+  { id: 'appliances', name: 'Appliances' },
   { id: 'outdoor', name: 'Outdoor & garden' },
 ];
 
@@ -211,6 +213,131 @@ export const CATALOG: readonly Asset[] = [
   a({ id: 'water-tank', name: 'Water tank', category: 'outdoor', size: [1.2, 1.2, 1.4], shape: 'round', tags: ['sintex', 'storage', 'terrace'] }),
   a({ id: 'stepping-stones', name: 'Stepping stones', category: 'outdoor', size: [0.5, 2.0, 0.05], solid: false, tags: ['path', 'garden'] }),
   a({ id: 'dustbin', name: 'Dustbin', category: 'outdoor', size: [0.4, 0.4, 0.8], shape: 'round', solid: false, tags: ['trash', 'waste'] }),
+
+  // ---- Batch 3 · living
+  a({ id: 'diwan', name: 'Diwan', category: 'living', size: [1.9, 0.9, 0.75], colors: FABRICS, tags: ['daybed', 'divan', 'settee', 'seat'] }),
+  a({ id: 'recliner', name: 'Recliner', category: 'living', size: [0.9, 0.95, 1.0], colors: FABRICS, tier: 'premium', tags: ['seat', 'chair', 'armchair'] }),
+  a({ id: 'chaise', name: 'Chaise longue', category: 'living', size: [0.8, 1.7, 0.8], colors: FABRICS, tags: ['seat', 'lounge'] }),
+  a({ id: 'glass-table', name: 'Glass coffee table', category: 'living', size: [1.2, 0.65, 0.42], solid: false, tags: ['table', 'centre table'] }),
+  a({ id: 'sideboard', name: 'Sideboard', category: 'living', size: [1.8, 0.45, 0.8], colors: WOODS, tags: ['storage', 'buffet', 'credenza'] }),
+  a({ id: 'room-divider', name: 'Room divider', category: 'living', size: [1.6, 0.06, 1.8], colors: WOODS, tags: ['screen', 'partition', 'jaali'] }),
+  a({ id: 'bar-cabinet', name: 'Bar cabinet', category: 'living', size: [1.0, 0.45, 1.5], colors: WOODS, tier: 'rewarded', tags: ['storage', 'drinks', 'liquor'] }),
+  a({ id: 'piano', name: 'Upright piano', category: 'living', size: [1.5, 0.65, 1.25], tier: 'premium', tags: ['music', 'keyboard'] }),
+  a({ id: 'floor-cushion', name: 'Floor cushion', category: 'living', size: [0.6, 0.6, 0.15], colors: FABRICS, solid: false, tags: ['seat', 'pillow', 'gaddi'] }),
+  // ---- Batch 3 · bedroom
+  a({ id: 'wardrobe-sliding', name: 'Sliding wardrobe', category: 'bedroom', size: [2.0, 0.62, 2.2], colors: PAINTED, tags: ['storage', 'closet', 'almirah'] }),
+  a({ id: 'kids-bed', name: 'Kids bed', category: 'bedroom', size: [0.95, 1.9, 0.75], colors: WOODS, tags: ['sleep', 'children'] }),
+  a({ id: 'toy-box', name: 'Toy box', category: 'bedroom', size: [0.8, 0.45, 0.45], colors: WOODS, solid: false, tags: ['storage', 'kids'] }),
+  a({ id: 'rocking-chair', name: 'Rocking chair', category: 'bedroom', size: [0.65, 0.9, 1.0], colors: WOODS, solid: false, tags: ['seat', 'chair'] }),
+  // ---- Batch 3 · kitchen & dining
+  a({ id: 'dining-bench', name: 'Dining bench', category: 'dining', size: [1.4, 0.35, 0.46], colors: WOODS, solid: false, tags: ['seat'] }),
+  a({ id: 'bar-counter', name: 'Bar counter', category: 'dining', size: [1.8, 0.55, 1.1], colors: PAINTED, tier: 'premium', tags: ['breakfast', 'counter'] }),
+  a({ id: 'crockery-unit', name: 'Crockery unit', category: 'dining', size: [1.2, 0.4, 1.9], colors: WOODS, tags: ['storage', 'display', 'cabinet'] }),
+  a({ id: 'wine-rack', name: 'Wine rack', category: 'dining', size: [0.6, 0.3, 1.0], colors: WOODS, tags: ['storage', 'bottles'] }),
+  a({ id: 'kitchen-shelf', name: 'Open kitchen shelf', category: 'dining', size: [1.0, 0.25, 0.5], mount: 'wall', mountHeight: 1.5, solid: false, colors: WOODS, tags: ['storage', 'spice rack'] }),
+  // ---- Batch 3 · bathroom
+  a({ id: 'bathtub-free', name: 'Freestanding bathtub', category: 'bathroom', size: [1.6, 0.8, 0.62], tier: 'premium', tags: ['bath', 'tub'] }),
+  a({ id: 'shower-glass', name: 'Glass shower cabin', category: 'bathroom', size: [1.0, 1.0, 2.1], tags: ['bath', 'wash', 'enclosure'] }),
+  a({ id: 'bidet', name: 'Bidet', category: 'bathroom', size: [0.38, 0.6, 0.4], tags: ['wc', 'health faucet'] }),
+  a({ id: 'pedestal-basin', name: 'Pedestal basin', category: 'bathroom', size: [0.55, 0.45, 0.85], tags: ['sink', 'wash'] }),
+  a({ id: 'bath-shelf', name: 'Bathroom shelf', category: 'bathroom', size: [0.6, 0.15, 0.4], mount: 'wall', mountHeight: 1.3, solid: false, tags: ['storage', 'towel'] }),
+  // ---- Batch 3 · office
+  a({ id: 'meeting-table', name: 'Meeting table', category: 'office', size: [2.4, 1.1, 0.75], colors: WOODS, tags: ['table', 'conference'] }),
+  a({ id: 'reception-desk', name: 'Reception desk', category: 'office', size: [2.0, 0.8, 1.1], colors: PAINTED, tier: 'premium', tags: ['counter', 'front desk'] }),
+  a({ id: 'office-sofa', name: 'Office sofa', category: 'office', size: [1.7, 0.8, 0.8], colors: FABRICS, tags: ['seat', 'couch', 'lounge'] }),
+  a({ id: 'lockers', name: 'Lockers', category: 'office', size: [0.9, 0.45, 1.8], colors: PAINTED, tags: ['storage', 'cabinet'] }),
+  // ---- Batch 3 · decor
+  a({ id: 'round-mirror', name: 'Round mirror', category: 'decor', size: [0.7, 0.04, 0.7], mount: 'wall', mountHeight: 1.5, solid: false, tags: ['glass'] }),
+  a({ id: 'floor-mirror', name: 'Standing mirror', category: 'decor', size: [0.6, 0.35, 1.7], solid: false, colors: WOODS, tags: ['glass', 'cheval'] }),
+  a({ id: 'grandfather-clock', name: 'Grandfather clock', category: 'decor', size: [0.5, 0.3, 2.0], tags: ['time', 'pendulum'] }),
+  a({ id: 'rangoli', name: 'Rangoli', category: 'decor', size: [1.0, 1.0, 0.012], shape: 'round', solid: false, tags: ['kolam', 'floor art', 'diwali'] }),
+  a({ id: 'door-mat', name: 'Door mat', category: 'decor', size: [0.7, 0.45, 0.02], solid: false, tags: ['entry', 'doormat'] }),
+  a({ id: 'art-triptych', name: 'Art triptych', category: 'decor', size: [1.5, 0.04, 0.6], mount: 'wall', mountHeight: 1.6, solid: false, tags: ['picture', 'frame', 'wall art'] }),
+  a({ id: 'sculpture', name: 'Sculpture', category: 'decor', size: [0.4, 0.4, 1.0], shape: 'round', tier: 'rewarded', tags: ['statue', 'art'] }),
+  a({ id: 'book-stack', name: 'Stack of books', category: 'decor', size: [0.3, 0.22, 0.18], solid: false, tags: ['books'] }),
+  // ---- Batch 3 · lighting
+  a({ id: 'lantern', name: 'Floor lantern', category: 'lighting', size: [0.32, 0.32, 0.55], shape: 'round', solid: false, tags: ['light', 'diya', 'lamp'] }),
+  a({ id: 'track-light', name: 'Track light', category: 'lighting', size: [1.2, 0.12, 0.15], mount: 'ceiling', solid: false, tags: ['light', 'spot'] }),
+  a({ id: 'uplight', name: 'Floor uplighter', category: 'lighting', size: [0.3, 0.3, 1.7], shape: 'round', solid: false, tags: ['light', 'lamp'] }),
+  // ---- Batch 3 · plants
+  a({ id: 'snake-plant', name: 'Snake plant', category: 'plants', size: [0.4, 0.4, 0.8], shape: 'round', solid: false, tags: ['green', 'mother in law tongue'] }),
+  a({ id: 'monstera', name: 'Monstera', category: 'plants', size: [0.8, 0.8, 1.1], shape: 'round', solid: false, tags: ['green', 'leaf'] }),
+  a({ id: 'banana-plant', name: 'Banana plant', category: 'plants', size: [1.2, 1.2, 2.2], shape: 'round', solid: false, tags: ['green', 'tropical', 'kela'] }),
+  a({ id: 'bamboo', name: 'Bamboo in pot', category: 'plants', size: [0.5, 0.5, 1.6], shape: 'round', solid: false, tags: ['green', 'lucky'] }),
+  a({ id: 'money-plant', name: 'Money plant', category: 'plants', size: [0.35, 0.35, 0.55], shape: 'round', solid: false, tags: ['green', 'vine', 'pothos'] }),
+  // ---- Batch 3 · appliances
+  a({ id: 'split-ac', name: 'Split air conditioner', category: 'appliances', size: [0.95, 0.25, 0.3], mount: 'wall', mountHeight: 2.2, solid: false, tags: ['ac', 'cooling', 'air conditioning'] }),
+  a({ id: 'cassette-ac', name: 'Ceiling AC cassette', category: 'appliances', size: [0.9, 0.9, 0.25], mount: 'ceiling', tier: 'premium', solid: false, tags: ['ac', 'cooling'] }),
+  a({ id: 'geyser', name: 'Water heater', category: 'appliances', size: [0.4, 0.4, 0.55], mount: 'wall', mountHeight: 2.0, solid: false, tags: ['geyser', 'hot water'] }),
+  a({ id: 'water-purifier', name: 'Water purifier', category: 'appliances', size: [0.4, 0.2, 0.55], mount: 'wall', mountHeight: 1.2, solid: false, tags: ['ro', 'filter', 'aquaguard'] }),
+  a({ id: 'fridge-sbs', name: 'Side-by-side fridge', category: 'appliances', size: [0.92, 0.75, 1.8], tier: 'premium', tags: ['refrigerator', 'double door'] }),
+  a({ id: 'washer-top', name: 'Top-load washer', category: 'appliances', size: [0.58, 0.6, 0.95], tags: ['washing machine', 'laundry'] }),
+  a({ id: 'inverter', name: 'Inverter and battery', category: 'appliances', size: [0.5, 0.4, 0.6], solid: false, tags: ['ups', 'power backup', 'battery'] }),
+  a({ id: 'air-cooler', name: 'Air cooler', category: 'appliances', size: [0.5, 0.45, 0.9], solid: false, tags: ['desert cooler', 'cooling'] }),
+  a({ id: 'exhaust-fan', name: 'Exhaust fan', category: 'appliances', size: [0.3, 0.12, 0.3], mount: 'wall', mountHeight: 2.1, solid: false, tags: ['fan', 'ventilation'] }),
+  a({ id: 'tv-wall', name: 'Wall-mounted TV', category: 'appliances', size: [1.2, 0.06, 0.7], mount: 'wall', mountHeight: 1.3, solid: false, tags: ['television', 'led', 'screen'] }),
+  // ---- Batch 3 · outdoor & garden
+  a({ id: 'gazebo', name: 'Gazebo', category: 'outdoor', size: [3.0, 3.0, 2.8], tier: 'premium', solid: false, tags: ['pavilion', 'shade', 'garden'] }),
+  a({ id: 'pergola', name: 'Pergola', category: 'outdoor', size: [3.0, 3.0, 2.5], colors: WOODS, solid: false, tags: ['shade', 'garden', 'trellis'] }),
+  a({ id: 'garden-shed', name: 'Garden shed', category: 'outdoor', size: [2.0, 1.6, 2.2], tags: ['storage', 'tools'] }),
+  a({ id: 'dog-house', name: 'Dog house', category: 'outdoor', size: [0.7, 0.9, 0.75], solid: false, tags: ['pet', 'kennel'] }),
+  a({ id: 'mailbox', name: 'Letter box', category: 'outdoor', size: [0.3, 0.2, 1.2], solid: false, tags: ['post', 'entrance'] }),
+  a({ id: 'boulder', name: 'Boulder', category: 'outdoor', size: [1.0, 0.8, 0.7], solid: false, tags: ['rock', 'stone', 'garden'] }),
+  a({ id: 'motorbike', name: 'Motorbike', category: 'outdoor', size: [0.8, 2.0, 1.1], colors: CAR_PAINTS, tier: 'rewarded', tags: ['vehicle', 'parking', 'two wheeler', 'scooter'] }),
+  a({ id: 'swing-set', name: 'Children swing set', category: 'outdoor', size: [2.4, 1.6, 2.2], tier: 'premium', solid: false, tags: ['play', 'kids', 'garden'] }),
+  a({ id: 'solar-panel', name: 'Solar panel', category: 'outdoor', size: [1.7, 1.0, 0.9], solid: false, tags: ['solar', 'roof', 'energy'] }),
+  a({ id: 'carport', name: 'Carport', category: 'outdoor', size: [3.2, 5.5, 2.6], tier: 'premium', solid: false, tags: ['garage', 'parking', 'shade'] }),
+  a({ id: 'outdoor-sofa', name: 'Outdoor sofa', category: 'outdoor', size: [2.0, 0.85, 0.8], colors: FABRICS, tags: ['seat', 'patio', 'terrace'] }),
+  a({ id: 'fire-pit', name: 'Fire pit', category: 'outdoor', size: [0.9, 0.9, 0.45], shape: 'round', solid: false, tags: ['bonfire', 'garden'] }),
+
+  // ---- Batch 4 · living
+  a({ id: 'loveseat', name: 'Loveseat', category: 'living', size: [1.4, 0.85, 0.82], colors: FABRICS, tags: ['sofa', 'couch', 'seat'] }),
+  a({ id: 'wingback', name: 'Wingback chair', category: 'living', size: [0.8, 0.85, 1.05], colors: FABRICS, tier: 'premium', tags: ['armchair', 'seat'] }),
+  a({ id: 'tv-console', name: 'Low TV console', category: 'living', size: [1.8, 0.4, 0.45], colors: WOODS, tags: ['tv', 'storage', 'media'] }),
+  a({ id: 'coat-stand', name: 'Coat stand', category: 'living', size: [0.45, 0.45, 1.75], shape: 'round', solid: false, tags: ['hall', 'entry', 'hooks'] }),
+  a({ id: 'shoe-bench', name: 'Shoe bench', category: 'living', size: [1.0, 0.35, 0.5], colors: WOODS, solid: false, tags: ['entry', 'storage', 'seat'] }),
+  a({ id: 'nesting-tables', name: 'Nesting tables', category: 'living', size: [0.7, 0.5, 0.5], colors: WOODS, solid: false, tags: ['table', 'side table'] }),
+  // ---- Batch 4 · bedroom
+  a({ id: 'storage-bed', name: 'Storage bed', category: 'bedroom', size: [1.65, 2.15, 0.95], colors: FABRICS, tags: ['sleep', 'box bed'] }),
+  a({ id: 'chest-drawers', name: 'Chest of drawers', category: 'bedroom', size: [0.9, 0.5, 1.2], colors: WOODS, tags: ['storage', 'dresser'] }),
+  a({ id: 'canopy-bed', name: 'Canopy bed', category: 'bedroom', size: [1.7, 2.2, 2.2], colors: WOODS, tier: 'premium', tags: ['sleep', 'four poster'] }),
+  a({ id: 'vanity-stool', name: 'Vanity stool', category: 'bedroom', size: [0.4, 0.4, 0.45], shape: 'round', colors: FABRICS, solid: false, tags: ['seat', 'pouf'] }),
+  // ---- Batch 4 · kids
+  a({ id: 'kids-desk', name: 'Kids desk', category: 'kids', size: [1.0, 0.55, 0.62], colors: WOODS, tags: ['study', 'table', 'children'] }),
+  a({ id: 'kids-chair', name: 'Kids chair', category: 'kids', size: [0.3, 0.3, 0.6], colors: WOODS, solid: false, tags: ['seat', 'children'] }),
+  a({ id: 'play-tent', name: 'Play tent', category: 'kids', size: [1.1, 1.1, 1.1], solid: false, tags: ['toy', 'children', 'teepee'] }),
+  a({ id: 'toy-kitchen', name: 'Toy kitchen', category: 'kids', size: [0.9, 0.4, 0.85], tier: 'rewarded', tags: ['toy', 'children', 'play'] }),
+  // ---- Batch 4 · kitchen & dining
+  a({ id: 'kitchen-trolley', name: 'Kitchen trolley', category: 'dining', size: [0.5, 0.4, 0.85], colors: PAINTED, solid: false, tags: ['cart', 'storage'] }),
+  a({ id: 'sink-double', name: 'Double sink unit', category: 'dining', size: [1.8, 0.6, 0.9], colors: PAINTED, tags: ['counter', 'water'] }),
+  a({ id: 'water-dispenser', name: 'Water dispenser', category: 'dining', size: [0.33, 0.35, 1.0], solid: false, tags: ['cooler', 'drinking water'] }),
+  a({ id: 'pantry-unit', name: 'Pantry unit', category: 'dining', size: [0.9, 0.6, 2.1], colors: PAINTED, tags: ['storage', 'cupboard'] }),
+  a({ id: 'kitchen-corner', name: 'Corner kitchen unit', category: 'dining', size: [0.9, 0.9, 0.9], colors: PAINTED, tags: ['counter', 'l-shaped'] }),
+  // ---- Batch 4 · bathroom
+  a({ id: 'toilet-wall', name: 'Wall-hung toilet', category: 'bathroom', size: [0.38, 0.55, 0.4], tags: ['wc', 'commode'] }),
+  a({ id: 'double-vanity', name: 'Double vanity', category: 'bathroom', size: [1.6, 0.5, 0.85], colors: PAINTED, tier: 'premium', tags: ['sink', 'basin', 'cabinet'] }),
+  a({ id: 'bath-stool', name: 'Bath stool', category: 'bathroom', size: [0.35, 0.3, 0.4], solid: false, tags: ['seat'] }),
+  // ---- Batch 4 · office
+  a({ id: 'standing-desk', name: 'Standing desk', category: 'office', size: [1.4, 0.7, 1.05], colors: WOODS, tags: ['table', 'work', 'adjustable'] }),
+  a({ id: 'conference-chair', name: 'Conference chair', category: 'office', size: [0.6, 0.6, 0.95], colors: FABRICS, solid: false, tags: ['seat', 'work', 'meeting'] }),
+  a({ id: 'cubicle', name: 'Work cubicle', category: 'office', size: [1.8, 1.6, 1.3], colors: PAINTED, tags: ['desk', 'partition', 'work'] }),
+  // ---- Batch 4 · decor
+  a({ id: 'tall-vase', name: 'Tall floor vase', category: 'decor', size: [0.35, 0.35, 0.9], shape: 'round', solid: false, tags: ['pot', 'decor'] }),
+  a({ id: 'aquarium', name: 'Aquarium', category: 'decor', size: [1.0, 0.4, 1.2], tier: 'premium', tags: ['fish', 'tank', 'water'] }),
+  a({ id: 'urli', name: 'Brass urli', category: 'decor', size: [0.7, 0.7, 0.16], shape: 'round', solid: false, tags: ['bowl', 'flowers', 'diwali', 'floating'] }),
+  a({ id: 'wall-mandala', name: 'Wall mandala', category: 'decor', size: [0.8, 0.04, 0.8], mount: 'wall', mountHeight: 1.6, solid: false, tags: ['art', 'hanging', 'round'] }),
+  a({ id: 'globe', name: 'World globe', category: 'decor', size: [0.4, 0.4, 0.55], shape: 'round', solid: false, tags: ['map', 'study'] }),
+  // ---- Batch 4 · outdoor
+  a({ id: 'hammock', name: 'Hammock', category: 'outdoor', size: [3.2, 1.0, 1.4], solid: false, tags: ['rest', 'garden', 'swing'] }),
+  a({ id: 'bird-bath', name: 'Bird bath', category: 'outdoor', size: [0.6, 0.6, 0.8], shape: 'round', solid: false, tags: ['garden', 'water', 'birds'] }),
+  a({ id: 'well', name: 'Garden well', category: 'outdoor', size: [1.2, 1.2, 1.6], shape: 'round', tags: ['water', 'kuan', 'garden'] }),
+  a({ id: 'greenhouse', name: 'Greenhouse', category: 'outdoor', size: [3.0, 2.4, 2.4], tier: 'premium', solid: false, tags: ['garden', 'plants', 'glass'] }),
+  a({ id: 'raised-bed', name: 'Raised vegetable bed', category: 'outdoor', size: [1.8, 0.9, 0.4], solid: false, tags: ['garden', 'vegetables', 'kitchen garden'] }),
+  a({ id: 'garden-arch', name: 'Garden arch', category: 'outdoor', size: [1.6, 0.6, 2.4], solid: false, tags: ['trellis', 'garden', 'entrance'] }),
+  a({ id: 'ev-charger', name: 'EV charging point', category: 'outdoor', size: [0.3, 0.2, 1.3], solid: false, tags: ['car', 'electric', 'charger'] }),
+  a({ id: 'bike-rack', name: 'Bicycle rack', category: 'outdoor', size: [1.8, 0.5, 0.8], solid: false, tags: ['cycle', 'parking'] }),
+  a({ id: 'slide', name: 'Playground slide', category: 'outdoor', size: [0.9, 2.6, 1.6], tier: 'rewarded', solid: false, tags: ['play', 'kids'] }),
+  a({ id: 'sandbox', name: 'Sandbox', category: 'outdoor', size: [1.5, 1.5, 0.25], solid: false, tags: ['play', 'kids', 'sand'] }),
 ];
 
 const BY_ID = new Map(CATALOG.map((x) => [x.id, x]));

@@ -6,6 +6,7 @@ import { DisplayMenu } from './DisplayMenu';
 import { useSaveStatus } from '../lib/persistence';
 import { HomeMenu } from './HomeMenu';
 import { BrandLogo } from './BrandLogo';
+import iconUrl from '../assets/plotframer-icon.png?inline';
 import { GooGroup } from './Goo';
 
 const VIEWS: Array<{ id: ViewMode; label: string; title: string }> = [
@@ -68,8 +69,11 @@ export function TopBar() {
         </div>
         <img
           className="brand-icon"
-          src="/logo/byhome-icon.png"
+          src={iconUrl}
+          width={128}
+          height={105}
           alt="Home Designer"
+          decoding="sync"
           draggable={false}
         />
         <SaveState />

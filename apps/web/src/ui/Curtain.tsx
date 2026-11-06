@@ -37,7 +37,11 @@ const HOUSE: Array<[string, string, number]> = [
   ['tree', 'M332 170V150M332 158L326 152', 2.0],
   ['tree', 'M322 140a10 12 0 1 0 20 0a10 12 0 1 0 -20 0', 2.1],
   ['sun', 'M318 30a14 14 0 1 0 28 0a14 14 0 1 0 -28 0', 2.2],
-  ['sun', 'M332 8V12M332 48V52M310 30H306M358 30H354M316 14L319 17M348 46L345 43M348 14L345 17M316 46L319 43', 2.3],
+  [
+    'sun',
+    'M332 8V12M332 48V52M310 30H306M358 30H354M316 14L319 17M348 46L345 43M348 14L345 17M316 46L319 43',
+    2.3,
+  ],
 ];
 
 function HouseArt() {
@@ -46,7 +50,13 @@ function HouseArt() {
       <rect className="house-glow" x="118" y="74" width="122" height="28" />
       <rect className="house-glow g2" x="56" y="124" width="78" height="38" />
       {HOUSE.map(([cls, d, delay], i) => (
-        <path key={i} pathLength="1" d={d} className={cls} style={{ '--d': `${delay}s` } as CSSProperties} />
+        <path
+          key={i}
+          pathLength="1"
+          d={d}
+          className={cls}
+          style={{ '--d': `${delay}s` } as CSSProperties}
+        />
       ))}
     </svg>
   );
@@ -82,7 +92,10 @@ export function Curtain() {
 
   useEffect(() => {
     if (mode === 'off') return;
-    const t = window.setTimeout(() => (mode === 'full' ? setPhase('ready') : lift()), mode === 'full' ? LOAD_FULL_MS : LOAD_BRIEF_MS);
+    const t = window.setTimeout(
+      () => (mode === 'full' ? setPhase('ready') : lift()),
+      mode === 'full' ? LOAD_FULL_MS : LOAD_BRIEF_MS,
+    );
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
@@ -99,7 +112,13 @@ export function Curtain() {
 
   if (mode === 'off') return null;
   return (
-    <div ref={root} className={`curtain ${mode} ${phase}`} role="dialog" aria-modal="true" aria-label="Home Designer">
+    <div
+      ref={root}
+      className={`curtain ${mode} ${phase}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Home Designer"
+    >
       <div className="curtain-panel t" aria-hidden="true" />
       <div className="curtain-panel b" aria-hidden="true" />
       <div className="curtain-seam" aria-hidden="true" />
@@ -111,7 +130,14 @@ export function Curtain() {
         </h1>
         <p className="curtain-sub">Draw your home in 2D. Walk through it in 3D.</p>
         {mode === 'full' && (
-          <button ref={cta} type="button" className="curtain-cta" disabled={phase !== 'ready'} onClick={lift} autoFocus>
+          <button
+            ref={cta}
+            type="button"
+            className="curtain-cta"
+            disabled={phase !== 'ready'}
+            onClick={lift}
+            autoFocus
+          >
             <span>Start designing</span>
             <svg viewBox="0 0 20 20" aria-hidden="true">
               <path d="M4 10H15M10.5 5.5L15 10L10.5 14.5" />
@@ -130,7 +156,12 @@ export function Curtain() {
         <p className="credit-people">
           <span>Srijon Karmakar</span>
           <i aria-hidden="true" />
-          <a className="credit-site" href="https://senevon.in" target="_blank" rel="noopener noreferrer">
+          <a
+            className="credit-site"
+            href="https://senevon.in"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             senevon.in
           </a>
         </p>
@@ -138,10 +169,9 @@ export function Curtain() {
           <span>v{__APP_VERSION__}</span>
           <i aria-hidden="true" />
           <span>Updated {APP_UPDATED}</span>
-          <i aria-hidden="true" />
-          <span>© {APP_UPDATED.slice(-4)} Senevon Studio</span>
-          <i aria-hidden="true" />
-          <span>Proprietary licence · All rights reserved</span>
+        </p>
+        <p className="credit-legal">
+          © {APP_UPDATED.slice(-4)} Senevon Studio · Proprietary licence · All rights reserved
         </p>
       </footer>
     </div>

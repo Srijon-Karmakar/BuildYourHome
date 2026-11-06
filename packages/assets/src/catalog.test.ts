@@ -37,7 +37,7 @@ describe('catalog integrity', () => {
     expect(searchCatalog('', 'bathroom').every((x) => x.category === 'bathroom')).toBe(true);
     expect(searchCatalog('kitchen').length).toBeGreaterThan(0); // category name
     expect(searchCatalog('zzzz')).toEqual([]);
-    expect(searchCatalog('table', 'office').map((x) => x.id).sort()).toEqual(['desk', 'desk-l']);
+    expect(searchCatalog('table', 'office').map((x) => x.id)).toEqual(expect.arrayContaining(['desk', 'desk-l', 'meeting-table', 'standing-desk']));
   });
 });
 
@@ -78,5 +78,15 @@ describe('footprint math', () => {
     const table = getAsset('coffee-table-round')!;
     expect(pointInItem(table, [0, 0], 0, [1, 1, 1], [0.44, 0])).toBe(true);
     expect(pointInItem(table, [0, 0], 0, [1, 1, 1], [0.4, 0.4])).toBe(false); // corner of the bounding box
+  });
+
+  it('is a big, balanced catalog (batch 4: 207 items, Appliances category)', () => {
+    expect(CATALOG.length).toBeGreaterThanOrEqual(200);
+    expect(CATEGORIES.map((c) => c.id)).toContain('appliances');
+    for (const id of ['split-ac', 'geyser', 'water-purifier', 'inverter', 'air-cooler', 'diwan', 'pooja-mandir', 'motorbike', 'carport', 'rangoli']) {
+      expect(getAsset(id), id).toBeTruthy();
+    }
+    // wall-mounted appliances hang at a sensible height
+    expect(getAsset('split-ac')!.mountHeight).toBeGreaterThan(2);
   });
 });

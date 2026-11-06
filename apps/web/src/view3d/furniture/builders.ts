@@ -9,6 +9,8 @@ import { getAsset, type Asset } from '@hd/assets';
  */
 
 import { BUILDERS2 } from './builders2';
+import { BUILDERS3 } from './builders3';
+import { BUILDERS4 } from './builders4';
 import { ball, BLACK, box, CHROME, cyl, GLASS, GLOW, legs, mat, shade, WHITE, type Builder } from './kit';
 
 function sofa(seats: number): Builder {
@@ -361,6 +363,8 @@ const plant =
 
 const BUILDERS: Record<string, Builder> = {
   ...BUILDERS2,
+  ...BUILDERS3,
+  ...BUILDERS4,
   'bed-king': bed(2),
   'painting-large': wallArt,
   'sofa-2': sofa(2),

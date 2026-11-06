@@ -6,11 +6,22 @@ import type { Asset } from '@hd/assets';
 export type V3 = [number, number, number];
 
 const matCache = new Map<string, THREE.MeshStandardMaterial>();
+/** Materials that glow (lamp shades, bulbs, tail lights): their brightness follows how "on" the lamps are. */
+const glowing = new Set<THREE.MeshStandardMaterial>();
+
+/** 0 = lamps off (a faint tint only), 1 = fully lit. Cheap: only touches the shared glow materials. */
+export function setLampGlow(level: number): void {
+  for (const m of glowing) m.emissiveIntensity = (m.userData.baseGlow as number) * (0.06 + 0.94 * level);
+}
 export function mat(color: string, roughness = 0.6, metalness = 0, extra?: Partial<THREE.MeshStandardMaterialParameters>): THREE.MeshStandardMaterial {
   const key = `${color}|${roughness}|${metalness}|${JSON.stringify(extra ?? {})}`;
   let m = matCache.get(key);
   if (!m) {
     m = new THREE.MeshStandardMaterial({ color, roughness, metalness, ...extra });
+    if (extra && 'emissive' in extra) {
+      m.userData.baseGlow = m.emissiveIntensity;
+      glowing.add(m);
+    }
     matCache.set(key, m);
   }
   return m;

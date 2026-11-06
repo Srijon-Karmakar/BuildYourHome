@@ -7,7 +7,7 @@ import { ball, BLACK, box, CHROME, cyl, GLASS, GLOW, legs, mat, shade, WHITE, ty
  */
 
 /** Thin cylinder between two points. */
-function rod(g: THREE.Group, a: V3, b: V3, r: number, m: THREE.Material): THREE.Mesh {
+export function rod(g: THREE.Group, a: V3, b: V3, r: number, m: THREE.Material): THREE.Mesh {
   const va = new THREE.Vector3(...a);
   const vb = new THREE.Vector3(...b);
   const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, va.distanceTo(vb), 8), m);
@@ -19,7 +19,7 @@ function rod(g: THREE.Group, a: V3, b: V3, r: number, m: THREE.Material): THREE.
 }
 
 /** Ring (torus) lying flat by default; `rotX` = π/2 flat, 0 = standing in the x–y plane. */
-function ring(g: THREE.Group, radius: number, tube: number, [x, y, z]: V3, m: THREE.Material, rotX = Math.PI / 2): THREE.Mesh {
+export function ring(g: THREE.Group, radius: number, tube: number, [x, y, z]: V3, m: THREE.Material, rotX = Math.PI / 2): THREE.Mesh {
   const mesh = new THREE.Mesh(new THREE.TorusGeometry(radius, tube, 8, 28), m);
   mesh.position.set(x, y, z);
   mesh.rotation.x = rotX;

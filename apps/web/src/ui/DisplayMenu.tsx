@@ -33,6 +33,8 @@ export function DisplayMenu() {
   const setFloorView = useUi((s) => s.setFloorView);
   const levelCount = useStore(editor.store, (s) => s.scene.levelOrder.length);
   const hour = useStore(editor.store, (s) => s.scene.lighting.timeOfDay);
+  const lights = useUi((s) => s.lights);
+  const setLights = useUi((s) => s.setLights);
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -109,6 +111,18 @@ export function DisplayMenu() {
               ['Night', 22],
             ].map(([label, h]) => (
               <button key={label} type="button" aria-pressed={Math.abs(hour - Number(h)) < 0.01} onClick={() => editor.execute(setTimeOfDay(Number(h)))}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="f-chips" role="group" aria-label="Lamps">
+            {([
+              ['auto', 'Lamps: auto'],
+              ['on', 'On'],
+              ['off', 'Off'],
+            ] as const).map(([id, label]) => (
+              <button key={id} type="button" aria-pressed={lights === id} onClick={() => setLights(id)}>
                 {label}
               </button>
             ))}
