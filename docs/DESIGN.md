@@ -1,6 +1,6 @@
 # Design Language
 
-> Source of truth for how HomeDesigner looks and behaves. Reference: [`design/reference-brand-guidelines.png`](design/reference-brand-guidelines.png)
+> Source of truth for how PlotFramer looks and behaves. Reference: [`design/reference-brand-guidelines.png`](design/reference-brand-guidelines.png)
 > (owner-supplied, 2026-11-05: an architecture-studio brand sheet). Read this before building ANY UI.
 
 ## 1. Owner's brief
@@ -46,7 +46,7 @@ Radii: 10 px controls, 16 px panels. Spacing scale: 4 / 8 / 12 / 16 / 24 / 40.
 ## 6. Layout (editor)
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Home Designer                [ Plan | Split | 3D ]   Walk  Fit │  top bar, no background
+│ PlotFramer                [ Plan | Split | 3D ]   Walk  Fit │  top bar, no background
 │ ┌────┐                                                         │
 │ │Select                  (plan / 3D fills everything)          │
 │ │Wall │                                                        │

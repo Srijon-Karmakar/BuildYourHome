@@ -8,7 +8,7 @@ import logoUrl from '../assets/plotframer-logo.png?inline';
 export function BrandLogo({ className = '' }: { className?: string }) {
   return (
     <span className={`brand-logo ${className}`.trim()}>
-      <img src={logoUrl} width={520} height={182} alt="Home Designer" decoding="sync" draggable={false} />
+      <img src={logoUrl} width={520} height={182} alt="PlotFramer" decoding="sync" draggable={false} />
     </span>
   );
 }

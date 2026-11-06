@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import { createEmptyScene, type Vec2 } from '@hd/scene-schema';
 import type { StairKind } from '@hd/geometry';
-import { addBalcony, addZone, balconyProblem, GARDEN_SURFACES, zoneProblem, type GardenSurface, cleanPolygon, createEditor, createWallTool, DEFAULT_SNAP, plotProblem, setPlot, type SnapSettings } from '@hd/editor-core';
+import { roofIdFor, setRoof, addBalcony, addZone, balconyProblem, GARDEN_SURFACES, zoneProblem, type GardenSurface, cleanPolygon, createEditor, createWallTool, DEFAULT_SNAP, plotProblem, setPlot, type SnapSettings } from '@hd/editor-core';
 
 /** App-wide singletons for the editing session (one project open at a time). */
 export const editor = createEditor(createEmptyScene());
 export const wallTool = createWallTool(editor, () => useUi.getState().newWallKind);
 
-export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony' | 'garden';
+export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony' | 'garden' | 'room';
 export type ViewMode = '2d' | '3d' | 'split';
 export type { FloorView } from '../view3d/floors';
 
@@ -38,6 +38,8 @@ interface UiState {
   /** Has the user walked through the home yet (finishes the tips). */
   hasWalked: boolean;
   helpOpen: boolean;
+  shareOpen: boolean;
+  setShareOpen(open: boolean): void;
   setHelpOpen(open: boolean): void;
   /** Lamps: on when it gets dark (auto), always on, or off. Remembered. */
   lights: 'auto' | 'on' | 'off';
@@ -79,8 +81,18 @@ interface UiState {
   gardenSurface: GardenSurface;
   setGardenSurface(s: GardenSurface): void;
   /** Which face of the selected walls paint swatches change; the plan highlights that side. */
-  paintSide: 'both' | 'a' | 'b';
-  setPaintSide(s: 'both' | 'a' | 'b'): void;
+  paintSide: 'both' | 'interior' | 'exterior';
+  setPaintSide(s: 'both' | 'interior' | 'exterior'): void;
+  /** Ready-made rooms: panel open, the preset being placed and its turn (quarter-turns). */
+  roomsOpen: boolean;
+  setRoomsOpen(open: boolean): void;
+  roomPreset: string | null;
+  roomQuarters: number;
+  startRoom(id: string): void;
+  turnRoom(delta: number): void;
+  /** Hand mode: the design is locked (view only); dragging moves the view and nothing can be changed. */
+  viewOnly: boolean;
+  setViewOnly(on: boolean): void;
   setTool(t: ToolId): void;
   toggleSnap(k: 'grid' | 'nodes' | 'walls' | 'angle'): void;
   setDrawing(v: boolean): void;
@@ -155,11 +167,13 @@ export const useUi = create<UiState>((set) => ({
   },
   hasWalked: false,
   helpOpen: false,
+  shareOpen: false,
+  setShareOpen: (shareOpen) => set({ shareOpen }),
   setHelpOpen: (helpOpen) => set({ helpOpen }),
   placing: null,
   placeRotation: 0,
   furnitureOpen: false,
-  setFurnitureOpen: (furnitureOpen) => set({ furnitureOpen }),
+  setFurnitureOpen: (furnitureOpen) => set(furnitureOpen ? { furnitureOpen, roomsOpen: false } : { furnitureOpen }),
   startPlacing: (assetId) => set({ placing: assetId, tool: 'place', furnitureOpen: false, placeRotation: 0 }),
   rotatePlacing: (delta) => set((s) => ({ placeRotation: s.placeRotation + delta })),
   floorView: 'all',
@@ -189,6 +203,20 @@ export const useUi = create<UiState>((set) => ({
   setGardenSurface: (gardenSurface) => set({ gardenSurface }),
   setNewWallKind: (newWallKind) => set({ newWallKind }),
   paintSide: 'both',
+  viewOnly: false,
+  roomsOpen: false,
+  setRoomsOpen: (roomsOpen) => set(roomsOpen ? { roomsOpen, furnitureOpen: false } : { roomsOpen }),
+  roomPreset: null,
+  roomQuarters: 0,
+  startRoom: (id) => set({ roomPreset: id, tool: 'room', roomsOpen: false, roomQuarters: 0 }),
+  turnRoom: (delta) => set((s) => ({ roomQuarters: (((s.roomQuarters + delta) % 4) + 4) % 4 })),
+  setViewOnly: (on) => {
+    if (on) {
+      wallTool.finish();
+      editor.select([]);
+      set({ viewOnly: true, tool: 'select', drawing: false, plotDraft: [], placing: null, furnitureOpen: false, lengthInput: '' });
+    } else set({ viewOnly: false });
+  },
   setPaintSide: (paintSide) => set({ paintSide }),
   additive: false,
   newStair: { kind: 'straight', mirror: false, width: 1 },
@@ -200,6 +228,18 @@ export const useUi = create<UiState>((set) => ({
   plotError: null,
   toggleAdditive: () => set((s) => ({ additive: !s.additive })),
 }));
+
+/** The "Roof" button: put a roof on the top floor if there is none, make sure it is visible, and select it. */
+export function addOrSelectRoof(): void {
+  const sc = editor.getState().scene;
+  const top = sc.levelOrder[sc.levelOrder.length - 1];
+  if (!top) return;
+  const id = roofIdFor(top);
+  if (!sc.roofs[id]) editor.execute(setRoof(top, { style: 'gable' }));
+  useUi.setState({ showRoof: true, tool: 'select' });
+  editor.setActiveLevel(top);
+  editor.select([id]);
+}
 
 export function finishDrawing(): void {
   wallTool.finish();

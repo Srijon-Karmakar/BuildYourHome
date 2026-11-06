@@ -72,7 +72,7 @@ describe('buildRoofMesh', () => {
   });
 
   it('every triangle winds counter-clockwise around its normal; slopes face up, the base faces down', () => {
-    for (const style of ['gable', 'hip', 'flat', 'shed'] as const) {
+    for (const style of ['gable', 'hip', 'flat', 'shed', 'butterfly', 'mansard', 'barrel'] as const) {
       const m = buildRoofMesh(pts, 0, params(style))!;
       const P = m.positions;
       const N = m.normals;
@@ -119,5 +119,46 @@ describe('buildRoofMesh', () => {
     expect(m.indices.length % 3).toBe(0);
     expect(bounds(m).hi[1]).toBeCloseTo(3 + (3 + ext) * Math.tan(Math.PI / 6), 4);
     expect(buildRoofMesh([[0, 0], [1, 0]], 3, params('gable'))).toBeNull();
+  });
+});
+
+describe('more roof styles', () => {
+  const pts = rect(8, 6);
+  const ext = 0.115 + 0.4;
+
+  it('butterfly: two slopes rise to the long edges and meet low in the middle', () => {
+    const m = buildRoofMesh(pts, 3, params('butterfly'))!;
+    const { lo, hi } = bounds(m);
+    expect(hi[1]!).toBeGreaterThan(3.5);
+    expect(lo[1]).toBeCloseTo(3, 6);
+    // the middle line (v = 0) is lower than the edges: no vertex above the gutter sits at the very top in the middle
+    let midMax = -Infinity;
+    for (let i = 0; i < m.positions.length; i += 3) if (Math.abs(m.positions[i + 2]! - 3) < 1e-6) midMax = Math.max(midMax, m.positions[i + 1]!);
+    expect(midMax).toBeLessThan(hi[1]! - 0.3);
+    expect(hi[0]! - lo[0]!).toBeCloseTo(8 + 2 * ext, 4);
+  });
+
+  it('mansard: a flat top lower than a gable of the same pitch, and wider than a point', () => {
+    const m = buildRoofMesh(pts, 3, params('mansard'))!;
+    const g = buildRoofMesh(pts, 3, params('gable'))!;
+    expect(bounds(m).hi[1]!).toBeLessThan(bounds(g).hi[1]!);
+    expect(apexCount(m)).toBe(4); // a flat rectangular top
+  });
+
+  it('barrel: a curved vault peaking along the middle', () => {
+    const m = buildRoofMesh(pts, 3, params('barrel'))!;
+    const { lo, hi } = bounds(m);
+    expect(lo[1]).toBeCloseTo(3, 6);
+    expect(hi[1]!).toBeGreaterThan(3.8);
+    expect(apexCount(m)).toBeGreaterThanOrEqual(2); // a ridge line, not a single point
+  });
+
+  it('all new styles also work on a rotated plan and a short wide plan (swap)', () => {
+    for (const style of ['butterfly', 'mansard', 'barrel'] as const) {
+      expect(buildRoofMesh(rect(8, 6, 3, -2, 0.7), 0, params(style))).not.toBeNull();
+      const s = buildRoofMesh(pts, 0, params(style, { swap: true }))!;
+      expect(s.indices.length % 3).toBe(0);
+      expect(bounds(s).lo[1]).toBeGreaterThanOrEqual(-1e-9);
+    }
   });
 });

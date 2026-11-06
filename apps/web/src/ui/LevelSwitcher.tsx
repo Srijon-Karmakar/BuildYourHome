@@ -156,12 +156,15 @@ export function LevelSwitcher() {
                   { id: 'shed', label: 'Shed' },
                   { id: 'gable', label: 'Gable' },
                   { id: 'hip', label: 'Hip' },
+                  { id: 'butterfly', label: 'Butterfly' },
+                  { id: 'mansard', label: 'Mansard' },
+                  { id: 'barrel', label: 'Barrel' },
                 ]}
                 onChange={(style) => editor.execute(setRoof(active, { style }))}
               />
               {roof && (
                 <>
-                  {roof.style !== 'flat' && (
+                  {roof.style !== 'flat' && roof.style !== 'barrel' && (
                     <AngleField
                       label="Slope"
                       value={roof.pitchDeg}

@@ -1,14 +1,20 @@
 import type { Id, Vec2 } from '@hd/scene-schema';
-import { getAsset, pointInItem } from '@hd/assets';
+import { getAsset, itemFootprint, pointInItem } from '@hd/assets';
 import {
   addItem,
   addLevel,
   addOpening,
   addStair,
   balconyRailings,
+  getRoomPreset,
+  layoutItems,
+  placeRoomPreset,
+  presetFootprint,
+  turnOffset,
   batch,
   removeBalconies,
   removeZones,
+  setRoof,
   translateBalconies,
   translateZones,
   zonePolygon,
@@ -43,6 +49,8 @@ import { cancelPlot, editor, finishDrawing, finishPlot, useUi, wallTool } from '
 import { stairLayout } from '@hd/geometry';
 import { drawPlan, pointInPolygon, type ItemGhost, type OpeningPreview, type StairDraw } from './render';
 import { levelRooms } from './rooms';
+import { highlightSides } from './wallFaces';
+import { useAnchor } from '../ui/ObjectBar';
 import { catalogMaterial } from '../view3d/placeholderMaterials';
 import { levelGeometry } from './wallGeom';
 import { walkPose } from '../walk/walkState';
@@ -56,7 +64,7 @@ const NODE_HIT_PX = 16;
 const WALL_HIT_PX = 10;
 const TAP_SLOP_PX = 5;
 
-type Mode = 'none' | 'pan' | 'place' | 'placeOpening' | 'placeItem' | 'placeStair' | 'select' | 'dragNode' | 'dragOpening' | 'dragItem' | 'dragStair' | 'dragBalcony' | 'dragZone' | 'gesture';
+type Mode = 'none' | 'pan' | 'place' | 'placeOpening' | 'placeItem' | 'placeRoom' | 'placeStair' | 'select' | 'dragNode' | 'dragOpening' | 'dragItem' | 'dragStair' | 'dragBalcony' | 'dragZone' | 'gesture';
 
 /**
  * Owns the 2D plan canvas: view transform, pointer/touch/keyboard handling, rendering on demand.
@@ -78,6 +86,7 @@ export class PlanController {
   preview: OpeningPreview | null = null;
   itemGhost: ItemGhost | null = null;
   stairGhost: StairDraw | null = null;
+  roomGhost: { center: Vec2 } | null = null;
 
   private ctx: CanvasRenderingContext2D;
   private cssW = 0;
@@ -152,6 +161,7 @@ export class PlanController {
     let prevTool = useUi.getState().tool;
     this.cleanup.push(
       useUi.subscribe((s) => {
+        this.updateCursor();
         if (s.tool !== prevTool) {
           prevTool = s.tool;
           this.endChain();
@@ -160,6 +170,7 @@ export class PlanController {
           this.preview = null;
           this.itemGhost = null;
           this.stairGhost = null;
+          this.roomGhost = null;
           this.updateCursor();
         }
         this.invalidate();
@@ -173,8 +184,8 @@ export class PlanController {
   }
 
   private updateCursor(): void {
-    const t = useUi.getState().tool;
-    this.canvas.style.cursor = t === 'select' ? 'default' : 'crosshair';
+    const ui = useUi.getState();
+    this.canvas.style.cursor = ui.viewOnly ? 'grab' : ui.tool === 'select' ? 'default' : 'crosshair';
   }
 
   dispose(): void {
@@ -246,7 +257,65 @@ export class PlanController {
     this.invalidate();
   }
 
+  /** Screen box (page pixels) of the selected things on this plan; null when none of them is on this floor. */
+  private selectionBox(): { x: number; y: number; w: number; h: number } | null {
+    const st = editor.getState();
+    const sc = st.scene;
+    const pts: Vec2[] = [];
+    for (const id of st.selection) {
+      const it = sc.items[id];
+      const a = it && getAsset(it.assetId);
+      if (it && a && it.levelId === st.activeLevelId) pts.push(...itemFootprint(a, [it.position[0], it.position[2]], it.rotationY, it.scale));
+      const s = sc.stairs[id];
+      if (s && (s.fromLevel === st.activeLevelId || s.toLevel === st.activeLevelId)) pts.push(...(stairOutline(sc, s) ?? []));
+      const b = sc.balconies[id];
+      if (b && b.levelId === st.activeLevelId) pts.push(...b.outline);
+      const z = sc.zones[id];
+      if (z) pts.push(...zonePolygon(z));
+      const w = sc.walls[id];
+      if (w && w.levelId === st.activeLevelId) {
+        const n1 = sc.nodes[w.a];
+        const n2 = sc.nodes[w.b];
+        if (n1 && n2) pts.push(n1.p, n2.p);
+      }
+      const o = sc.openings[id];
+      const ow = o && sc.walls[o.wallId];
+      if (o && ow && ow.levelId === st.activeLevelId) {
+        const n1 = sc.nodes[ow.a];
+        const n2 = sc.nodes[ow.b];
+        if (n1 && n2) {
+          const len = Math.hypot(n2.p[0] - n1.p[0], n2.p[1] - n1.p[1]) || 1;
+          const t = o.offset / len;
+          pts.push([n1.p[0] + (n2.p[0] - n1.p[0]) * t, n1.p[1] + (n2.p[1] - n1.p[1]) * t]);
+        }
+      }
+    }
+    if (pts.length === 0) return null;
+    const r = this.canvas.getBoundingClientRect();
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const p of pts) {
+      const sx = r.left + p[0] * this.view.scale + this.view.ox;
+      const sy = r.top + p[1] * this.view.scale + this.view.oy;
+      x0 = Math.min(x0, sx); x1 = Math.max(x1, sx);
+      y0 = Math.min(y0, sy); y1 = Math.max(y1, sy);
+    }
+    // Keep the box inside this pane (the bar must not float away when the object is panned off screen).
+    x0 = Math.max(r.left, Math.min(r.right - 4, x0));
+    x1 = Math.max(r.left + 4, Math.min(r.right, x1));
+    y0 = Math.max(r.top + 60, Math.min(r.bottom - 120, y0));
+    y1 = Math.max(y0 + 4, Math.min(r.bottom - 100, y1));
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  }
+
+  private publishAnchor(): void {
+    const b = this.selectionBox();
+    const cur = useAnchor.getState().box;
+    const same = (!b && !cur) || (b && cur && Math.abs(b.x - cur.x) < 1 && Math.abs(b.y - cur.y) < 1 && Math.abs(b.w - cur.w) < 1 && Math.abs(b.h - cur.h) < 1);
+    if (!same) useAnchor.getState().set(b);
+  }
+
   private render(): void {
+    this.publishAnchor();
     const st = editor.getState();
     const ui = useUi.getState();
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -255,7 +324,7 @@ export class PlanController {
       ghost: this.ghostBelow(),
       preview: this.preview,
       itemGhost: this.itemGhost,
-      paintSide: ui.paintSide,
+      paintSides: highlightSides(st.scene, st.selection, ui.paintSide),
       units: st.scene.meta.units,
       pro: ui.pro,
       lengthInput: ui.lengthInput,
@@ -276,6 +345,7 @@ export class PlanController {
       tool: ui.tool,
       hover: this.hover,
       drawingFrom: ui.tool === 'wall' ? wallTool.last : null,
+      roomGhost: this.roomGhostDraw(),
       zones: Object.values(st.scene.zones).map((z) => ({ polygon: zonePolygon(z), color: catalogMaterial(z.material.id).color, selected: st.selection.includes(z.id), path: z.shape === 'path' })),
       balconies: Object.values(st.scene.balconies)
         .filter((b) => b.levelId === st.activeLevelId)
@@ -476,6 +546,53 @@ export class PlanController {
     return g ? [Math.round(w[0] / g) * g, Math.round(w[1] / g) * g] : w;
   }
 
+  /** Where the ready-made room would go: centred on the pointer, on a 10 cm grid, edges pulled onto nearby walls. */
+  private roomGhostAt(sx: number, sy: number): { center: Vec2 } | null {
+    const ui = useUi.getState();
+    const preset = ui.roomPreset ? getRoomPreset(ui.roomPreset) : undefined;
+    if (ui.tool !== 'room' || !preset) return null;
+    const st = editor.getState();
+    const w = toWorld(this.view, sx, sy) as Vec2;
+    let cx = Math.round(w[0] * 10) / 10;
+    let cz = Math.round(w[1] * 10) / 10;
+    const foot = presetFootprint(preset, [cx, cz], ui.roomQuarters);
+    const xs = foot.map((p) => p[0]);
+    const zs = foot.map((p) => p[1]);
+    const edgesX = [Math.min(...xs), Math.max(...xs)];
+    const edgesZ = [Math.min(...zs), Math.max(...zs)];
+    const nodes = Object.values(st.scene.nodes).filter((n) => n.levelId === st.activeLevelId);
+    const pull = (edges: number[], key: 0 | 1): number => {
+      let best = 0;
+      let bestD = 0.3;
+      for (const e of edges) for (const n of nodes) {
+        const dlt = n.p[key] - e;
+        if (Math.abs(dlt) < bestD) {
+          bestD = Math.abs(dlt);
+          best = dlt;
+        }
+      }
+      return best;
+    };
+    cx += pull(edgesX, 0);
+    cz += pull(edgesZ, 1);
+    return { center: [cx, cz] };
+  }
+
+  private roomGhostDraw(): { outline: Vec2[]; items: Vec2[][]; label: string; center: Vec2 } | null {
+    const ui = useUi.getState();
+    const preset = ui.roomPreset ? getRoomPreset(ui.roomPreset) : undefined;
+    if (!this.roomGhost || !preset) return null;
+    const c = this.roomGhost.center;
+    const q = ui.roomQuarters;
+    const items = layoutItems(preset).flatMap((it) => {
+      const a = getAsset(it.asset);
+      if (!a) return [];
+      const t = turnOffset(it.pos, q);
+      return [itemFootprint(a, [c[0] + t[0], c[1] + t[1]], it.rot + (q * Math.PI) / 2, [1, 1, 1])];
+    });
+    return { outline: presetFootprint(preset, c, q), items, label: preset.name, center: c };
+  }
+
   /** Ghost of the stairs the next click would place. */
   private stairGhostAt(sx: number, sy: number): StairDraw | null {
     const ui = useUi.getState();
@@ -607,7 +724,7 @@ export class PlanController {
     this.moved = false;
     const tool = useUi.getState().tool;
 
-    if (e.button === 1 || e.button === 2 || this.spaceDown) {
+    if (e.button === 1 || e.button === 2 || this.spaceDown || useUi.getState().viewOnly) {
       this.mode = 'pan';
       return;
     }
@@ -620,6 +737,9 @@ export class PlanController {
     } else if (tool === 'place') {
       this.mode = 'placeItem';
       this.itemGhost = this.itemGhostAt(p.x, p.y);
+    } else if (tool === 'room') {
+      this.mode = 'placeRoom';
+      this.roomGhost = this.roomGhostAt(p.x, p.y);
     } else if (tool === 'stair') {
       this.mode = 'placeStair';
       this.stairGhost = this.stairGhostAt(p.x, p.y);
@@ -693,6 +813,9 @@ export class PlanController {
       } else if (tool === 'place' && e.pointerType === 'mouse') {
         this.itemGhost = this.itemGhostAt(p.x, p.y);
         this.invalidate();
+      } else if (tool === 'room' && e.pointerType === 'mouse') {
+        this.roomGhost = this.roomGhostAt(p.x, p.y);
+        this.invalidate();
       } else if (tool === 'stair' && e.pointerType === 'mouse') {
         this.stairGhost = this.stairGhostAt(p.x, p.y);
         this.invalidate();
@@ -723,6 +846,10 @@ export class PlanController {
         break;
       case 'placeStair':
         this.stairGhost = this.stairGhostAt(p.x, p.y);
+        this.invalidate();
+        break;
+      case 'placeRoom':
+        this.roomGhost = this.roomGhostAt(p.x, p.y);
         this.invalidate();
         break;
       case 'dragZone':
@@ -839,6 +966,11 @@ export class PlanController {
       const g = this.itemGhostAt(p.x, p.y);
       if (g) editor.execute(addItem({ levelId: editor.getState().activeLevelId, assetId: g.assetId, position: g.position, rotationY: g.rotationY }));
       this.itemGhost = e.pointerType === 'mouse' ? this.itemGhostAt(p.x, p.y) : null;
+    } else if (mode === 'placeRoom') {
+      const g = this.roomGhostAt(p.x, p.y);
+      const ui = useUi.getState();
+      if (g && ui.roomPreset) editor.execute(placeRoomPreset({ levelId: editor.getState().activeLevelId, presetId: ui.roomPreset, center: g.center, quarters: ui.roomQuarters }));
+      this.roomGhost = e.pointerType === 'mouse' ? this.roomGhostAt(p.x, p.y) : null;
     } else if (mode === 'placeStair') {
       const g = this.stairGhostAt(p.x, p.y);
       if (g) this.placeStair(g);
@@ -903,6 +1035,7 @@ export class PlanController {
     this.preview = null;
     this.itemGhost = null;
     this.stairGhost = null;
+    this.roomGhost = null;
     this.invalidate();
   }
 
@@ -961,6 +1094,11 @@ export class PlanController {
       return;
     }
     if (!isDown) return;
+    // Hand mode: the design is locked; only fitting the view is allowed.
+    if (useUi.getState().viewOnly) {
+      if (!(e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') this.fitToPlan();
+      return;
+    }
     // While walking, WASD & friends belong to the walker, not the tool shortcuts.
     if (useUi.getState().walk && !(e.ctrlKey || e.metaKey) && e.key !== 'Escape') return;
 
@@ -1015,7 +1153,7 @@ export class PlanController {
       }
       this.preview = null;
       this.itemGhost = null;
-      if (useUi.getState().tool === 'place' || useUi.getState().tool === 'stair') useUi.getState().setTool('select');
+      if (useUi.getState().tool === 'place' || useUi.getState().tool === 'stair' || useUi.getState().tool === 'room') useUi.getState().setTool('select');
       editor.select([]);
     } else if (e.key === 'Enter') {
       if (useUi.getState().tool === 'wall') this.endChain();
@@ -1037,6 +1175,8 @@ export class PlanController {
       if (useUi.getState().tool === 'place') {
         useUi.getState().rotatePlacing(delta);
         this.itemGhost = null;
+      } else if (useUi.getState().tool === 'room') {
+        useUi.getState().turnRoom(e.shiftKey ? -1 : 1);
       } else if (useUi.getState().tool === 'stair') {
         useUi.getState().rotateStair(delta);
         this.stairGhost = null;
@@ -1078,16 +1218,16 @@ function isDraftTool(): boolean {
 
 export function deleteSelection(): void {
   const st = editor.getState();
-  const items = st.selection.filter((id) => st.scene.items[id]);
-  const openings = st.selection.filter((id) => st.scene.openings[id]);
-  const walls = st.selection.filter((id) => st.scene.walls[id]);
-  const stairs = st.selection.filter((id) => st.scene.stairs[id]);
-  const balconies = st.selection.filter((id) => st.scene.balconies[id]);
-  const zones = st.selection.filter((id) => st.scene.zones[id]);
-  if (zones.length && !items.length && !openings.length && !walls.length && !stairs.length && !balconies.length) return void editor.execute(removeZones(zones));
-  if (balconies.length && !items.length && !openings.length && !walls.length && !stairs.length) return void editor.execute(removeBalconies(balconies));
-  if (stairs.length && !items.length && !openings.length && !walls.length) editor.execute(removeStairs(stairs));
-  else if (items.length) editor.execute(removeItems(items));
-  else if (openings.length) editor.execute(removeOpenings(openings));
-  else if (walls.length) editor.execute(removeWalls(walls));
+  const sc = st.scene;
+  const sel = st.selection;
+  const cmds = [
+    ...(sel.some((id) => sc.items[id]) ? [removeItems(sel.filter((id) => sc.items[id]))] : []),
+    ...(sel.some((id) => sc.openings[id]) ? [removeOpenings(sel.filter((id) => sc.openings[id]))] : []),
+    ...(sel.some((id) => sc.walls[id]) ? [removeWalls(sel.filter((id) => sc.walls[id]))] : []),
+    ...(sel.some((id) => sc.stairs[id]) ? [removeStairs(sel.filter((id) => sc.stairs[id]))] : []),
+    ...(sel.some((id) => sc.balconies[id]) ? [removeBalconies(sel.filter((id) => sc.balconies[id]))] : []),
+    ...(sel.some((id) => sc.zones[id]) ? [removeZones(sel.filter((id) => sc.zones[id]))] : []),
+    ...sel.filter((id) => sc.roofs[id]).map((id) => setRoof(sc.roofs[id]!.levelId, { style: 'none' })),
+  ];
+  if (cmds.length) editor.execute(batch(cmds.length > 1 ? 'Delete' : cmds[0]!.label ?? 'Delete', cmds));
 }

@@ -6,7 +6,7 @@
  * Local frame of every item: origin at the centre of its floor footprint (ceiling items: at the ceiling,
  * wall items: at the back face centre at `mountHeight`), +x = width, +z = FRONT, +y up. Sizes in metres.
  */
-export type AssetCategory = 'living' | 'bedroom' | 'dining' | 'bathroom' | 'office' | 'decor' | 'lighting' | 'plants' | 'outdoor' | 'appliances' | 'kids';
+export type AssetCategory = 'living' | 'bedroom' | 'dining' | 'bathroom' | 'office' | 'decor' | 'lighting' | 'plants' | 'outdoor' | 'appliances' | 'kids' | 'nature' | 'scenery';
 export type AssetTier = 'free' | 'premium' | 'rewarded';
 export type MountKind = 'floor' | 'wall' | 'ceiling';
 
@@ -47,6 +47,8 @@ export const CATEGORIES: Array<{ id: AssetCategory; name: string }> = [
   { id: 'kids', name: 'Kids' },
   { id: 'appliances', name: 'Appliances' },
   { id: 'outdoor', name: 'Outdoor & garden' },
+  { id: 'nature', name: 'Trees & nature' },
+  { id: 'scenery', name: 'Scenery' },
 ];
 
 const FABRICS: AssetColor[] = [
@@ -338,6 +340,56 @@ export const CATALOG: readonly Asset[] = [
   a({ id: 'bike-rack', name: 'Bicycle rack', category: 'outdoor', size: [1.8, 0.5, 0.8], solid: false, tags: ['cycle', 'parking'] }),
   a({ id: 'slide', name: 'Playground slide', category: 'outdoor', size: [0.9, 2.6, 1.6], tier: 'rewarded', solid: false, tags: ['play', 'kids'] }),
   a({ id: 'sandbox', name: 'Sandbox', category: 'outdoor', size: [1.5, 1.5, 0.25], solid: false, tags: ['play', 'kids', 'sand'] }),
+
+  // ---- Batch 5 · trees & nature
+  a({ id: 'tree-mango', name: 'Mango tree', category: 'nature', size: [3.4, 3.4, 5.0], shape: 'round', solid: false, tags: ['tree', 'fruit', 'aam', 'garden'] }),
+  a({ id: 'tree-neem', name: 'Neem tree', category: 'nature', size: [3.6, 3.6, 5.5], shape: 'round', solid: false, tags: ['tree', 'shade', 'garden'] }),
+  a({ id: 'tree-banyan', name: 'Banyan tree', category: 'nature', size: [5.5, 5.5, 6.0], shape: 'round', solid: false, tier: 'premium', tags: ['tree', 'shade', 'big'] }),
+  a({ id: 'tree-gulmohar', name: 'Gulmohar tree', category: 'nature', size: [3.8, 3.8, 5.0], shape: 'round', solid: false, tags: ['tree', 'flowers', 'red', 'garden'] }),
+  a({ id: 'tree-cherry', name: 'Cherry blossom', category: 'nature', size: [3.0, 3.0, 4.0], shape: 'round', solid: false, tier: 'premium', tags: ['tree', 'flowers', 'pink', 'sakura'] }),
+  a({ id: 'tree-oak', name: 'Oak tree', category: 'nature', size: [4.2, 4.2, 6.0], shape: 'round', solid: false, tags: ['tree', 'shade', 'big'] }),
+  a({ id: 'tree-birch', name: 'Birch tree', category: 'nature', size: [2.0, 2.0, 5.5], shape: 'round', solid: false, tags: ['tree', 'white'] }),
+  a({ id: 'tree-cypress', name: 'Cypress', category: 'nature', size: [1.0, 1.0, 4.5], shape: 'round', solid: false, tags: ['tree', 'tall', 'narrow'] }),
+  a({ id: 'tree-willow', name: 'Weeping willow', category: 'nature', size: [4.2, 4.2, 5.0], shape: 'round', solid: false, tier: 'rewarded', tags: ['tree', 'pond', 'drooping'] }),
+  a({ id: 'tree-fruit', name: 'Fruit tree', category: 'nature', size: [2.4, 2.4, 3.0], shape: 'round', solid: false, tags: ['tree', 'apple', 'orchard'] }),
+  a({ id: 'tree-olive', name: 'Potted olive tree', category: 'nature', size: [1.2, 1.2, 1.9], shape: 'round', solid: false, tags: ['tree', 'pot', 'terrace'] }),
+  a({ id: 'bush-flower', name: 'Flowering bush', category: 'nature', size: [1.1, 1.1, 0.9], shape: 'round', solid: false, tags: ['shrub', 'flowers', 'garden'] }),
+  a({ id: 'hibiscus', name: 'Hibiscus', category: 'nature', size: [1.0, 1.0, 1.4], shape: 'round', solid: false, tags: ['shrub', 'flowers', 'red', 'gudhal'] }),
+  a({ id: 'topiary-ball', name: 'Topiary ball', category: 'nature', size: [0.7, 0.7, 1.0], shape: 'round', solid: false, tags: ['shrub', 'trimmed'] }),
+  a({ id: 'topiary-spiral', name: 'Topiary spiral', category: 'nature', size: [0.7, 0.7, 1.7], shape: 'round', solid: false, tags: ['shrub', 'trimmed'] }),
+  a({ id: 'rose-bed', name: 'Rose bed', category: 'nature', size: [1.4, 0.6, 0.55], solid: false, tags: ['flowers', 'gulab', 'garden'] }),
+  a({ id: 'marigold-patch', name: 'Marigold patch', category: 'nature', size: [1.2, 1.2, 0.35], shape: 'round', solid: false, tags: ['flowers', 'genda', 'yellow'] }),
+  a({ id: 'sunflowers', name: 'Sunflowers', category: 'nature', size: [1.2, 0.5, 1.7], solid: false, tags: ['flowers', 'yellow', 'tall'] }),
+  a({ id: 'lavender-row', name: 'Lavender row', category: 'nature', size: [1.6, 0.4, 0.55], solid: false, tags: ['flowers', 'purple'] }),
+  a({ id: 'tall-grass', name: 'Tall grass', category: 'nature', size: [0.9, 0.9, 1.0], shape: 'round', solid: false, tags: ['grass', 'pampas'] }),
+  a({ id: 'fern', name: 'Fern', category: 'nature', size: [0.9, 0.9, 0.7], shape: 'round', solid: false, tags: ['green', 'shade'] }),
+  a({ id: 'rock-cluster', name: 'Rock cluster', category: 'nature', size: [1.5, 1.2, 0.7], solid: false, tags: ['stone', 'boulder', 'garden'] }),
+  a({ id: 'log', name: 'Fallen log', category: 'nature', size: [1.7, 0.45, 0.45], solid: false, tags: ['wood', 'tree trunk'] }),
+  a({ id: 'lotus', name: 'Lotus', category: 'nature', size: [1.0, 1.0, 0.35], shape: 'round', solid: false, tags: ['pond', 'flower', 'water lily', 'kamal'] }),
+  a({ id: 'garden-gnome', name: 'Garden gnome', category: 'nature', size: [0.3, 0.3, 0.6], shape: 'round', solid: false, tags: ['decor', 'statue', 'fun'] }),
+  a({ id: 'sundial', name: 'Sundial', category: 'nature', size: [0.5, 0.5, 0.95], shape: 'round', solid: false, tags: ['decor', 'garden', 'time'] }),
+  a({ id: 'stone-lantern', name: 'Stone lantern', category: 'nature', size: [0.5, 0.5, 1.2], shape: 'round', solid: false, tags: ['decor', 'light', 'japanese'] }),
+  a({ id: 'garden-statue', name: 'Garden statue', category: 'nature', size: [0.6, 0.6, 1.6], shape: 'round', solid: false, tier: 'rewarded', tags: ['decor', 'sculpture', 'art'] }),
+  a({ id: 'urn-planter', name: 'Urn planter', category: 'nature', size: [0.6, 0.6, 1.0], shape: 'round', solid: false, tags: ['decor', 'pot', 'flowers'] }),
+  a({ id: 'wheelbarrow', name: 'Wheelbarrow', category: 'nature', size: [0.6, 1.5, 0.7], solid: false, tags: ['decor', 'garden', 'tool'] }),
+  a({ id: 'watering-can', name: 'Watering can', category: 'nature', size: [0.45, 0.25, 0.4], solid: false, tags: ['decor', 'garden', 'tool'] }),
+  a({ id: 'stake-light', name: 'Garden stake light', category: 'nature', size: [0.2, 0.2, 0.5], shape: 'round', solid: false, tags: ['light', 'path', 'solar'] }),
+  // ---- Batch 5 · scenery
+  a({ id: 'neighbour-modern', name: 'Neighbour: modern house', category: 'scenery', size: [9.0, 8.0, 6.5], tags: ['house', 'building', 'neighbour', 'flat roof'] }),
+  a({ id: 'neighbour-villa', name: 'Neighbour: villa', category: 'scenery', size: [10.0, 8.5, 7.5], tags: ['house', 'building', 'neighbour', 'bungalow'] }),
+  a({ id: 'neighbour-row', name: 'Neighbour: row house', category: 'scenery', size: [10.0, 6.5, 7.5], tags: ['house', 'building', 'neighbour', 'terrace'] }),
+  a({ id: 'neighbour-hut', name: 'Neighbour: village house', category: 'scenery', size: [5.0, 4.5, 3.6], tags: ['house', 'building', 'neighbour', 'village', 'tiled'] }),
+  a({ id: 'apartment-block', name: 'Apartment block', category: 'scenery', size: [14.0, 10.0, 16.0], tier: 'premium', tags: ['building', 'flats', 'tower', 'city'] }),
+  a({ id: 'pond-small', name: 'Garden pond', category: 'scenery', size: [3.0, 2.4, 0.2], solid: false, tags: ['water', 'lake', 'fish'] }),
+  a({ id: 'pond-large', name: 'Large pond', category: 'scenery', size: [6.5, 4.5, 0.2], solid: false, tier: 'premium', tags: ['water', 'lake'] }),
+  a({ id: 'pond-round', name: 'Round pond', category: 'scenery', size: [4.0, 4.0, 0.2], shape: 'round', solid: false, tags: ['water', 'lake'] }),
+  a({ id: 'hill', name: 'Hill', category: 'scenery', size: [12.0, 10.0, 3.0], solid: false, tags: ['terrain', 'mound', 'slope', 'mountain'] }),
+  a({ id: 'mound', name: 'Grassy mound', category: 'scenery', size: [5.0, 4.0, 1.2], solid: false, tags: ['terrain', 'slope', 'garden'] }),
+  a({ id: 'road-straight', name: 'Road (straight)', category: 'scenery', size: [6.0, 14.0, 0.05], solid: false, tags: ['street', 'asphalt', 'lane'] }),
+  a({ id: 'road-corner', name: 'Road (corner)', category: 'scenery', size: [6.0, 6.0, 0.05], solid: false, tags: ['street', 'asphalt', 'turn'] }),
+  a({ id: 'pavement', name: 'Pavement', category: 'scenery', size: [2.0, 14.0, 0.12], solid: false, tags: ['sidewalk', 'footpath'] }),
+  a({ id: 'street-light', name: 'Street light', category: 'scenery', size: [1.0, 0.4, 6.5], solid: false, tags: ['light', 'pole', 'road'] }),
+  a({ id: 'compound-wall', name: 'Long compound wall', category: 'scenery', size: [10.0, 0.25, 1.9], tags: ['boundary', 'fence', 'gate'] }),
 ];
 
 const BY_ID = new Map(CATALOG.map((x) => [x.id, x]));

@@ -1,4 +1,4 @@
-# Progress Report — HomeDesigner
+# Progress Report — PlotFramer
 
 > Living log. **Append a new entry after every completed task** (newest at top of the Log section).
 > Also keep `CONTEXT.md` "Current state" in sync.
@@ -28,6 +28,39 @@
 Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-05 (end of session).
 
 ## Log
+
+### [2026-11-06] Goo fix, clear everything / delete room, Share & export
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified (360/360 browser checks; editor-core 163 unit tests; typecheck and lint clean).
+- **Goo:** the Edit / Hand pair is now its own `GooGroup`, so the white liquid blob follows the active button again (phone layout fixed too).
+- **Delete:** Home › File gets **Clear this floor** and **Delete everything** (two taps each, one undo step: `clearHome(levelId | null)`; floors, plot and ground stay). Selecting a room shows a **Room** button in the floating bar (two taps) that deletes the room with its furniture and its own walls and doors; walls shared with a neighbour stay (`deleteRoom`). Tests in `editor-core/src/clear.test.ts`.
+- **Share & export:** new **Share & export** dialog (top bar on desktop, Menu sheet on phone). Rows: Home file, 3D picture, Plan (PDF), CAD (DXF), each with **Save** and, where the device has a share sheet, **Share** (files go through `navigator.share`; falls back to saving). PDF and DXF stay Premium (lock, opens Account); the picture keeps the free watermark. **Link** section: sign in, **Create link** (existing cloud share), Copy / Share link / Stop sharing. Export logic moved to `export/make.ts` and is reused by Home › Export.
+- **Files:** `packages/editor-core/src/commands/clear.ts`, `apps/web/src/ui/{ShareDialog,ObjectBar,FileActions,TopBar,ToolRail}.tsx`, `export/make.ts`, `plan/session.ts`, `styles.css`, `e2e/smoke.mjs`.
+- **Next step:** more materials (98 → ~150), P3-04 realism, optional P3-05 leftovers; owner items unchanged (phone benchmark, Supabase migrations + live share-link test).
+
+### [2026-11-06] Owner feedback list — batch 3 (nature, ready-made rooms, surroundings) → whole list done
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified (349/349 browser checks; unit tests geometry 76, editor-core 161, web 94, assets 10, schema 8; typecheck, lint clean). All 11 points of the feedback list are now delivered (batches 1 and 2 are in the entry below).
+- **Item 8 (garden, trees, bushes, decor):** two new catalog categories. **Trees & nature (30):** mango, neem, banyan, gulmohar, cherry blossom, oak, birch, cypress, weeping willow, fruit tree, potted olive; flowering bush, hibiscus, topiary ball + spiral; rose bed, marigold patch, sunflowers, lavender row, tall grass, fern, rock cluster, fallen log, lotus; gnome, sundial, stone lantern, garden statue, urn planter, wheelbarrow, watering can, garden stake light (stone lantern and stake light glow at night). All procedural, all pass the size / on-the-ground checks. The Garden tool (lawn / paving / path) from earlier stays.
+- **Item 9 (ready-made rooms):** **Rooms** button in the rail opens a panel of 12 furnished presets with a plan picture each (Bedroom, Master bedroom, Kids room, Living room, Dining room, Kitchen, Bathroom, Study, Pooja room, Utility room, Garage, Studio flat). Pick one, a ghost with its furniture follows the pointer (snaps to a 10 cm grid and pulls its edges onto nearby walls so rooms butt up and share a wall), R turns it a quarter, click places it: 4 walls, doors and windows, furniture against the walls, a ceiling light, the room named with its type and floor, **one undo step**. Pure logic in `editor-core/src/presets/rooms.ts` (`placeRoomPreset`, `layoutItems`, `presetFootprint`), tested for every preset in all four turns.
+- **Item 10 (neighbours, ponds, terrain, environments):** new **Scenery** category (5 neighbour buildings: modern, villa, row house, village house, apartment block; 3 ponds; hill and mound; road straight and corner; pavement; street light; long compound wall). **Home > Surroundings**: one tap applies Suburb, Village, Hills, Beach or City edge — sets the ground and places roads, neighbours, trees, water around the house (`applyEnvironment`, items tagged `tag: 'env'` so the next preset replaces them and **Clear** removes only them; one undo step). Hills / mounds are scenery pieces, not an editable height terrain (that stays a later, bigger piece of work).
+- **Model detail:** hills use true half-ellipsoids; neighbour roofs are real pyramid / gable meshes.
+- **Files:** `packages/editor-core/src/presets/{rooms,environment}.ts`, `presets.test.ts`, `scene-schema` (`Item.tag`), `packages/assets` (Scenery / Nature entries), `apps/web/src/view3d/furniture/builders5.ts`, `ui/RoomsPanel.tsx`, `plan/{PlanController,render,session}`, `ui/{HomeMenu,ToolRail,BottomBar}`.
+- **Notes:** the rail is now long (Edit/Hand, Select, Wall, Door, Window, Stairs, Roof, Balcony, Garden, Rooms, Furniture, Snap, Undo/Redo); it scrolls on short screens. Presets use exterior walls; a preset placed inside a larger house keeps its own walls. Environment pieces are ordinary items: select, move, delete.
+- **Next step:** more materials (98 → ~150), P3-04 realism (reflections, lamp bloom, water for ponds), optional P3-05 leftovers (saved viewpoints, layer panel); owner items unchanged (phone benchmark incl. night scene, Supabase migrations + redeem code + live test).
+
+### [2026-11-06] Owner feedback list (11 items) — batches 1 and 2 done
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Batches 1 and 2 done and verified (338/338 browser checks; unit tests geometry 76, editor-core 152, web 94, assets 10, schema 8; typecheck, lint clean). **Batch 3 (items 8, 9, 10: nature category, preset rooms, neighbours / ponds / terrain / environments) is still to do.**
+- **Owner decisions:** Hand = view-only lock (Edit unlocks); wall sides detected automatically; floating bar next to the selected object; PDF + DXF locked behind Premium, PNG free with a watermark; furnished preset rooms with walls; pick-and-place scenery plus environment presets (no height-terrain editor yet); roof: easier to find + more types; delete: big Delete button on the floating bar.
+- **Item 1 + 2 (Hand / Edit):** the tool rail starts with a compact Edit | Hand pair. Hand = `ui.viewOnly`: dragging pans the plan, every tool is disabled, keyboard shortcuts and Delete are ignored, nothing is selectable in 3D, the edit card and floating bar are hidden. Edit unlocks.
+- **Item 3 (phone nav):** bottom bar buttons 50 x 54 px with 25 px icons and 10.5 px labels, bar up to 460 px wide.
+- **Item 4 (walls):** Surface = Both sides / **Interior wall** / **Exterior wall**. `plan/wallFaces.ts` works out which face of each wall looks into a room (a probe point beyond the face lies inside a detected room) and which looks outside; paint applies to that face, falling back to both faces when a wall has no face of that kind (e.g. loose walls). The brick line on the plan shows the face.
+- **Items 5 + 7 (delete + dedicated buttons):** `ui/ObjectBar.tsx`: Smaller, Bigger, Left, Right, Edit, Delete for the selection (size = item scale / stair width / opening width / path width; turn for furniture and stairs; Edit opens the card; Delete removes everything selected in ONE undo step, including roofs, balconies, garden areas). On a computer it floats just above the selected object on the plan (published by the plan canvas); on a phone or in 3D-only it docks above the bottom bar and steps aside while the card is open.
+- **Item 6 (roof):** a **Roof** button in the rail adds a gable roof to the top floor (or selects the existing one) and opens a Roof card (shape, slope, overhang, material, turn 90°). Roofs can be clicked in 3D. New shapes: **Butterfly, Mansard, Barrel** (pure geometry, tested; Floor menu offers them too).
+- **Item 11 (premium export):** Home > Export: Plan (PDF) and CAD (DXF) show a lock for free accounts and ask for Premium / a redeem code (opens the account panel); the 3D PNG stays free with a small "Made with BYHOME" mark, premium / redeem-code accounts get it clean. Developers: redeem code unlocks everything.
+- **Fixed on the way:** restored `ui/icons.tsx` from git after an over-broad edit removed icons (nothing lost); a stale dev-server module made the bar dock; restart `pnpm dev` if the bar sits at the bottom on desktop.
+- **Next step:** batch 3 (see above), then the earlier list: finish P3-06 catalog / materials, P3-04 realism; owner items unchanged (phone benchmark incl. night scene, Supabase migrations + redeem code + live test).
 
 ### [2026-11-06] P3-06 (batch 4) — Catalog 167 -> 207 items, materials 46 -> 98
 - **Model/Author:** Claude Sonnet 5.5
@@ -438,7 +471,7 @@ Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-
 - **What was done:** `git init` (branch `main`); pnpm workspace; shared `tsconfig.base.json` (strict); ESLint 9 flat config + Prettier + editorconfig; `apps/web` = Vite 7 + React 19 + R3F 9 + drei 10 + three 0.180 with a lit cube, ground plane, HDRI environment, orbit controls, `frameloop="demand"`.
 - **Verified:** `pnpm install`, `pnpm typecheck`, `pnpm build`, `pnpm lint` all pass; dev server returns HTTP 200 and serves the app on LAN (`pnpm dev` → http://<pc-ip>:5173).
 - **Files created:** root `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `eslint.config.js`, `.prettierrc.json`, `.editorconfig`, `.gitignore`; `apps/web/{package.json,tsconfig.json,vite.config.ts,index.html,src/main.tsx,src/App.tsx}`
-- **Decisions made:** Owner: project name stays placeholder "HomeDesigner"; region = India first, global later; owner is a **solo developer** (no team). Package scope `@hd/*`.
+- **Decisions made:** Owner: project name stays placeholder "PlotFramer"; region = India first, global later; owner is a **solo developer** (no team). Package scope `@hd/*`.
 - **Problems / notes:** (1) pnpm skipped esbuild's postinstall script — build still works; run `pnpm approve-builds` only if Vite complains. (2) Bundle is 1.18 MB (333 KB gzip), expected for three.js; code-split later. (3) Drei's `Environment preset` fetches the HDRI from a CDN at runtime — needs internet; self-host HDRI before offline/PWA work. (4) CI, tests (Vitest), and the `packages/*` skeletons are not created yet; they come with the tasks that need them. (5) Visual check in a browser/phone not performed by me.
 - **Next step:** P0-02 — `packages/scene-schema` (types + Zod + defaults). Owner action: run `pnpm dev`, open http://localhost:5173 and on a phone via the LAN URL to confirm the cube renders and orbit works.
 
@@ -460,3 +493,8 @@ Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-
 - **Decisions made:** ADR-001 to ADR-006 (ADR-004 Supabase is *proposed*).
 - **Problems / notes:** Audience, market, business model, timeline unknown — working assumptions recorded in `projectDetails.md` §8. No code written yet.
 - **Next step:** P0-01 — scaffold pnpm monorepo + Vite/R3F hello-cube.
+
+## Branding — app name is PlotFramer
+- Owner decision: the app is named **PlotFramer** (replaces the "HomeDesigner" placeholder, Q8). User-facing strings updated: page title, logo alt/aria-labels, tour welcome, PDF footer/producer, perf report, file-error text; docs renamed.
+- Deliberately unchanged: IndexedDB name `home-designer`, package names `@hd/*` / `home-designer` (renaming would orphan saved projects / churn the lockfile), folder name.
+- Favicon + apple-touch icon now the PlotFramer icon (light ink).

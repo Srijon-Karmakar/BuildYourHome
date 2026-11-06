@@ -10,3 +10,4 @@ export * from './stairs';
 export * from './zones';
 export * from './balconies';
 export * from './batch';
+export * from './clear';

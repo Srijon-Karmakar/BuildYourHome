@@ -3,7 +3,11 @@ import { useStore } from 'zustand';
 import { WALL_THICKNESS_EXTERIOR_M, WALL_THICKNESS_INTERIOR_M } from '@hd/scene-schema';
 import {
   batch,
+  applyEnvironment,
   boundaryKind,
+  clearEnvironment,
+  ENVIRONMENTS,
+  hasEnvironment,
   DEFAULT_PLOT_MARGIN_M,
   nodesOutsidePlot,
   setBoundary,
@@ -33,6 +37,7 @@ export function HomeMenu({ onOpenChange }: { onOpenChange?: (open: boolean) => v
   const setTool = useUi((s) => s.setTool);
   const plot = scene.plot?.boundary;
   const outside = nodesOutsidePlot(scene).length;
+  const hasEnv = hasEnvironment(scene);
 
   useEffect(() => {
     onOpenChange?.(open);
@@ -124,6 +129,21 @@ export function HomeMenu({ onOpenChange }: { onOpenChange?: (open: boolean) => v
                   }}
                 >
                   Remove plot
+                </button>
+              )}
+            </div>
+          </Section>
+          <Section title="Surroundings">
+            <small className="fine">One tap sets the ground and adds neighbours, trees, roads or water around your house. You can move or delete any piece afterwards.</small>
+            <div className="f-actions">
+              {ENVIRONMENTS.map((env) => (
+                <button key={env.id} type="button" className="pill small" title={env.description} onClick={() => editor.execute(applyEnvironment(env.id))}>
+                  {env.name}
+                </button>
+              ))}
+              {hasEnv && (
+                <button type="button" className="pill small" onClick={() => editor.execute(clearEnvironment())}>
+                  Clear
                 </button>
               )}
             </div>

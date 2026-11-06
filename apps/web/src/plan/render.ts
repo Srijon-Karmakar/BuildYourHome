@@ -70,7 +70,7 @@ export interface RenderState {
   itemGhost: ItemGhost | null;
   /** Walls of the floor below, drawn faintly as a tracing reference. */
   ghost: readonly Vec2[][];
-  paintSide: 'both' | 'a' | 'b';
+  paintSides: readonly { id: string; side: 1 | -1 }[];
   geom: LevelGeometry;
   preview: OpeningPreview | null;
   /** First-person walker (shown as a view cone) while the walkthrough is active. */
@@ -82,10 +82,12 @@ export interface RenderState {
   scene: Scene;
   levelId: string;
   selection: readonly string[];
-  tool: 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony' | 'garden';
+  tool: 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony' | 'garden' | 'room';
   hover: SnapResult | null;
   drawingFrom: Vec2 | null;
   gridStep: number;
+  /** Ghost of the ready-made room about to be placed. */
+  roomGhost: { outline: readonly Vec2[]; items: readonly (readonly Vec2[])[]; label: string; center: Vec2 } | null;
   /** Garden surfaces (lawn, paving, paths) on the ground. */
   zones: readonly { polygon: readonly Vec2[]; color: string; selected: boolean; path: boolean }[];
   /** Balconies of this floor with their railing runs. */
@@ -390,12 +392,10 @@ function drawOpeningSymbol(
 
 /** When painting one face of the selected walls, show which side that is with a thin brick line. */
 function drawPaintSide(ctx: CanvasRenderingContext2D, s: RenderState): void {
-  if (s.paintSide === 'both') return;
-  const side: 1 | -1 = s.paintSide === 'a' ? 1 : -1;
   ctx.strokeStyle = C.brick;
   ctx.lineWidth = 3;
   ctx.lineCap = 'butt';
-  for (const id of s.selection) {
+  for (const { id, side } of s.paintSides) {
     const fp = s.geom.footprints[id];
     if (!fp) continue;
     const [ax, ay] = toScreen(s.view, ...(facePoint(fp, 0, side) as [number, number]));
@@ -765,6 +765,48 @@ function drawPlotAfter(ctx: CanvasRenderingContext2D, s: RenderState): void {
   }
 }
 
+function drawRoomGhost(ctx: CanvasRenderingContext2D, s: RenderState): void {
+  const g = s.roomGhost;
+  if (!g) return;
+  ctx.save();
+  ctx.globalAlpha = 0.75;
+  ctx.beginPath();
+  g.outline.forEach((p, i) => {
+    const [x, y] = toScreen(s.view, p[0], p[1]);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(201,191,160,0.5)';
+  ctx.fill();
+  ctx.strokeStyle = C.brick;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([9, 5]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(17,17,17,0.55)';
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  for (const poly of g.items) {
+    ctx.beginPath();
+    poly.forEach((p, i) => {
+      const [x, y] = toScreen(s.view, p[0], p[1]);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.font = `500 13px ${FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const [lx, ly] = toScreen(s.view, g.center[0], g.center[1]);
+  halo(ctx, g.label, lx, ly);
+  ctx.restore();
+}
+
 function drawZones(ctx: CanvasRenderingContext2D, s: RenderState): void {
   for (const z of s.zones) {
     ctx.beginPath();
@@ -936,4 +978,5 @@ export function drawPlan(ctx: CanvasRenderingContext2D, s: RenderState): void {
   drawPlotAfter(ctx, s);
   drawWalker(ctx, s);
   drawOverlay(ctx, s);
+  drawRoomGhost(ctx, s);
 }

@@ -9,6 +9,7 @@ const CAPTION = {
   door: 'Move over a wall and click to add a door · it opens toward your side',
   window: 'Move over a wall and click to add a window',
   plot: 'Click each corner of your land · click the first corner or press Enter to close · Esc to cancel',
+  room: 'Click to place the room · R turns it · it snaps to walls you already have · Esc to stop',
   garden:
     'Click the corners of the area (or the points of a path) · click the first corner or press Enter to finish · Esc to cancel',
   balcony:

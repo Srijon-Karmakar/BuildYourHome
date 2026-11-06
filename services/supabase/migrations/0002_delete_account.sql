@@ -1,4 +1,4 @@
--- HomeDesigner — let a signed-in user delete their own account and all of its data (launch requirement: GDPR-style
+-- PlotFramer — let a signed-in user delete their own account and all of its data (launch requirement: GDPR-style
 -- "right to erasure"). Run in the Supabase SQL editor after 0001_init.sql.
 -- Everything the user owns (projects -> shares, subscriptions, unlocks) is removed by the ON DELETE CASCADE foreign
 -- keys defined in 0001. STATUS: not yet executed against a live project.

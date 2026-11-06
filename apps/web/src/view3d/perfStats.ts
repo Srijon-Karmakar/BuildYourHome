@@ -49,7 +49,7 @@ export interface DeviceInfo {
 /** Plain-text report the owner can paste back (one row per tier). */
 export function formatReport(device: DeviceInfo, results: readonly BenchResult[], sceneNote: string): string {
   const lines = [
-    'Home Designer - performance report',
+    'PlotFramer - performance report',
     `Scene: ${sceneNote}`,
     `Device: ${device.screen} @${device.dpr}x, cores ${device.cores ?? '?'}, memory ${device.memoryGb ?? '?'} GB`,
     `GPU: ${device.gpu}`,

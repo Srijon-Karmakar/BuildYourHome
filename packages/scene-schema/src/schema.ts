@@ -90,13 +90,15 @@ export const Item = z.object({
   scale: Vec3,
   variant: z.string().optional(),
   locked: z.boolean().optional(),
+  /** Set on scenery placed by a surroundings preset ('env'), so it can be replaced or cleared as a group. */
+  tag: z.string().optional(),
   attach: z.object({ wallId: Id.optional(), roomId: Id.optional() }).optional(),
 });
 
 export const Roof = z.object({
   id: Id,
   levelId: Id,
-  style: z.enum(['gable', 'hip', 'flat', 'shed']),
+  style: z.enum(['gable', 'hip', 'flat', 'shed', 'butterfly', 'mansard', 'barrel']),
   pitchDeg: z.number().min(0).max(80),
   overhang: z.number().min(0),
   ridgeAngle: z.number().optional(),

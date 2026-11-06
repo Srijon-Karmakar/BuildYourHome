@@ -2746,7 +2746,7 @@ html[data-reveal] .bottom {
 /* ---------- Phone portrait ---------- */
 @media (max-width: 699px) {
   .app {
-    --rail-h: 50px;
+    --rail-h: 68px;
   }
 
   /* Tool bar: a glass capsule along the bottom; the tools scroll sideways, Undo / Redo stay pinned at the right. */
@@ -2756,13 +2756,13 @@ html[data-reveal] .bottom {
     right: 0;
     bottom: calc(var(--safe-b) + 6px);
     width: fit-content;
-    max-width: min(calc(100% - 16px), 308px);
+    max-width: min(calc(100% - 12px), 460px);
     height: auto;
     max-height: none;
     margin: 0 auto;
     flex-direction: row;
     align-items: center;
-    padding: 3px 10px;
+    padding: 5px 12px;
     transform-origin: center bottom;
     --jx: 1.04;
     --jy: 0.96;
@@ -2794,21 +2794,21 @@ html[data-reveal] .bottom {
 
   .rail .tool,
   .rail-pin .tool {
-    width: 36px;
-    min-height: 40px;
-    padding: 3px 0 2px;
-    gap: 1px;
+    width: 50px;
+    min-height: 54px;
+    padding: 5px 0 3px;
+    gap: 2px;
   }
 
   .rail .tool svg,
   .rail-pin .tool svg {
-    width: 19px;
-    height: 19px;
+    width: 25px;
+    height: 25px;
   }
 
   .rail .tool span,
   .rail-pin .tool span {
-    font-size: 8.5px;
+    font-size: 10.5px;
   }
 
   .rail-pin {
@@ -3109,9 +3109,7 @@ html[data-reveal] .bottom {
   --on-orange-dim: #111;
 }
 
-.rail-wrap,
 .segmented.goo,
-.levels > .pill.small,
 .topbar-right > .pill.walk-btn {
   background: var(--bar-orange);
   border: 0;
@@ -3457,5 +3455,259 @@ html[data-reveal] .bottom {
   .topbar-right .acct-pop {
     margin-top: 2px;
     padding: 8px 0 14px;
+  }
+}
+
+/* ---------- Floating bar for the selected object ---------- */
+.objbar {
+  position: fixed;
+  z-index: 14;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--paper-2) 94%, transparent);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: 0 6px 22px rgba(17, 17, 17, 0.16);
+}
+
+.objbar button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 46px;
+  min-height: 46px;
+  padding: 3px 0 2px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.objbar button:hover:not(:disabled) {
+  background: rgba(17, 17, 17, 0.07);
+}
+
+.objbar button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.objbar button svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.objbar button span {
+  font-size: 9.5px;
+  line-height: 1;
+  color: var(--ink-2);
+}
+
+.objbar button.danger {
+  color: #a8322a;
+}
+
+.objbar button.danger span {
+  color: #a8322a;
+}
+
+/* Docked: above the bottom bar, centred (phones and the 3D-only view). */
+.objbar.docked {
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--safe-b) + var(--rail-h, 0px) + 22px);
+}
+
+@media (min-width: 700px) {
+  .objbar.docked {
+    bottom: calc(var(--safe-b) + 74px);
+  }
+}
+
+/* Edit / Hand: two compact buttons side by side on the vertical (desktop) rail so the rail stays short. */
+.mode-pair {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  --goo-r: 12px;
+}
+
+.mode-pair .tool {
+  width: 29px;
+  min-height: 46px;
+  padding: 5px 0 3px;
+}
+
+.mode-pair .tool span {
+  font-size: 8px;
+}
+
+.rail .mode-pair .tool svg {
+  width: 19px;
+  height: 19px;
+}
+
+@media (min-width: 700px) {
+  .rail .tool {
+    min-height: 48px;
+    padding: 4px 0 3px;
+  }
+}
+
+@media (max-width: 699px) {
+  .mode-pair {
+    display: flex;
+    flex: none;
+    --goo-r: 14px;
+  }
+
+  .mode-pair .tool {
+    flex: none;
+    width: 50px;
+    min-height: 54px;
+  }
+
+  .mode-pair .tool span {
+    font-size: 10.5px;
+  }
+
+  .rail .mode-pair .tool svg {
+    width: 25px;
+    height: 25px;
+  }
+
+  /* On a phone the bar sits above the collapsed edit card, and steps aside while that card is open. */
+  .objbar.docked {
+    bottom: calc(var(--safe-b) + var(--rail-h, 68px) + 88px);
+  }
+
+  html[data-ins-open] .objbar.docked {
+    display: none;
+  }
+}
+
+/* ---------- Ready-made rooms panel ---------- */
+.rooms-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.room-card .room-thumb {
+  background: var(--paper);
+}
+
+.room-mini {
+  width: 100%;
+  height: 100%;
+  padding: 6px;
+}
+
+.room-card small {
+  margin: 0;
+}
+
+/* ---------- The tool bar (left sidebar on a computer, bottom bar on a phone) and the floor pills are warm grey ---------- */
+:root {
+  --bar-grey: #cdcac4;
+}
+
+.rail-wrap,
+.levels > .pill.small {
+  background: var(--bar-grey);
+  border: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.levels > .pill.small {
+  color: var(--on-orange);
+}
+
+.levels > .pill.small:hover,
+.levels > .pill.small[aria-pressed='true'] {
+  background: #fff;
+  color: var(--on-orange);
+}
+
+.rail-wrap .goo .tool:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.rail-wrap .rail-sep {
+  background: rgba(17, 17, 17, 0.18);
+}
+
+.objbar button.danger.armed {
+  background: #b3261e;
+  color: #fff;
+}
+.objbar button.danger.armed span,
+.objbar button.danger.armed svg {
+  color: #fff;
+}
+
+/* Share & export dialog */
+.welcome-card.share {
+  max-width: 460px;
+  display: grid;
+  gap: 12px;
+}
+.welcome-card.share header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.welcome-card.share h1 {
+  margin: 0;
+  font-size: 20px;
+}
+.share-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.share-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+}
+.share-list li > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.share-link {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+.share-url {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 12px;
+}
+@media (max-width: 699px) {
+  .share-btn {
+    display: none;
   }
 }

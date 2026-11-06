@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { clearHome } from '@hd/editor-core';
 import { editor } from '../plan/session';
 import { activePlan } from '../plan/PlanCanvas';
 import { fileNameFor, MAX_FILE_BYTES, parseSceneFile, serializeScene } from '../lib/persistence';
@@ -11,6 +12,8 @@ export function FileActions({ onDone }: { onDone: () => void }) {
   const input = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [confirmNew, setConfirmNew] = useState(false);
+  const [confirmFloor, setConfirmFloor] = useState(false);
+  const [confirmAll, setConfirmAll] = useState(false);
 
   const refit = () => {
     activePlan?.fitToPlan();
@@ -76,6 +79,32 @@ export function FileActions({ onDone }: { onDone: () => void }) {
         onBlur={() => setConfirmNew(false)}
       >
         {confirmNew ? 'Tap again to clear everything' : 'New home'}
+      </button>
+      <button
+        type="button"
+        className={`pill small${confirmFloor ? ' solid' : ''}`}
+        onClick={() => {
+          if (!confirmFloor) return setConfirmFloor(true);
+          editor.execute(clearHome(editor.getState().activeLevelId));
+          setConfirmFloor(false);
+          setMessage('This floor is empty. Undo brings it back.');
+        }}
+        onBlur={() => setConfirmFloor(false)}
+      >
+        {confirmFloor ? 'Tap again to empty this floor' : 'Clear this floor'}
+      </button>
+      <button
+        type="button"
+        className={`pill small${confirmAll ? ' solid' : ''}`}
+        onClick={() => {
+          if (!confirmAll) return setConfirmAll(true);
+          editor.execute(clearHome(null));
+          setConfirmAll(false);
+          setMessage('Everything is cleared. Undo brings it back.');
+        }}
+        onBlur={() => setConfirmAll(false)}
+      >
+        {confirmAll ? 'Tap again to delete everything' : 'Delete everything'}
       </button>
       <button
         type="button"

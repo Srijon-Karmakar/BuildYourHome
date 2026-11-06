@@ -331,11 +331,17 @@ try {
     await page.mouse.click(300, 90);
     const wallId = (await sel())[0];
     const before = (await sceneOf()).walls[wallId];
-    await inspector.getByRole('button', { name: 'Side 2' }).click();
+    await inspector.getByRole('button', { name: 'Exterior wall' }).click();
     await inspector.getByRole('radio', { name: 'Light stone' }).count(); // (ground swatch lives in Home menu, not here)
     await inspector.getByRole('radio', { name: 'Stone' }).first().click();
     let w = (await sceneOf()).walls[wallId];
-    check('painting only Side 2 leaves Side 1 alone', w.materialB.id === 'wall-stone' && w.materialA.id === before.materialA.id, `${w.materialA.id} | ${w.materialB.id}`);
+    const changed = [w.materialA.id !== before.materialA.id, w.materialB.id !== before.materialB.id];
+    check('painting the Exterior wall changes exactly one face (the outside one)', changed.filter(Boolean).length === 1 && (w.materialA.id === 'wall-stone' || w.materialB.id === 'wall-stone'), `${w.materialA.id} | ${w.materialB.id}`);
+    const outsideIsB = w.materialB.id === 'wall-stone';
+    await inspector.getByRole('button', { name: 'Interior wall' }).click();
+    await inspector.getByRole('radio', { name: 'Terracotta', exact: true }).first().click();
+    w = (await sceneOf()).walls[wallId];
+    check('painting the Interior wall changes the other face and leaves the exterior stone', (outsideIsB ? w.materialA.id === 'paint-terracotta' && w.materialB.id === 'wall-stone' : w.materialB.id === 'paint-terracotta' && w.materialA.id === 'wall-stone'), `${w.materialA.id} | ${w.materialB.id}`);
     await inspector.getByRole('button', { name: 'Both sides' }).click();
     await inspector.getByRole('radio', { name: 'White brick', exact: true }).click();
     w = (await sceneOf()).walls[wallId];
@@ -1422,7 +1428,7 @@ try {
     page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
     await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
     await page.goto(BASE + '?curtain=1');
-    const curtain = page.getByRole('dialog', { name: 'Home Designer' });
+    const curtain = page.getByRole('dialog', { name: 'PlotFramer' });
     await curtain.waitFor();
     check('a first visit opens with the curtain', await curtain.isVisible());
     const cta = curtain.getByRole('button', { name: 'Start designing' });
@@ -1696,6 +1702,16 @@ try {
       return { name: dl.suggestedFilename(), data: readFileSync(path) };
     };
 
+    // A free account: the blueprint is locked (the 3D picture still works, with a mark).
+    check('free accounts see a lock on the blueprint buttons', (await home.getByRole('button', { name: /Plan \(PDF\)/ }).textContent()).includes('🔒'));
+    await home.getByRole('button', { name: /Plan \(PDF\)/ }).click();
+    check('free: the PDF explains it needs Premium and opens the account', (await home.getByText(/Premium feature/).isVisible()) && (await page.evaluate(() => window.__hd.useCloud.getState().accountOpen)));
+    await page.evaluate(() => window.__hd.useCloud.setState({ accountOpen: false }));
+    const freePng = await grab(/3D picture/);
+    check('free: the 3D picture is still allowed (with a mark)', freePng.name === 'sample-home-3d.png');
+    await page.evaluate(() => window.__hd.useCloud.setState({ ent: { subscribed: false, gifted: true, unlocks: {} } }));
+    await page.getByRole('button', { name: 'Home' }).click().catch(() => {});
+    if (!(await home.isVisible())) await page.getByRole('button', { name: 'Home' }).click();
     const pdf = await grab('Plan (PDF)');
     const ptxt = pdf.data.toString('latin1');
     check('the PDF is named from the home and paper size', pdf.name === 'sample-home-plan-A4.pdf', pdf.name);
@@ -1717,6 +1733,59 @@ try {
     check('the 3D picture is a PNG at least as large as the screen pane', sig === '89504e470d0a1a0a' && w >= 600 && h >= 700 && png.name === 'sample-home-3d.png', `${w}x${h}`);
     check('exporting the picture opened the 3D view', (await page.evaluate(() => window.__hd.useUi.getState().view)) === 'split');
     check('no page errors while exporting', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2t2. clear everything, delete a room, share & export dialog
+  {
+    const { readFileSync } = await import('node:fs');
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?demo=1&view=2d');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForFunction(() => window.__hd.useCloud.getState().ready);
+    const count = () => page.evaluate(() => { const s = window.__hd.editor.getState().scene; return { w: Object.keys(s.walls).length, r: Object.keys(s.rooms).length, i: Object.keys(s.items).length }; });
+    const before = await count();
+    // goo: Edit / Hand pair has its own blob under the active button
+    const goo = await page.evaluate(() => { const g = document.querySelector('.mode-pair'); const b = g?.querySelector('.goo-blob')?.getBoundingClientRect(); const a = g?.querySelector('[aria-pressed="true"]')?.getBoundingClientRect(); return b && a ? Math.abs(b.left - a.left) < 3 && Math.abs(b.top - a.top) < 3 : false; });
+    check('the Edit / Hand pair has the liquid highlight under the active button', goo);
+    // room delete
+    await page.evaluate(() => { const s = window.__hd.editor.getState().scene; window.__hd.editor.select([Object.keys(s.rooms)[0]]); });
+    const bar = page.getByRole('toolbar', { name: 'Selected object' });
+    await bar.getByRole('button', { name: 'Delete room' }).click();
+    check('Delete room asks first (nothing deleted yet)', (await count()).r === before.r && (await bar.getByRole('button', { name: 'Tap again to delete the room' }).count()) === 1);
+    await bar.getByRole('button', { name: 'Tap again to delete the room' }).click();
+    const afterRoom = await count();
+    check('second tap deletes the room with its walls', afterRoom.r === before.r - 1 && afterRoom.w < before.w, JSON.stringify([before, afterRoom]));
+    await page.keyboard.press('Control+z');
+    check('deleting a room is one undo step', JSON.stringify(await count()) === JSON.stringify(before));
+    // clear everything from Home
+    await page.getByRole('button', { name: 'Home' }).click();
+    const home = page.getByRole('group', { name: 'Home settings' });
+    await home.getByRole('button', { name: 'Delete everything' }).click();
+    check('Delete everything asks first', (await count()).w === before.w);
+    await home.getByRole('button', { name: 'Tap again to delete everything' }).click();
+    const empty = await count();
+    check('second tap clears the whole home', empty.w === 0 && empty.r === 0 && empty.i === 0, JSON.stringify(empty));
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.keyboard.press('Control+z');
+    check('Undo brings everything back', JSON.stringify(await count()) === JSON.stringify(before));
+    // share & export dialog
+    await page.getByRole('button', { name: /^Share/ }).first().click();
+    const dlg = page.getByRole('dialog', { name: 'Share & export' });
+    check('Share opens the Share & export dialog', await dlg.isVisible());
+    const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }), dlg.locator('[data-share="save-project"]').click()]);
+    const pth = `${SP}/share-${dl.suggestedFilename()}`;
+    await dl.saveAs(pth);
+    const json = JSON.parse(readFileSync(pth, 'utf8'));
+    check('Save home file downloads a valid home file', dl.suggestedFilename().endsWith('.json') && JSON.stringify(json).includes('"walls"'), dl.suggestedFilename());
+    await dlg.locator('[data-share="save-pdf"]').click();
+    check('free: the PDF row sends you to Premium', await page.evaluate(() => window.__hd.useCloud.getState().accountOpen));
+    await page.evaluate(() => window.__hd.useCloud.setState({ accountOpen: false }));
+    check('no page errors with clear, room delete and sharing', errors.length === 0, errors.slice(0, 2).join(' | '));
     await page.close();
   }
 
@@ -1744,6 +1813,177 @@ try {
     await lamps.getByRole('button', { name: 'Lamps: auto' }).click();
     check('and back to auto', (await lights()) === 'auto');
     check('no page errors with lamps and night', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2v. Hand (view-only) mode and the bigger phone nav
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?demo=1&view=split');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForFunction(() => window.__hd);
+    const rail = page.getByRole('navigation', { name: 'Tools' });
+    check('the rail starts in Edit mode', (await rail.getByRole('button', { name: 'Edit' }).getAttribute('aria-pressed')) === 'true');
+    const walls0 = await page.evaluate(() => Object.keys(window.__hd.editor.getState().scene.walls).length);
+    await rail.getByRole('button', { name: 'Hand' }).click();
+    check('Hand mode locks the tools', await rail.getByRole('button', { name: 'Wall' }).isDisabled());
+    const box = await page.locator('canvas.plan-canvas').boundingBox();
+    const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+    await page.mouse.click(cx - 100, cy);
+    await page.keyboard.press('w');
+    await page.mouse.click(cx - 100, cy - 80);
+    await page.mouse.click(cx + 100, cy - 80);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Delete');
+    check('nothing can be changed in Hand mode', (await page.evaluate(() => Object.keys(window.__hd.editor.getState().scene.walls).length)) === walls0 && (await page.evaluate(() => window.__hd.editor.getState().selection.length)) === 0);
+    const v0 = await page.evaluate(() => window.__hd.useUi.getState().tool);
+    check('the tool stays Select', v0 === 'select');
+    await rail.getByRole('button', { name: 'Edit' }).click();
+    check('Edit unlocks again', !(await rail.getByRole('button', { name: 'Wall' }).isDisabled()));
+    await page.mouse.click(cx - 60, cy);
+    check('…and selecting works again', (await page.evaluate(() => window.__hd.editor.getState().selection.length)) >= 0);
+    check('no page errors in Hand mode', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+
+    const ph = await browser.newPage({ viewport: { width: 390, height: 780 }, hasTouch: true });
+    await ph.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await ph.goto(BASE + '?demo=1&view=2d');
+    await ph.waitForSelector('canvas.plan-canvas');
+    const tool = await ph.locator('.rail .tool').first().boundingBox();
+    check('the phone tool buttons are big enough to tap (≥ 48 × 52 px)', !!tool && tool.width >= 48 && tool.height >= 52, JSON.stringify(tool));
+    await ph.screenshot({ path: `${SP}/e2e-phone-nav.png` });
+    await ph.close();
+  }
+
+  // ---------------------------------------------------------------- 2w. Roof button, new roof shapes, floating object bar
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?view=split');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForTimeout(400);
+    const box = await page.locator('canvas.plan-canvas').boundingBox();
+    const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+    for (const [dx, dy] of [[-120, -90], [120, -90], [120, 90], [-120, 90], [-120, -90]]) await page.mouse.click(cx + dx, cy + dy);
+    await page.keyboard.press('Escape');
+    const roofs = () => page.evaluate(() => Object.values(window.__hd.editor.getState().scene.roofs));
+    const rail = page.getByRole('navigation', { name: 'Tools' });
+    await rail.getByRole('button', { name: 'Roof' }).click();
+    let r = await roofs();
+    check('the Roof button puts a gable roof on the house and selects it', r.length === 1 && r[0].style === 'gable' && (await page.evaluate(() => window.__hd.editor.getState().selection[0])) === r[0].id);
+    const ins = page.getByRole('complementary', { name: 'Properties' });
+    for (const style of ['Butterfly', 'Mansard', 'Barrel']) {
+      await ins.getByRole('group', { name: 'Shape' }).getByRole('button', { name: style, exact: true }).click();
+      check(`the ${style} roof can be chosen`, (await roofs())[0].style === style.toLowerCase());
+    }
+    await page.screenshot({ path: `${SP}/e2e-roof-barrel.png` });
+    const bar = page.getByRole('toolbar', { name: 'Selected object' });
+    check('the floating bar offers Edit and Delete for the roof', (await bar.getByRole('button', { name: 'Edit' }).isVisible()) && (await bar.getByRole('button', { name: 'Delete' }).isVisible()));
+    await bar.getByRole('button', { name: 'Delete' }).click();
+    check('Delete on the bar removes the roof', (await roofs()).length === 0);
+    await page.keyboard.press('Control+z');
+    check('…and undo brings it back', (await roofs()).length === 1);
+    await page.close();
+
+    // The bar for furniture: bigger, turn, delete (one undo step each); on the plan it floats next to the object.
+    const demo = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    demo.on('pageerror', (e) => errors.push(String(e)));
+    await demo.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await demo.goto(BASE + '?demo=1&view=2d');
+    await demo.waitForSelector('canvas.plan-canvas');
+    await demo.waitForFunction(() => window.__hd);
+    const id = await demo.evaluate(() => { const it = Object.values(window.__hd.editor.getState().scene.items).find((i) => i.assetId === 'coffee-table'); window.__hd.editor.select([it.id]); return it.id; });
+    await demo.waitForTimeout(300);
+    const bar2 = demo.getByRole('toolbar', { name: 'Selected object' });
+    check('selecting furniture shows the bar with Smaller, Bigger, Left, Right, Edit, Delete', (await bar2.getByRole('button').count()) === 6);
+    const pos = await bar2.boundingBox();
+    const obj = await demo.evaluate((i) => window.__hd.editor.getState().scene.items[i].position, id);
+    check('on the plan the bar floats near the object (not docked at the bottom)', !!pos && pos.y < 700, JSON.stringify(pos));
+    const item = () => demo.evaluate((i) => window.__hd.editor.getState().scene.items[i], id);
+    await bar2.getByRole('button', { name: 'Bigger' }).click();
+    check('Bigger grows it 10 %', Math.abs((await item()).scale[0] - 1.1) < 1e-9);
+    await bar2.getByRole('button', { name: 'Smaller' }).click();
+    check('Smaller shrinks it back', Math.abs((await item()).scale[0] - 1) < 0.011);
+    await bar2.getByRole('button', { name: 'Turn right' }).click();
+    check('Turn right rotates it 90°', Math.abs((await item()).rotationY - Math.PI / 2) < 1e-6 || Math.abs((await item()).rotationY + (3 * Math.PI) / 2) < 1e-6);
+    await demo.getByRole('toolbar', { name: 'Selected object' }).getByRole('button', { name: 'Delete' }).click();
+    check('Delete removes it', (await demo.evaluate((i) => !!window.__hd.editor.getState().scene.items[i], id)) === false);
+    await demo.evaluate(() => window.__hd.editor.undo());
+    check('…and one undo brings it back', await demo.evaluate((i) => !!window.__hd.editor.getState().scene.items[i], id));
+    void obj;
+    check('no page errors with the roof and object bar', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await demo.close();
+
+    const ph = await browser.newPage({ viewport: { width: 390, height: 780 }, hasTouch: true });
+    await ph.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await ph.goto(BASE + '?demo=1&view=2d');
+    await ph.waitForSelector('canvas.plan-canvas');
+    await ph.waitForFunction(() => window.__hd);
+    await ph.evaluate(() => { const it = Object.values(window.__hd.editor.getState().scene.items).find((i) => i.assetId === 'coffee-table'); window.__hd.editor.select([it.id]); });
+    await ph.waitForTimeout(400);
+    const pb = await ph.getByRole('toolbar', { name: 'Selected object' }).boundingBox();
+    const rb = await ph.locator('.rail-wrap').boundingBox();
+    check('on a phone the bar sits above the bottom nav, fully on screen', !!pb && !!rb && pb.x >= 0 && pb.x + pb.width <= 390 && pb.y + pb.height <= rb.y + 2, JSON.stringify([pb, rb]));
+    await ph.screenshot({ path: `${SP}/e2e-phone-objbar.png` });
+    await ph.close();
+  }
+
+  // ---------------------------------------------------------------- 2x. ready-made rooms and surroundings
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?view=split');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForFunction(() => window.__hd);
+    await page.waitForTimeout(400);
+    const rail = page.getByRole('navigation', { name: 'Tools' });
+    await rail.getByRole('button', { name: 'Rooms' }).click();
+    const panel = page.getByRole('complementary', { name: 'Ready-made rooms' });
+    check('the Rooms button opens a panel with ready-made rooms', await panel.isVisible());
+    check('there are 12 presets, each with a plan picture', (await panel.locator('.room-card').count()) === 12 && (await panel.locator('.room-mini').count()) === 12);
+    await panel.locator('.room-card', { hasText: 'Bedroom' }).first().click();
+    check('picking one switches to the placement tool', (await page.evaluate(() => window.__hd.useUi.getState().tool)) === 'room');
+    const box = await page.locator('canvas.plan-canvas').boundingBox();
+    const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+    await page.mouse.move(cx, cy);
+    await page.screenshot({ path: `${SP}/e2e-room-ghost.png` });
+    await page.mouse.click(cx, cy);
+    const sc = () => page.evaluate(() => { const s = window.__hd.editor.getState().scene; return { walls: Object.keys(s.walls).length, rooms: Object.values(s.rooms).map((r) => r.name), items: Object.keys(s.items).length, openings: Object.keys(s.openings).length }; });
+    let r = await sc();
+    check('one click puts down a furnished room: 4 walls, a named Bedroom, doors/windows, furniture', r.walls === 4 && r.rooms.includes('Bedroom') && r.openings >= 2 && r.items >= 6, JSON.stringify(r));
+    await page.keyboard.press('Control+z');
+    r = await sc();
+    check('and one undo removes all of it', r.walls === 0 && r.items === 0 && r.rooms.length === 0, JSON.stringify(r));
+    await page.keyboard.press('r');
+    check('R turns the ghost a quarter', (await page.evaluate(() => window.__hd.useUi.getState().roomQuarters)) === 1);
+    await page.mouse.click(cx - 200, cy);
+    await page.keyboard.press('Escape');
+    check('Esc stops placing', (await page.evaluate(() => window.__hd.useUi.getState().tool)) === 'select');
+    await page.screenshot({ path: `${SP}/e2e-room-placed.png` });
+
+    // Surroundings
+    await page.getByRole('button', { name: 'Home' }).click();
+    const home = page.getByRole('group', { name: 'Home settings' });
+    await home.getByRole('button', { name: 'Village' }).click();
+    const env = () => page.evaluate(() => { const s = window.__hd.editor.getState().scene; return { ground: s.terrain.groundMaterial.id, n: Object.values(s.items).filter((i) => i.tag === 'env').length }; });
+    let e1 = await env();
+    check('Surroundings › Village sets the ground and places scenery', e1.ground === 'ground-soil' && e1.n > 8, JSON.stringify(e1));
+    await home.getByRole('button', { name: 'City edge' }).click();
+    e1 = await env();
+    check('choosing another replaces the first one', e1.ground === 'ground-paving' && e1.n > 5);
+    await home.getByRole('button', { name: 'Clear', exact: true }).click();
+    check('Clear removes the scenery (and nothing else)', (await env()).n === 0 && (await sc()).rooms.length >= 1);
+    check('no page errors with ready-made rooms and surroundings', errors.length === 0, errors.slice(0, 2).join(' | '));
     await page.close();
   }
 

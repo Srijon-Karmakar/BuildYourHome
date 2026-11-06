@@ -117,7 +117,7 @@ export function Curtain() {
       className={`curtain ${mode} ${phase}`}
       role="dialog"
       aria-modal="true"
-      aria-label="Home Designer"
+      aria-label="PlotFramer"
     >
       <div className="curtain-panel t" aria-hidden="true" />
       <div className="curtain-panel b" aria-hidden="true" />

@@ -1,6 +1,10 @@
 import { useStore } from 'zustand';
-import { editor, useUi } from '../plan/session';
+import { addOrSelectRoof, editor, useUi } from '../plan/session';
 import {
+  IconHand,
+  IconRoof,
+  IconRooms,
+  IconPen,
   IconGarden,
   IconBalcony,
   IconDoor,
@@ -24,15 +28,31 @@ export function ToolRail() {
   const editable = view !== '3d';
   const furnitureOpen = useUi((s) => s.furnitureOpen);
   const setFurnitureOpen = useUi((s) => s.setFurnitureOpen);
+  const viewOnly = useUi((s) => s.viewOnly);
+  const roomsOpen = useUi((s) => s.roomsOpen);
+  const setRoomsOpen = useUi((s) => s.setRoomsOpen);
+  const setViewOnly = useUi((s) => s.setViewOnly);
 
   return (
     <div className="rail-wrap" data-goo-host="">
       <GooGroup as="nav" className="rail" aria-label="Tools">
+        <GooGroup className="mode-pair">
+          <button type="button" className="tool" title="Edit your design" aria-label="Edit" aria-pressed={!viewOnly} onClick={() => setViewOnly(false)}>
+            <IconPen />
+            <span>Edit</span>
+          </button>
+          <button type="button" className="tool" title="Hand: look around without changing anything" aria-label="Hand" aria-pressed={viewOnly} onClick={() => setViewOnly(true)}>
+            <IconHand />
+            <span>Hand</span>
+          </button>
+        </GooGroup>
+        <div className="rail-sep" />
         <button
           type="button"
           className="tool"
           title="Select and move (V)"
-          aria-pressed={tool === 'select'}
+          aria-pressed={!viewOnly && tool === 'select'}
+          disabled={viewOnly}
           onClick={() => setTool('select')}
         >
           <IconSelect />
@@ -43,7 +63,7 @@ export function ToolRail() {
           className="tool"
           title="Draw walls (W)"
           aria-pressed={editable && tool === 'wall'}
-          disabled={!editable}
+          disabled={!editable || viewOnly}
           onClick={() => setTool('wall')}
         >
           <IconWall />
@@ -55,7 +75,7 @@ export function ToolRail() {
           className="tool"
           title="Add doors (D)"
           aria-pressed={editable && tool === 'door'}
-          disabled={!editable}
+          disabled={!editable || viewOnly}
           onClick={() => setTool('door')}
         >
           <IconDoor />
@@ -66,7 +86,7 @@ export function ToolRail() {
           className="tool"
           title="Add windows (N)"
           aria-pressed={editable && tool === 'window'}
-          disabled={!editable}
+          disabled={!editable || viewOnly}
           onClick={() => setTool('window')}
         >
           <IconWindow />
@@ -78,7 +98,7 @@ export function ToolRail() {
           className="tool"
           title="Add stairs (S)"
           aria-pressed={editable && tool === 'stair'}
-          disabled={!editable}
+          disabled={!editable || viewOnly}
           onClick={() => setTool('stair')}
         >
           <IconStairs />
@@ -88,9 +108,21 @@ export function ToolRail() {
         <button
           type="button"
           className="tool"
+          title="Add a roof to the top floor (or edit it)"
+          aria-pressed={false}
+          disabled={viewOnly}
+          onClick={addOrSelectRoof}
+        >
+          <IconRoof />
+          <span>Roof</span>
+        </button>
+
+        <button
+          type="button"
+          className="tool"
           title="Add a balcony or porch (B)"
           aria-pressed={editable && tool === 'balcony'}
-          disabled={!editable}
+          disabled={!editable || viewOnly}
           onClick={() => setTool('balcony')}
         >
           <IconBalcony />
@@ -102,7 +134,7 @@ export function ToolRail() {
           className="tool"
           title="Lay a lawn, paving, driveway or path (G)"
           aria-pressed={editable && tool === 'garden'}
-          disabled={!editable}
+          disabled={!editable || viewOnly}
           onClick={() => setTool('garden')}
         >
           <IconGarden />
@@ -112,9 +144,21 @@ export function ToolRail() {
         <button
           type="button"
           className="tool"
+          title="Ready-made furnished rooms"
+          aria-pressed={roomsOpen || tool === 'room'}
+          disabled={!editable || viewOnly}
+          onClick={() => setRoomsOpen(!roomsOpen)}
+        >
+          <IconRooms />
+          <span>Rooms</span>
+        </button>
+
+        <button
+          type="button"
+          className="tool"
           title="Furniture catalog"
           aria-pressed={editable && (furnitureOpen || tool === 'place')}
-          disabled={!editable}
+          disabled={!editable || viewOnly}
           onClick={() => setFurnitureOpen(!furnitureOpen)}
         >
           <IconFurniture />

@@ -72,7 +72,7 @@ export function TopBar() {
           src={iconUrl}
           width={128}
           height={105}
-          alt="Home Designer"
+          alt="PlotFramer"
           decoding="sync"
           draggable={false}
         />
@@ -96,6 +96,9 @@ export function TopBar() {
 
       <div className="topbar-actions">
         <HomeMenu key={homeKey} onOpenChange={setHomeOpen} />
+        <button type="button" className="pill share-btn" title="Save, send or share your home" onClick={() => useUi.getState().setShareOpen(true)}>
+          Share
+        </button>
         <button
           type="button"
           className="pill walk-quick"
@@ -144,6 +147,16 @@ export function TopBar() {
           <div className="hm-desktop">
             <HomeMenu />
           </div>
+          <button
+            type="button"
+            className="pill small"
+            onClick={() => {
+              closeMenu();
+              useUi.getState().setShareOpen(true);
+            }}
+          >
+            Share &amp; export
+          </button>
           <DisplayMenu />
         </Fragment>
         <button

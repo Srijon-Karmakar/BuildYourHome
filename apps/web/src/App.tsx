@@ -6,8 +6,11 @@ import { FurniturePanel } from './ui/FurniturePanel';
 import { ConflictDialog, RecoveryDialog } from './ui/AccountDialogs';
 import { Curtain } from './ui/Curtain';
 import { GooFilter } from './ui/Goo';
+import { ShareDialog } from './ui/ShareDialog';
 import { Help } from './ui/Help';
 import { Inspector } from './ui/Inspector';
+import { RoomsPanel } from './ui/RoomsPanel';
+import { ObjectBar } from './ui/ObjectBar';
 import { LevelSwitcher } from './ui/LevelSwitcher';
 import { Tour } from './ui/Tour';
 import { Upsell } from './ui/Upsell';
@@ -25,7 +28,8 @@ export function App() {
   const show2d = view !== '3d';
   const show3d = view !== '2d';
   // The edit card gets its own column so it never covers the plan or the 3D view.
-  const hasInspector = useStore(editor.store, (s) => s.selection.length > 0) && !walk;
+  const viewOnly = useUi((s) => s.viewOnly);
+  const hasInspector = useStore(editor.store, (s) => s.selection.length > 0) && !walk && !viewOnly;
   return (
     <div className={`app${hasInspector ? ' with-inspector' : ''}`}>
       <div className={`panes panes-${view}`}>
@@ -45,10 +49,13 @@ export function App() {
       <ToolRail />
       <BottomBar />
       <Inspector />
+      <ObjectBar />
       <FurniturePanel />
+      <RoomsPanel />
       <LevelSwitcher />
       <Welcome />
       <Help />
+      <ShareDialog />
       <Upsell />
       <RecoveryDialog />
       <ConflictDialog />

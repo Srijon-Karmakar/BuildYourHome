@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from 'zustand';
 import { getAsset, CATEGORIES } from '@hd/assets';
-import type { Zone, Balcony, Item, Opening, Room, RoomType, Stair, Wall } from '@hd/scene-schema';
+import type { Roof, Zone, Balcony, Item, Opening, Room, RoomType, Stair, Wall } from '@hd/scene-schema';
 import { DOOR_STYLES, FRAME_COLORS, LEAF_COLORS, WINDOW_STYLES } from '@hd/scene-schema';
-import { batch, updateZones, updateBalconies, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
+import { setRoof, batch, updateZones, updateBalconies, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
 import { formatArea, formatLength } from '../lib/units';
 import { requireAccess } from '../cloud/store';
 import { deleteSelection } from '../plan/PlanController';
+import { facesFor } from '../plan/wallFaces';
 import { levelRooms } from '../plan/rooms';
 import { editor, useUi } from '../plan/session';
 import { catalogMaterial, finishMaterials, materialsFor, paintMaterials } from '../view3d/placeholderMaterials';
@@ -55,6 +56,7 @@ const openingName = (o: Opening) => (o.type === 'arch' ? 'Archway' : o.type === 
  */
 export function Inspector() {
   const walk = useUi((s) => s.walk);
+  const viewOnly = useUi((s) => s.viewOnly);
   const additive = useUi((s) => s.additive);
   const toggleAdditive = useUi((s) => s.toggleAdditive);
   const paintSide = useUi((s) => s.paintSide);
@@ -65,12 +67,30 @@ export function Inspector() {
   const [collapsed, setCollapsed] = useState(isPhone);
   const empty = selection.length === 0;
 
+  // The floating bar's Edit button: open the card (it starts collapsed on phones).
+  useEffect(() => {
+    const open = () => setCollapsed(false);
+    window.addEventListener('hd:edit', open);
+    return () => window.removeEventListener('hd:edit', open);
+  }, []);
+
+  // Tell the stylesheet when the card is expanded (the floating bar steps aside on phones).
+  useEffect(() => {
+    const open = !empty && !viewOnly && !walk && !collapsed;
+    if (open) document.documentElement.dataset.insOpen = '1';
+    else delete document.documentElement.dataset.insOpen;
+    return () => {
+      delete document.documentElement.dataset.insOpen;
+    };
+  }, [empty, viewOnly, walk, collapsed]);
+
   // On phones the panel starts as a slim bar; reset that whenever the selection is cleared.
   useEffect(() => {
     if (empty) setCollapsed(isPhone());
   }, [empty]);
 
-  const { walls, openings, rooms, items, stairs, balconies, zones } = useMemo(() => {
+  const { walls, openings, rooms, items, stairs, balconies, zones, roofs } = useMemo(() => {
+    const rf: Roof[] = [];
     const zn: Zone[] = [];
     const it: Item[] = [];
     const bl: Balcony[] = [];
@@ -86,14 +106,15 @@ export function Inspector() {
       else if (scene.stairs[id]) st.push(scene.stairs[id]!);
       else if (scene.balconies[id]) bl.push(scene.balconies[id]!);
       else if (scene.zones[id]) zn.push(scene.zones[id]!);
+      else if (scene.roofs[id]) rf.push(scene.roofs[id]!);
     }
-    return { walls: w, openings: o, rooms: r, items: it, stairs: st, balconies: bl, zones: zn };
+    return { walls: w, openings: o, rooms: r, items: it, stairs: st, balconies: bl, zones: zn, roofs: rf };
   }, [selection, scene]);
 
-  if (walk || empty) return null;
+  if (walk || empty || viewOnly) return null;
 
   // ------------------------------------------------------------------ header
-  const total = walls.length + openings.length + rooms.length + items.length + stairs.length + balconies.length + zones.length;
+  const total = walls.length + openings.length + rooms.length + items.length + stairs.length + balconies.length + zones.length + roofs.length;
   let title: string;
   let subtitle = '';
   if (total === 1 && rooms[0]) {
@@ -110,6 +131,9 @@ export function Inspector() {
     const asset = getAsset(items[0].assetId);
     title = asset?.name ?? 'Item';
     subtitle = asset ? `${CATEGORIES.find((c) => c.id === asset.category)?.name ?? ''} · ${formatLength(asset.size[0] * items[0].scale[0], scene.meta.units)} × ${formatLength(asset.size[1] * items[0].scale[2], scene.meta.units)}` : '';
+  } else if (total === 1 && roofs[0]) {
+    title = 'Roof';
+    subtitle = `${scene.levels[roofs[0].levelId]?.name ?? ''} · ${roofs[0].style}`;
   } else if (total === 1 && zones[0]) {
     title = zones[0].shape === 'path' ? 'Path' : 'Garden area';
     subtitle = catalogMaterial(zones[0].material.id).name;
@@ -139,10 +163,18 @@ export function Inspector() {
   const editOpenings = (props: Parameters<typeof setOpeningProps>[1]) =>
     editor.execute(batch(openings.length > 1 ? 'Edit openings' : 'Edit opening', openings.map((o) => setOpeningProps(o.id, props))));
 
-  const faceIds = walls.flatMap((w) => (paintSide === 'a' ? [w.materialA.id] : paintSide === 'b' ? [w.materialB.id] : [w.materialA.id, w.materialB.id]));
+  const faceIds = walls.flatMap((w) => facesFor(scene, w, paintSide).map((f) => (f === 'a' ? w.materialA.id : w.materialB.id)));
   const faceValue = common(faceIds);
   const paintWalls = (id: string) =>
-    editWalls(paintSide === 'a' ? { materialA: { id } } : paintSide === 'b' ? { materialB: { id } } : { materialA: { id }, materialB: { id } });
+    editor.execute(
+      batch(
+        'Paint walls',
+        walls.map((w) => {
+          const f = facesFor(scene, w, paintSide);
+          return setWallsProps([w.id], { ...(f.includes('a') ? { materialA: { id } } : {}), ...(f.includes('b') ? { materialB: { id } } : {}) });
+        }),
+      ),
+    );
   const oneType = openings.length > 0 && openings.every((o) => o.type === openings[0]!.type) ? openings[0]!.type : null;
 
   const itemIds = items.map((i) => i.id);
@@ -163,7 +195,9 @@ export function Inspector() {
   const editBalconies = (props: Parameters<typeof updateBalconies>[1]) => editor.execute(updateBalconies(balconyIds, props));
   const zoneIds = zones.map((z) => z.id);
   const editZones = (props: Parameters<typeof updateZones>[1]) => editor.execute(updateZones(zoneIds, props));
-  const canDelete = walls.length + openings.length + items.length + stairs.length + balconies.length + zones.length > 0;
+  const roof = roofs.length === 1 ? roofs[0]! : null;
+  const editRoof = (props: Parameters<typeof setRoof>[1]) => roof && editor.execute(setRoof(roof.levelId, props));
+  const canDelete = walls.length + openings.length + items.length + stairs.length + balconies.length + zones.length + roofs.length > 0;
 
   return (
     <aside className={`inspector${collapsed ? ' collapsed' : ''}`} aria-label="Properties">
@@ -258,12 +292,12 @@ export function Inspector() {
                 value={paintSide}
                 options={[
                   { id: 'both', label: 'Both sides' },
-                  { id: 'a', label: 'Side 1' },
-                  { id: 'b', label: 'Side 2' },
+                  { id: 'interior', label: 'Interior wall' },
+                  { id: 'exterior', label: 'Exterior wall' },
                 ]}
                 onChange={setPaintSide}
               />
-              {paintSide !== 'both' && <p className="f-note">The brick line on the plan shows which side you are painting.</p>}
+              {paintSide !== 'both' && <p className="f-note">The brick line on the plan shows the face you are painting: the side that looks into a room (interior) or outside (exterior).</p>}
               <Swatches label="Paint" items={paintMaterials()} value={faceValue} onPick={paintWalls} />
               <Swatches label="Finish" items={finishMaterials()} value={faceValue} onPick={paintWalls} />
             </Section>
@@ -302,6 +336,33 @@ export function Inspector() {
                   Duplicate
                 </button>
               </div>
+            </Section>
+          )}
+
+          {roof && (
+            <Section title="Roof">
+              <Segmented
+                label="Shape"
+                value={roof.style}
+                options={[
+                  { id: 'flat', label: 'Flat' },
+                  { id: 'shed', label: 'Shed' },
+                  { id: 'gable', label: 'Gable' },
+                  { id: 'hip', label: 'Hip' },
+                  { id: 'butterfly', label: 'Butterfly' },
+                  { id: 'mansard', label: 'Mansard' },
+                  { id: 'barrel', label: 'Barrel' },
+                ]}
+                onChange={(style) => editRoof({ style })}
+              />
+              {roof.style !== 'flat' && roof.style !== 'barrel' && <AngleField label="Slope" value={roof.pitchDeg} onCommit={(pitchDeg) => editRoof({ pitchDeg })} />}
+              <LengthField label="Overhang" value={roof.overhang} min={0} max={1.5} step={0.05} onCommit={(overhang) => editRoof({ overhang })} />
+              <Swatches label="Roof material" items={materialsFor('roof')} value={roof.material.id} onPick={(materialId) => editRoof({ materialId })} />
+              {(roof.style === 'gable' || roof.style === 'hip' || roof.style === 'butterfly' || roof.style === 'barrel') && (
+                <button type="button" className="pill small" onClick={() => editRoof({ swap: !roof.ridgeAngle })}>
+                  Turn the roof 90°
+                </button>
+              )}
             </Section>
           )}
 

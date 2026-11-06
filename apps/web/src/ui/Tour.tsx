@@ -9,7 +9,7 @@ interface Step {
 }
 
 const STEPS: Step[] = [
-  { title: 'Welcome to Home Designer', text: 'A quick look around: six short steps. You can skip any time.' },
+  { title: 'Welcome to PlotFramer', text: 'A quick look around: six short steps. You can skip any time.' },
   { target: '.rail button[title^="Draw walls"]', title: '1 · Draw walls', text: 'Pick Wall (W), click to place points, press Esc to finish. Close a loop and the room appears by itself. Type a length like 3.5 for exact sizes.' },
   { target: '.rail button[title^="Add doors"]', title: '2 · Add doors and windows', text: 'Choose Door (D) or Window (N), move over a wall and click. Select anything to change its size, colour or style.' },
   { target: '.rail button[title="Furniture catalog"]', title: '3 · Furnish it', text: 'Open the catalog, pick a piece and click to place it. R turns it. Items marked Premium or Watch ad unlock with an account or a short ad.' },

@@ -1,4 +1,4 @@
--- HomeDesigner — initial schema (ADR-004, ADR-011, docs/DATA_MODEL.md §4)
+-- PlotFramer — initial schema (ADR-004, ADR-011, docs/DATA_MODEL.md §4)
 -- Run in the Supabase SQL editor (or `supabase db push`). Safe to re-run: uses IF NOT EXISTS / OR REPLACE.
 -- STATUS: written against the Supabase/Postgres docs but NOT yet executed against a real project.
 

@@ -59,7 +59,7 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 - [x] P3-03 Time-of-day sun + shadows; interior lights (sky, sun, moon, lamps that glow and light nearby rooms; ADR-021/023)
 - [ ] P3-04 (first slice done: photo textures, sky, light AO, contact shadows, rounded furniture; ADR-021) Advanced realism: reflections/probes, baked AO lightmaps, better glass/water, bloom — tuned per tier
 - [x] P3-05 (PNG, scaled PDF plan and DXF done; saved viewpoints and a layer-visibility panel are NOT done) Export PNG + scaled PDF plan + DXF; saved viewpoints; layers (FR-905)
-- [ ] P3-06 Catalog growth (≈ 250 items), material set ≈ 150 — **in progress: 207 items in 11 categories (Appliances, Kids added), 98 materials (28 paints, 22 wall finishes, 30 floors, 18 ground, 20 roofs), 7 door + 5 window styles; remaining: ~40 more items and ~50 more materials**
+- [x] P3-06 Catalog growth: 254 items in 13 categories (incl. Appliances, Kids, Trees & nature, Scenery), 98 materials, 7 door + 5 window styles, 12 ready-made rooms, 5 environments (target was ≈ 250 items; materials ≈ 150 still short)
 **Exit:** an exterior "hero view" looks good on high tier and runs on low tier.
 
 ## Phase 4 — Mobile app & polish (≈ 3–4 weeks)

@@ -26,6 +26,9 @@ const SPECS: Record<string, Spec> = {
   lantern: { at: 'floor', h: 0.6, relative: true, power: 4 },
   'track-light': { at: 'ceiling', h: 0.12, power: 10 },
   uplight: { at: 'floor', h: 0.95, relative: true, power: 8 },
+  'stone-lantern': { at: 'floor', h: 0.7, relative: true, power: 4 },
+  'stake-light': { at: 'floor', h: 0.8, relative: true, power: 2 },
+  'street-light': { at: 'floor', h: 0.95, relative: true, power: 16 },
 };
 
 /** Every light-giving item of the home, in world coordinates. */

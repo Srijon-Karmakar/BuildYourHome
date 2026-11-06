@@ -104,7 +104,7 @@ export function planPdf(scene: Scene, paper: Paper): { bytes: Uint8Array; pages:
     page.fill(0, 0, 0);
     page.text(MARGIN, ty + 10, scene.meta.name, 6.5, { bold: true });
     page.text(MARGIN, ty + 17, `${d.levelName}  -  floor plan`, 3.6);
-    page.text(MARGIN, ty + 22, `Drawn with Home Designer  -  ${today}`, 2.6);
+    page.text(MARGIN, ty + 22, `Drawn with PlotFramer  -  ${today}`, 2.6);
     page.text(W - MARGIN, ty + 10, `Scale 1 : ${scale}`, 4.2, { bold: true, align: 'right' });
     page.text(W - MARGIN, ty + 17, `Sheet ${index + 1} of ${scene.levelOrder.length}  -  ${paper}`, 3, { align: 'right' });
     page.text(W - MARGIN, ty + 22, 'Dimensions in metres unless stated', 2.6, { align: 'right' });

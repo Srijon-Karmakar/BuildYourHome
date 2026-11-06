@@ -1,6 +1,6 @@
-# Project Details — HomeDesigner
+# Project Details — PlotFramer
 
-> Working name: **HomeDesigner** (rename freely). Status: planning. Last updated: 2026-11-05.
+> Name: **PlotFramer**. Status: planning. Last updated: 2026-11-05.
 
 ## 1. Vision
 A cross-platform (web + mobile app) tool where anyone can **design their home — interior and exterior — and then explore it in 3D** (orbit view and first-person walkthrough).
@@ -85,6 +85,6 @@ Rationale: one codebase, fastest iteration, strong 3D ecosystem. Main risk is mo
 | Q5 | 3D asset source? | **ANSWERED:** placeholder assets for now (procedural/primitive + a few CC0); real assets later |
 | Q6 | Timeline / budget? | **ANSWERED:** no budget; demo is free-tier only (Supabase free, static hosting free tier). No fixed deadline |
 | Q7 | Backend? | **ANSWERED:** Supabase (ADR-004 accepted) |
-| Q8 | Project name and branding? | **Deferred by owner:** keep "HomeDesigner" placeholder, decide later |
+| Q8 | Project name and branding? | **Deferred by owner:** **Decided: the app is named PlotFramer** |
 | Q9 | Region/market and store targets? | **ANSWERED:** India first, global later (INR pricing, UPI via Stripe/Razorpay later, Vastu in Phase 5 becomes more relevant; ad network must serve India) |
 | Q10 | Ad network for web? | Open; abstracted behind `AdProvider` (AdMob for mobile) |

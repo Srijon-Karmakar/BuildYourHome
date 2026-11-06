@@ -2,6 +2,8 @@ export * from './types';
 export * from './editor';
 export * from './postProcess';
 export * from './commands';
+export * from './presets/rooms';
+export * from './presets/environment';
 export * from './openings';
 export * from './placement';
 export * from './itemColliders';

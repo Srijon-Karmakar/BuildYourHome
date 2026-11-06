@@ -1,4 +1,4 @@
--- HomeDesigner — redeem codes: a valid code unlocks every asset and turns ads off for the account that redeems it.
+-- PlotFramer — redeem codes: a valid code unlocks every asset and turns ads off for the account that redeems it.
 -- Run in the Supabase SQL editor after 0001 / 0002.
 --
 -- Why this is safe

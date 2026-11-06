@@ -74,6 +74,56 @@ export const IconGarden = () =>
     </>,
   );
 
+export const IconHand = () =>
+  wrap(
+    <>
+      <path d="M8 12V6.5a1.5 1.5 0 013 0V11M11 11V5a1.5 1.5 0 013 0v6M14 11V6.5a1.5 1.5 0 013 0V13M8 12v1.2l-1.3-1.5a1.4 1.4 0 00-2.1 1.8L8 19.5c1 1.2 2.4 1.5 4 1.5h1.5c2.5 0 4.5-2 4.5-4.5V13" />
+    </>,
+  );
+
+export const IconPen = () =>
+  wrap(
+    <>
+      <path d="M5 19l1-4L16.5 4.5a1.8 1.8 0 012.5 0l.5.5a1.8 1.8 0 010 2.5L9 18z" />
+      <path d="M14.5 6.5l3 3" />
+    </>,
+  );
+
+export const IconRotL = () =>
+  wrap(
+    <>
+      <path d="M5 9a8 8 0 111.5 8.5" />
+      <path d="M5 4v5h5" />
+    </>,
+  );
+
+export const IconRotR = () =>
+  wrap(
+    <>
+      <path d="M19 9a8 8 0 10-1.5 8.5" />
+      <path d="M19 4v5h-5" />
+    </>,
+  );
+
+export const IconMinus = () => wrap(<path d="M5 12h14" />);
+
+export const IconPlus = () => wrap(<path d="M5 12h14M12 5v14" />);
+
+export const IconRoof = () =>
+  wrap(
+    <>
+      <path d="M3 12L12 4l9 8" />
+      <path d="M6 10v9h12v-9" />
+    </>,
+  );
+
+export const IconRooms = () =>
+  wrap(
+    <>
+      <path d="M4 5h16v14H4zM4 11h8M12 5v14M16 12v4" />
+    </>,
+  );
+
 export const IconBalcony = () =>
   wrap(
     <>

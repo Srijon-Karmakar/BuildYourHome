@@ -1,4 +1,4 @@
-# CLAUDE.md — HomeDesigner
+# CLAUDE.md — PlotFramer
 
 **Before doing anything, read `CONTEXT.md`, then the latest entries of `progressReport.md`.**
 

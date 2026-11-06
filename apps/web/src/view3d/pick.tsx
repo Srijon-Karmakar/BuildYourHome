@@ -12,7 +12,7 @@ export const SELECT_COLOR = '#7a4236';
 export const CLICK_SLOP_PX = 5;
 
 /** Picking works in the 3D view unless the user is walking around. */
-export const canPick = (): boolean => !useUi.getState().walk;
+export const canPick = (): boolean => !useUi.getState().walk && !useUi.getState().viewOnly;
 
 /** Select `id` (or toggle it with Shift / "Add more"), switching to the floor it is on. Tools other than Select stop. */
 export function pickObject(id: Id | null, levelId: Id | undefined, additive: boolean): void {

@@ -60,7 +60,7 @@ export function parseSceneFile(text: string): { ok: true; scene: Scene } | { ok:
   try {
     raw = JSON.parse(text);
   } catch {
-    return { ok: false, error: 'This file is not a valid Home Designer file.' };
+    return { ok: false, error: 'This file is not a valid PlotFramer file.' };
   }
   const r = loadScene(raw);
   return r.ok ? r : { ok: false, error: `Could not open this file: ${r.error}` };

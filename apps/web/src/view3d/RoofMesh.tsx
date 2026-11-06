@@ -3,7 +3,9 @@ import * as THREE from 'three';
 import type { Level, Roof, Scene } from '@hd/scene-schema';
 import { buildRoofMesh } from '@hd/geometry';
 import { isHouseWall } from '@hd/editor-core';
+import { Outlines } from '@react-three/drei';
 import { makeSurface } from './materials';
+import { pickProps, SELECT_COLOR, useIsSelected } from './pick';
 import type { Tier } from './qualityLogic';
 
 /** Wall centre-line points of a floor (outside walls only when there are any) and half the wall thickness. */
@@ -26,6 +28,7 @@ export function roofFootprint(scene: Scene, levelId: string): { points: [number,
 
 /** The roof of one floor, rebuilt only when its settings or the floor's outer walls change. */
 export function RoofMesh({ roof, level, scene, tier }: { roof: Roof; level: Level; scene: Scene; tier: Tier }) {
+  const selected = useIsSelected(roof.id);
   const fp = roofFootprint(scene, level.id);
   const key = `${roof.style}|${roof.pitchDeg}|${roof.overhang}|${roof.ridgeAngle ?? 0}|${level.elevation + level.height}|${fp.wallHalf}|${fp.points.map((p) => p.map((v) => v.toFixed(3)).join(',')).join(';')}`;
 
@@ -45,5 +48,9 @@ export function RoofMesh({ roof, level, scene, tier }: { roof: Roof; level: Leve
   useEffect(() => () => geometry?.dispose(), [geometry]);
   useEffect(() => () => material.dispose(), [material]);
 
-  return geometry ? <mesh geometry={geometry} material={material} castShadow receiveShadow /> : null;
+  return geometry ? (
+    <mesh geometry={geometry} material={material} castShadow receiveShadow {...pickProps(roof.id, level.id)}>
+      {selected && <Outlines thickness={0.05} color={SELECT_COLOR} />}
+    </mesh>
+  ) : null;
 }

@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { useStore } from 'zustand';
-import { editor, useUi } from '../plan/session';
-import { capture3D, hasCapture } from '../export/capture3d';
-import { planDxf } from '../export/dxf';
-import { downloadBlob, exportBaseName } from '../export/files';
-import { planPdf, type Paper } from '../export/pdfPlan';
+import { editor } from '../plan/session';
+import { downloadBlob } from '../export/files';
+import { ExportError, makeDxf, makePdf, makePicture } from '../export/make';
+import type { Paper } from '../export/pdfPlan';
+import { useCloud } from '../cloud/store';
 import { Segmented } from './fields';
-
-const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
 
 /** Home › Export: a picture of the 3D view, a scaled PDF plan (one page per floor) and a DXF for CAD programs. */
 export function ExportActions() {
@@ -15,44 +13,46 @@ export function ExportActions() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const floors = useStore(editor.store, (s) => s.scene.levelOrder.length);
+  const ent = useCloud((s) => s.ent);
+  /** Blueprint files (PDF plan, DXF) and a clean 3D picture need Premium: a subscription or a redeem code. */
+  const premium = !!(ent.subscribed || ent.gifted);
+  const ask = () => {
+    useCloud.getState().setAccountOpen(true);
+    return 'The blueprint (PDF and CAD) is a Premium feature. Go ad-free in your account, or redeem a code.';
+  };
 
   const run = async (fn: () => Promise<string>) => {
     setBusy(true);
     setMessage(null);
     try {
       setMessage(await fn());
-    } catch {
-      setMessage('Could not create the file. Please try again.');
+    } catch (e) {
+      setMessage(e instanceof ExportError ? e.message : 'Could not create the file. Please try again.');
     } finally {
       setBusy(false);
     }
   };
 
-  const png = () =>
-    run(async () => {
-      const ui = useUi.getState();
-      if (ui.view === '2d') ui.setView('split'); // the picture is taken from the 3D view
-      for (let i = 0; i < 40 && !hasCapture(); i++) await sleep(100);
-      await sleep(700); // let the view draw its first frame
-      const blob = await capture3D();
-      if (!blob) return 'The 3D view is not ready yet. Open it and try again.';
-      downloadBlob(blob, `${exportBaseName(editor.getState().scene)}-3d.png`);
-      return 'Saved the 3D picture to your downloads.';
-    });
+  const png = () => run(async () => {
+    const f = await makePicture(premium);
+    downloadBlob(f.blob, f.name);
+    return f.note;
+  });
 
   const pdf = () =>
     run(async () => {
-      const scene = editor.getState().scene;
-      const r = planPdf(scene, paper);
-      downloadBlob(new Blob([r.bytes as BlobPart], { type: 'application/pdf' }), `${exportBaseName(scene)}-plan-${paper}.pdf`);
-      return `Saved ${r.pages.length} ${r.pages.length === 1 ? 'page' : 'pages'} at 1 : ${[...new Set(r.pages.map((p) => p.scale))].join(' / 1 : ')}.`;
+      if (!premium) return ask();
+      const f = makePdf(paper);
+      downloadBlob(f.blob, f.name);
+      return `Saved ${f.note}`;
     });
 
   const dxf = () =>
     run(async () => {
-      const scene = editor.getState().scene;
-      downloadBlob(new Blob([planDxf(scene)], { type: 'application/dxf' }), `${exportBaseName(scene)}.dxf`);
-      return 'Saved the CAD drawing (millimetres, one layer set per floor).';
+      if (!premium) return ask();
+      const f = makeDxf();
+      downloadBlob(f.blob, f.name);
+      return `Saved the ${f.note}`;
     });
 
   return (
@@ -71,10 +71,10 @@ export function ExportActions() {
           3D picture
         </button>
         <button type="button" className="pill small" disabled={busy} onClick={pdf} title={`Scaled plan, ${floors} ${floors === 1 ? 'page' : 'pages'}`}>
-          Plan (PDF)
+          Plan (PDF){premium ? '' : ' 🔒'}
         </button>
         <button type="button" className="pill small" disabled={busy} onClick={dxf} title="For AutoCAD and other CAD programs">
-          CAD (DXF)
+          CAD (DXF){premium ? '' : ' 🔒'}
         </button>
       </div>
       {message && (

@@ -101,7 +101,7 @@ export class PdfDoc {
       objs[pageObj(i) + 1] = `<< /Length ${body.length} >>\nstream\n${body}\nendstream`;
     });
     const infoId = objs.length;
-    objs[infoId] = `<< /Title (${esc(this.title)}) /Producer (Home Designer) >>`;
+    objs[infoId] = `<< /Title (${esc(this.title)}) /Producer (PlotFramer) >>`;
 
     let out = '%PDF-1.4\n%\xe2\xe3\xcf\xd3\n';
     const offsets: number[] = [];
