@@ -5,6 +5,7 @@ import { AccountMenu } from './AccountMenu';
 import { DisplayMenu } from './DisplayMenu';
 import { useSaveStatus } from '../lib/persistence';
 import { HomeMenu } from './HomeMenu';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { BrandLogo } from './BrandLogo';
 import iconUrl from '../assets/plotframer-icon.png?inline';
 import { GooGroup } from './Goo';
@@ -144,6 +145,9 @@ export function TopBar() {
         </div>
         <Fragment key={sheetKey}>
           <AccountMenu />
+          <div className="ws-sheet">
+            <WorkspaceSwitcher />
+          </div>
           <div className="hm-desktop">
             <HomeMenu />
           </div>

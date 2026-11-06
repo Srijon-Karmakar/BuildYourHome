@@ -1789,6 +1789,57 @@ try {
     await page.close();
   }
 
+  // ---------------------------------------------------------------- 2t3. workspaces: + button, 3 free homes
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?demo=1&view=2d');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForFunction(() => window.__hd.useCloud.getState().ready);
+    // a guest is asked to sign in
+    await page.getByRole('button', { name: 'New workspace' }).click();
+    check('guest: + opens the account sign-in', await page.evaluate(() => window.__hd.useCloud.getState().accountOpen));
+    await page.evaluate(async () => {
+      window.__hd.useCloud.setState({ accountOpen: false });
+      await window.__hd.useCloud.getState().signUp('ws@example.com', 'a long password');
+    });
+    const n = () => page.evaluate(() => window.__hd.useCloud.getState().projects.length);
+    const plus = page.getByRole('button', { name: 'New workspace', exact: true }).first();
+    await plus.click();
+    await page.waitForFunction(() => window.__hd.useCloud.getState().projects.length === 2);
+    const ids = await page.evaluate(() => window.__hd.useCloud.getState().projectId);
+    check('first + saves the demo home first and then makes a new one', (await n()) === 2 && !!ids);
+    await plus.click();
+    await page.waitForFunction(() => window.__hd.useCloud.getState().projects.length === 3);
+    check('a free account can have 3 homes', (await n()) === 3);
+    await plus.click();
+    await page.waitForTimeout(500);
+    check('the 4th is refused for a free account', (await n()) === 3);
+    await page.getByRole('button', { name: 'Workspaces' }).click();
+    const pop = page.getByRole('group', { name: 'Workspace list' });
+    check('the list shows the limit and a Premium button', (await pop.getByText('3 of 3 free homes').isVisible()) && (await pop.getByRole('button', { name: 'Go Premium' }).isVisible()));
+    await pop.getByRole('button', { name: /^Duplicate/ }).first().click();
+    await page.waitForTimeout(400);
+    check('duplicating also respects the limit', (await n()) === 3);
+    // premium: no limit
+    await page.evaluate(() => window.__hd.useCloud.setState({ ent: { subscribed: true, unlocks: {} } }));
+    await pop.getByRole('button', { name: /^Duplicate/ }).first().click();
+    await page.waitForFunction(() => window.__hd.useCloud.getState().projects.length === 4);
+    check('Premium can go past 3', (await n()) === 4);
+    // delete with two taps
+    await pop.getByRole('button', { name: /^Delete/ }).last().click();
+    check('delete asks first', (await n()) === 4);
+    await pop.getByRole('button', { name: /^Tap again to delete/ }).click();
+    await page.waitForFunction(() => window.__hd.useCloud.getState().projects.length === 3);
+    check('second tap deletes the home', (await n()) === 3);
+    check('no page errors with workspaces', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.screenshot({ path: `${SP}/e2e-workspaces.png` });
+    await page.close();
+  }
+
   // ---------------------------------------------------------------- 2u. lamps and night
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });

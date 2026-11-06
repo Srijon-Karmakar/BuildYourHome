@@ -1,9 +1,16 @@
 import { create } from 'zustand';
 import { getAsset } from '@hd/assets';
+import { setSceneName } from '@hd/editor-core';
+import { createEmptyScene } from '@hd/scene-schema';
 import { editor, useUi } from '../plan/session';
 import { canUse, getBackend, NO_ENTITLEMENTS, type Backend, type Entitlements, type ProjectMeta, type Session } from './index';
 
 export type UpsellIntent = 'place' | 'copy';
+
+/** Free accounts can keep this many homes (workspaces); Premium (subscription or redeem code) has no limit. */
+export const FREE_WORKSPACES = 3;
+export const isPremium = (ent: Entitlements): boolean => !!(ent.subscribed || ent.gifted);
+
 
 interface CloudState {
   ready: boolean;
@@ -53,6 +60,10 @@ interface CloudState {
   /** Redeem a code for the signed-in account. Returns an error text, or null on success. */
   redeem(code: string): Promise<string | null>;
   syncScene(scene: ReturnType<typeof editor.getState>['scene']): Promise<void>;
+  /** Start a new blank home as its own saved workspace. Returns 'limit' when a free account is full, 'signin' for guests, an error text, or null. */
+  createWorkspace(): Promise<string | null>;
+  duplicateWorkspace(id: string): Promise<string | null>;
+  renameWorkspace(id: string, name: string): Promise<void>;
 }
 
 let backend: Backend | null = null;
@@ -247,6 +258,51 @@ export const useCloud = create<CloudState>((set, get) => ({
     const r = await be().setSubscription(active);
     if (!r.ok) return set({ message: r.error });
     set({ ent: r.value, message: null, ...(active ? { upsell: null } : {}) });
+  },
+
+  async createWorkspace() {
+    const st = get();
+    if (!st.session) return 'signin';
+    const hasContent = Object.keys(editor.getState().scene.walls).length > 0;
+    const used = st.projects.length + (st.projectId || !hasContent ? 0 : 1);
+    if (used >= FREE_WORKSPACES && !isPremium(st.ent)) return 'limit';
+    if (!st.projectId && hasContent && !(await get().saveNow())) return get().message ?? 'Could not save the current home.';
+    if (get().projectId) await get().saveNow(); // flush the latest edits of the home we are leaving
+    const scene = createEmptyScene();
+    scene.meta.name = `Home ${get().projects.length + 1}`;
+    set({ projectId: null, projectUpdatedAt: null, conflict: false, shareToken: null });
+    editor.loadScene(scene);
+    if (!(await get().saveNow())) return get().message ?? 'Could not create the workspace.';
+    const { activePlan } = await import('../plan/PlanCanvas');
+    activePlan?.fitToPlan();
+    useUi.getState().bumpFit();
+    return null;
+  },
+
+  async duplicateWorkspace(id) {
+    const st = get();
+    if (!st.session) return 'signin';
+    if (st.projects.length >= FREE_WORKSPACES && !isPremium(st.ent)) return 'limit';
+    if (id === st.projectId) await get().saveNow();
+    const scene = id === st.projectId ? editor.getState().scene : await be().loadProject(id);
+    if (!scene) return 'Could not copy this home.';
+    const copy = structuredClone(scene);
+    copy.meta.name = `${scene.meta.name} copy`.slice(0, 60);
+    const r = await be().saveProject(copy);
+    if (!r.ok) return r.error;
+    await get().refresh();
+    return null;
+  },
+
+  async renameWorkspace(id, name) {
+    const n = name.trim().slice(0, 60);
+    if (!n) return;
+    if (id === get().projectId) editor.execute(setSceneName(n));
+    else {
+      const scene = await be().loadProject(id);
+      if (scene) await be().saveProject({ ...scene, meta: { ...scene.meta, name: n } }, id);
+    }
+    await get().refresh();
   },
 
   async syncScene(scene) {

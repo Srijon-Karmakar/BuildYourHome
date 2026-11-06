@@ -3711,3 +3711,102 @@ html[data-reveal] .bottom {
     display: none;
   }
 }
+
+/* Workspace switcher */
+.ws {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.ws-name {
+  max-width: 150px;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.ws-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-plus {
+  width: 32px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+.ws-pop {
+  min-width: 260px;
+  display: grid;
+  gap: 8px;
+  left: 0;
+}
+.ws-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.ws-list li {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 10px;
+  padding: 2px 4px;
+}
+.ws-list li.active {
+  background: rgba(0, 0, 0, 0.06);
+}
+.ws-open {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 6px;
+  font: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ws-open:disabled {
+  font-weight: 600;
+  cursor: default;
+  color: inherit;
+}
+.ws-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 4px 6px;
+}
+.ws-act {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.ws-act:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+.ws-act.danger.armed {
+  background: #b3261e;
+  color: #fff;
+}
+.ws-limit {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.05);
+}
+@media (max-width: 699px) {
+  .ws-name {
+    max-width: 96px;
+  }
+}

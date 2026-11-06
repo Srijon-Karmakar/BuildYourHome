@@ -29,6 +29,14 @@ Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-
 
 ## Log
 
+### [2026-11-06] Workspaces: + button, 3 free homes
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified (370/370 browser checks; typecheck, lint clean).
+- **What:** a workspace is a saved home. The top bar now shows the open home's name with a list (▾) and a **+** that starts a new blank home. The list has Open, Rename, Duplicate and Delete (two taps). Free accounts keep **3** homes; the 4th (or a 4th duplicate) shows "Free accounts keep 3 homes" with **Go Premium** (opens the account). Subscribers and redeem-code accounts have no limit. Existing homes are never removed if a subscription ends.
+- **Owner's answers:** signed-in only (a guest tapping + is asked to sign in); top-bar switcher; limit counts total homes.
+- **How:** `cloud/store.ts` (`FREE_WORKSPACES`, `isPremium`, `createWorkspace`, `duplicateWorkspace`, `renameWorkspace`), `ui/WorkspaceSwitcher.tsx`, `TopBar.tsx`, `styles.css`. The current home is saved before switching, so nothing is lost. The limit is checked in the app only; to enforce it server-side too, add a row-count check to the Supabase project insert policy (not done yet).
+- **Next step:** unchanged (materials, P3-04 realism, owner-side Supabase items).
+
 ### [2026-11-06] Goo fix, clear everything / delete room, Share & export
 - **Model/Author:** Claude Sonnet 5.5
 - **Status:** Done and verified (360/360 browser checks; editor-core 163 unit tests; typecheck and lint clean).
