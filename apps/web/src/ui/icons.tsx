@@ -65,6 +65,15 @@ export const IconStairs = () =>
     </>,
   );
 
+export const IconGarden = () =>
+  wrap(
+    <>
+      <path d="M12 20v-7" />
+      <path d="M12 13c-4 0-6-3-6-7 4 0 6 3 6 7zM12 13c4 0 6-3 6-7-4 0-6 3-6 7z" />
+      <path d="M5 20h14" />
+    </>,
+  );
+
 export const IconBalcony = () =>
   wrap(
     <>

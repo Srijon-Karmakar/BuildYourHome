@@ -5,6 +5,24 @@ import { materialsFor } from '../view3d/placeholderMaterials';
 import { editor, useUi } from '../plan/session';
 import { AngleField, LengthField, Segmented, Swatches, TextField } from './fields';
 
+/** One-glyph label for the narrow floor selector on phones: Ground floor → G, Floor 2 → 2, otherwise the initial. */
+function shortName(name: string): string {
+  if (/ground/i.test(name)) return 'G';
+  const digits = name.match(/\d+/);
+  return digits ? digits[0] : (name.trim()[0] ?? '?').toUpperCase();
+}
+
+const IconRoof = () => (
+  <svg viewBox="0 0 20 20" aria-hidden="true">
+    <path d="M2.5 10.5L10 4L17.5 10.5M5 9V16H15V9" />
+  </svg>
+);
+const IconCutaway = () => (
+  <svg viewBox="0 0 20 20" aria-hidden="true">
+    <path d="M4 7L10 4L16 7V14L10 17L4 14ZM4 7L10 10L16 7M10 10V17" />
+  </svg>
+);
+
 /**
  * Floor switcher: one chip per floor (bottom → top), "+" adds a floor, tapping the current floor again opens its
  * settings (name, height, copy, delete). "Cutaway" lowers the current floor's walls and hides the floors above
@@ -64,9 +82,13 @@ export function LevelSwitcher() {
               className={`seg${isActive ? ' caret' : ''}`}
               aria-pressed={isActive}
               title={isActive ? 'Floor settings' : `Go to ${lv.name}`}
+              aria-label={lv.name}
               onClick={() => (isActive ? setOpen((o) => !o) : editor.setActiveLevel(id))}
             >
-              {lv.name}
+              <span className="lv-full">{lv.name}</span>
+              <span className="lv-short" aria-hidden="true">
+                {shortName(lv.name)}
+              </span>
             </button>
           );
         })}
@@ -80,9 +102,11 @@ export function LevelSwitcher() {
           className="pill small"
           aria-pressed={!showRoof}
           title={showRoof ? 'Hide the roof to look inside' : 'Show the roof'}
+          aria-label={showRoof ? 'Hide roof' : 'Show roof'}
           onClick={toggleRoof}
         >
-          {showRoof ? 'Hide roof' : 'Show roof'}
+          <IconRoof />
+          <span className="lbl">{showRoof ? 'Hide roof' : 'Show roof'}</span>
         </button>
       )}
       {view !== '2d' && (
@@ -91,9 +115,11 @@ export function LevelSwitcher() {
           className="pill small"
           aria-pressed={cutaway}
           title="Cut the current floor's walls low and hide floors above, to look into the rooms"
+          aria-label="Cutaway"
           onClick={toggleCutaway}
         >
-          Cutaway
+          <IconCutaway />
+          <span className="lbl">Cutaway</span>
         </button>
       )}
 

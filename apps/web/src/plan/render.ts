@@ -82,10 +82,12 @@ export interface RenderState {
   scene: Scene;
   levelId: string;
   selection: readonly string[];
-  tool: 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony';
+  tool: 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony' | 'garden';
   hover: SnapResult | null;
   drawingFrom: Vec2 | null;
   gridStep: number;
+  /** Garden surfaces (lawn, paving, paths) on the ground. */
+  zones: readonly { polygon: readonly Vec2[]; color: string; selected: boolean; path: boolean }[];
   /** Balconies of this floor with their railing runs. */
   balconies: readonly { outline: readonly Vec2[]; railings: readonly { a: Vec2; b: Vec2 }[]; selected: boolean }[];
   /** Stairs that start or end on this floor, plus the ghost of the ones about to be placed. */
@@ -763,6 +765,27 @@ function drawPlotAfter(ctx: CanvasRenderingContext2D, s: RenderState): void {
   }
 }
 
+function drawZones(ctx: CanvasRenderingContext2D, s: RenderState): void {
+  for (const z of s.zones) {
+    ctx.beginPath();
+    z.polygon.forEach((p, i) => {
+      const [x, y] = toScreen(s.view, p[0], p[1]);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = z.color;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.setLineDash(z.path ? [] : [7, 4]);
+    ctx.strokeStyle = z.selected ? C.wallSel : 'rgba(17,17,17,0.4)';
+    ctx.lineWidth = z.selected ? 2 : 1;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
 function drawBalconies(ctx: CanvasRenderingContext2D, s: RenderState): void {
   const { view: v } = s;
   for (const b of s.balconies) {
@@ -900,6 +923,7 @@ export function drawPlan(ctx: CanvasRenderingContext2D, s: RenderState): void {
     ctx.fill();
   }
   drawPlotBefore(ctx, s);
+  drawZones(ctx, s);
   drawRooms(ctx, s, 'fills');
   drawBalconies(ctx, s);
   drawStairs(ctx, s);

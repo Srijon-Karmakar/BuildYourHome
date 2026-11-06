@@ -1,6 +1,6 @@
 import { useStore } from 'zustand';
 import { editor, useUi } from '../plan/session';
-import { IconBalcony, IconDoor, IconFurniture, IconStairs, IconRedo, IconSelect, IconUndo, IconWall, IconWindow } from './icons';
+import { IconGarden, IconBalcony, IconDoor, IconFurniture, IconStairs, IconRedo, IconSelect, IconUndo, IconWall, IconWindow } from './icons';
 import { SnapMenu } from './SnapMenu';
 
 export function ToolRail() {
@@ -87,6 +87,18 @@ export function ToolRail() {
       <button
         type="button"
         className="tool"
+        title="Lay a lawn, paving, driveway or path (G)"
+        aria-pressed={editable && tool === 'garden'}
+        disabled={!editable}
+        onClick={() => setTool('garden')}
+      >
+        <IconGarden />
+        <span>Garden</span>
+      </button>
+
+      <button
+        type="button"
+        className="tool"
         title="Furniture catalog"
         aria-pressed={editable && (furnitureOpen || tool === 'place')}
         disabled={!editable}
@@ -96,16 +108,18 @@ export function ToolRail() {
         <span>Furniture</span>
       </button>
 
-      <div className="rail-sep" />
+      <div className="rail-pin">
+        <div className="rail-sep" />
 
-      <button type="button" className="tool" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={() => editor.undo()}>
-        <IconUndo />
-        <span>Undo</span>
-      </button>
-      <button type="button" className="tool" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={() => editor.redo()}>
-        <IconRedo />
-        <span>Redo</span>
-      </button>
+        <button type="button" className="tool" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={() => editor.undo()}>
+          <IconUndo />
+          <span>Undo</span>
+        </button>
+        <button type="button" className="tool" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={() => editor.redo()}>
+          <IconRedo />
+          <span>Redo</span>
+        </button>
+      </div>
 
       <div className="rail-sep" />
 

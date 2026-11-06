@@ -47,7 +47,7 @@ export const Wall = z.object({
   b: Id,
   thickness: z.number().positive(),
   height: z.number().positive(),
-  kind: z.enum(['interior', 'exterior', 'boundary']),
+  kind: z.enum(['interior', 'exterior', 'boundary', 'fence']),
   materialA: MaterialRef,
   materialB: MaterialRef,
 });
@@ -125,6 +125,17 @@ export const Balcony = z.object({
   floorMaterial: MaterialRef,
 });
 
+/** A garden surface on the ground: a lawn / paving / driveway area (outline) or a path (centre line + width). */
+export const Zone = z.object({
+  id: Id,
+  shape: z.enum(['area', 'path']),
+  /** Area outline, or the path's centre line. */
+  points: z.array(Vec2),
+  /** Path width in metres (paths only). */
+  width: z.number().positive().optional(),
+  material: MaterialRef,
+});
+
 export const Viewpoint = z.object({
   id: Id,
   name: z.string(),
@@ -153,6 +164,7 @@ export const Scene = z.object({
   roofs: z.record(z.string(), Roof),
   stairs: z.record(z.string(), Stair),
   balconies: z.record(z.string(), Balcony).default({}),
+  zones: z.record(z.string(), Zone).default({}),
   terrain: z.object({ size: Vec2, groundMaterial: MaterialRef }),
   /** Project preferences used when creating new things. */
   defaults: z
@@ -179,5 +191,6 @@ export type Item = z.infer<typeof Item>;
 export type Roof = z.infer<typeof Roof>;
 export type Stair = z.infer<typeof Stair>;
 export type Balcony = z.infer<typeof Balcony>;
+export type Zone = z.infer<typeof Zone>;
 export type Viewpoint = z.infer<typeof Viewpoint>;
 export type Scene = z.infer<typeof Scene>;

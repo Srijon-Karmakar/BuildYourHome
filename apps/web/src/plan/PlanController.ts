@@ -8,7 +8,12 @@ import {
   balconyRailings,
   batch,
   removeBalconies,
+  removeZones,
   translateBalconies,
+  translateZones,
+  zonePolygon,
+  zonePoints,
+  GARDEN_SURFACES,
   layoutOf,
   levelAbove,
   removeStairs,
@@ -38,6 +43,7 @@ import { cancelPlot, editor, finishDrawing, finishPlot, useUi, wallTool } from '
 import { stairLayout } from '@hd/geometry';
 import { drawPlan, pointInPolygon, type ItemGhost, type OpeningPreview, type StairDraw } from './render';
 import { levelRooms } from './rooms';
+import { catalogMaterial } from '../view3d/placeholderMaterials';
 import { levelGeometry } from './wallGeom';
 import { walkPose } from '../walk/walkState';
 import { requireAccess } from '../cloud/store';
@@ -50,7 +56,7 @@ const NODE_HIT_PX = 16;
 const WALL_HIT_PX = 10;
 const TAP_SLOP_PX = 5;
 
-type Mode = 'none' | 'pan' | 'place' | 'placeOpening' | 'placeItem' | 'placeStair' | 'select' | 'dragNode' | 'dragOpening' | 'dragItem' | 'dragStair' | 'dragBalcony' | 'gesture';
+type Mode = 'none' | 'pan' | 'place' | 'placeOpening' | 'placeItem' | 'placeStair' | 'select' | 'dragNode' | 'dragOpening' | 'dragItem' | 'dragStair' | 'dragBalcony' | 'dragZone' | 'gesture';
 
 /**
  * Owns the 2D plan canvas: view transform, pointer/touch/keyboard handling, rendering on demand.
@@ -91,6 +97,8 @@ export class PlanController {
   private dragItemId: Id | null = null;
   private dragStairId: Id | null = null;
   private dragBalconyId: Id | null = null;
+  private dragZoneId: Id | null = null;
+  private dragZoneLast: Vec2 = [0, 0];
   private dragBalconyLast: Vec2 = [0, 0];
   /** Pointer offset from the item's centre when the drag began (so it doesn't jump). */
   private dragGrab: Vec2 = [0, 0];
@@ -180,7 +188,7 @@ export class PlanController {
   /** Fit the whole plan (or reset to origin) into view. */
   fitToPlan(): void {
     const scene = editor.getState().scene;
-    const nodes: { p: Vec2 }[] = [...Object.values(scene.nodes), ...(scene.plot?.boundary ?? []).map((p) => ({ p })), ...Object.values(scene.balconies).flatMap((b) => b.outline.map((p) => ({ p })))];
+    const nodes: { p: Vec2 }[] = [...Object.values(scene.nodes), ...(scene.plot?.boundary ?? []).map((p) => ({ p })), ...Object.values(scene.balconies).flatMap((b) => b.outline.map((p) => ({ p }))), ...zonePoints(scene).map((p) => ({ p }))];
     if (nodes.length === 0) {
       this.view = { scale: 60, ox: this.cssW / 2, oy: this.cssH / 2 };
     } else {
@@ -268,6 +276,7 @@ export class PlanController {
       tool: ui.tool,
       hover: this.hover,
       drawingFrom: ui.tool === 'wall' ? wallTool.last : null,
+      zones: Object.values(st.scene.zones).map((z) => ({ polygon: zonePolygon(z), color: catalogMaterial(z.material.id).color, selected: st.selection.includes(z.id), path: z.shape === 'path' })),
       balconies: Object.values(st.scene.balconies)
         .filter((b) => b.levelId === st.activeLevelId)
         .map((b) => ({ outline: b.outline, railings: balconyRailings(st.scene, b.id), selected: st.selection.includes(b.id) })),
@@ -494,6 +503,19 @@ export class PlanController {
     return hit;
   }
 
+  private hitZone(sx: number, sy: number): Id | null {
+    const st = editor.getState();
+    const [px, pz] = toWorld(this.view, sx, sy);
+    let hit: Id | null = null;
+    for (const z of Object.values(st.scene.zones)) if (pointInPolygon(px, pz, zonePolygon(z))) hit = z.id;
+    return hit;
+  }
+
+  private selectedZoneIds(): Id[] {
+    const st = editor.getState();
+    return st.selection.filter((id) => st.scene.zones[id]);
+  }
+
   private selectedBalconyIds(): Id[] {
     const st = editor.getState();
     return st.selection.filter((id) => st.scene.balconies[id]);
@@ -568,7 +590,7 @@ export class PlanController {
 
     if (this.pointers.size === 2) {
       // Second finger: abandon whatever the first one started and switch to pinch/pan.
-      if ((this.mode === 'dragNode' || this.mode === 'dragOpening' || this.mode === 'dragItem' || this.mode === 'dragStair' || this.mode === 'dragBalcony') && editor.getState().inTransaction) editor.cancelTransaction();
+      if ((this.mode === 'dragNode' || this.mode === 'dragOpening' || this.mode === 'dragItem' || this.mode === 'dragStair' || this.mode === 'dragBalcony' || this.mode === 'dragZone') && editor.getState().inTransaction) editor.cancelTransaction();
       this.dragNodeId = null;
       this.dragOpeningId = null;
       this.dragItemId = null;
@@ -589,7 +611,7 @@ export class PlanController {
       this.mode = 'pan';
       return;
     }
-    if (tool === 'wall' || tool === 'plot' || tool === 'balcony') {
+    if (tool === 'wall' || tool === 'plot' || tool === 'balcony' || tool === 'garden') {
       this.mode = 'place';
       this.hover = this.snapAt(p.x, p.y);
     } else if (tool === 'door' || tool === 'window') {
@@ -607,6 +629,7 @@ export class PlanController {
       const itemId = nodeId || openingId ? null : this.hitItem(p.x, p.y);
       const stairId = nodeId || openingId || itemId ? null : this.hitStair(p.x, p.y);
       const balconyId = nodeId || openingId || itemId || stairId ? null : this.hitBalcony(p.x, p.y);
+      const zoneId = nodeId || openingId || itemId || stairId || balconyId ? null : this.hitZone(p.x, p.y);
       if (nodeId) {
         this.mode = 'dragNode';
         this.dragNodeId = nodeId;
@@ -615,6 +638,11 @@ export class PlanController {
         // The transaction only starts once the pointer really moves, so a plain tap just selects.
         this.mode = 'dragOpening';
         this.dragOpeningId = openingId;
+        this.dragStarted = false;
+      } else if (zoneId) {
+        this.mode = 'dragZone';
+        this.dragZoneId = zoneId;
+        this.dragZoneLast = toWorld(this.view, p.x, p.y) as Vec2;
         this.dragStarted = false;
       } else if (balconyId) {
         const w = toWorld(this.view, p.x, p.y) as Vec2;
@@ -656,7 +684,7 @@ export class PlanController {
     if (!prev) {
       // Hovering mouse (no button down).
       const tool = useUi.getState().tool;
-      if ((tool === 'wall' || tool === 'plot' || tool === 'balcony') && e.pointerType === 'mouse') {
+      if ((tool === 'wall' || tool === 'plot' || tool === 'balcony' || tool === 'garden') && e.pointerType === 'mouse') {
         this.hover = this.snapAt(p.x, p.y);
         this.invalidate();
       } else if ((tool === 'door' || tool === 'window') && e.pointerType === 'mouse') {
@@ -696,6 +724,17 @@ export class PlanController {
       case 'placeStair':
         this.stairGhost = this.stairGhostAt(p.x, p.y);
         this.invalidate();
+        break;
+      case 'dragZone':
+        if (this.dragZoneId && this.moved) {
+          if (!this.dragStarted) {
+            editor.beginTransaction('Move garden area');
+            this.dragStarted = true;
+          }
+          const w = toWorld(this.view, p.x, p.y) as Vec2;
+          editor.preview(translateZones([this.dragZoneId], w[0] - this.dragZoneLast[0], w[1] - this.dragZoneLast[1]));
+          this.dragZoneLast = w;
+        }
         break;
       case 'dragBalcony':
         if (this.dragBalconyId && this.moved) {
@@ -780,7 +819,8 @@ export class PlanController {
       const s = this.snapAt(p.x, p.y);
       const ui = useUi.getState();
       const first = ui.plotDraft[0];
-      if (first && ui.plotDraft.length >= 3 && Math.hypot(s.point[0] - first[0], s.point[1] - first[1]) * this.view.scale < 14) finishPlot();
+      const pathTool = ui.tool === 'garden' && GARDEN_SURFACES.find((x) => x.id === ui.gardenSurface)?.shape === 'path';
+      if (!pathTool && first && ui.plotDraft.length >= 3 && Math.hypot(s.point[0] - first[0], s.point[1] - first[1]) * this.view.scale < 14) finishPlot();
       else ui.setPlotDraft([...ui.plotDraft, s.point]);
       this.hover = e.pointerType === 'mouse' ? this.snapAt(p.x, p.y) : null;
     } else if (mode === 'place') {
@@ -802,6 +842,12 @@ export class PlanController {
     } else if (mode === 'placeStair') {
       const g = this.stairGhostAt(p.x, p.y);
       if (g) this.placeStair(g);
+    } else if (mode === 'dragZone') {
+      const id = this.dragZoneId;
+      if (this.dragStarted) editor.commitTransaction();
+      else if (id) this.pick(id, e.shiftKey || useUi.getState().additive);
+      this.dragZoneId = null;
+      this.dragStarted = false;
     } else if (mode === 'dragBalcony') {
       const id = this.dragBalconyId;
       if (this.dragStarted) editor.commitTransaction();
@@ -850,6 +896,7 @@ export class PlanController {
     this.dragItemId = null;
     this.dragStairId = null;
     this.dragBalconyId = null;
+    this.dragZoneId = null;
     this.dragStarted = false;
     if (this.pointers.size === 0) this.mode = 'none';
     this.hover = null;
@@ -995,7 +1042,7 @@ export class PlanController {
         this.stairGhost = null;
       } else if (ids.length) editor.execute(rotateItems(ids, delta));
       else if (stairIds.length) editor.execute(rotateStairs(stairIds, delta));
-    } else if (!mod && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') && (this.selectedItemIds().length || this.selectedStairIds().length || this.selectedBalconyIds().length)) {
+    } else if (!mod && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') && (this.selectedItemIds().length || this.selectedStairIds().length || this.selectedBalconyIds().length || this.selectedZoneIds().length)) {
       // Nudge selected furniture or stairs: 5 cm, Shift = 25 cm.
       e.preventDefault();
       const d = e.shiftKey ? 0.25 : 0.05;
@@ -1003,7 +1050,10 @@ export class PlanController {
       const dz = e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0;
       if (this.selectedItemIds().length) editor.execute(translateItems(this.selectedItemIds(), dx, dz));
       else if (this.selectedStairIds().length) editor.execute(translateStairs(this.selectedStairIds(), dx, dz));
-      else editor.execute(translateBalconies(this.selectedBalconyIds(), dx, dz));
+      else if (this.selectedBalconyIds().length) editor.execute(translateBalconies(this.selectedBalconyIds(), dx, dz));
+      else editor.execute(translateZones(this.selectedZoneIds(), dx, dz));
+    } else if (!mod && key === 'g') {
+      useUi.getState().setTool('garden');
     } else if (!mod && key === 'b') {
       useUi.getState().setTool('balcony');
     } else if (!mod && key === 's') {
@@ -1023,7 +1073,7 @@ export class PlanController {
 /** The wall-like tools that collect corner points (plot outline, balcony slab). */
 function isDraftTool(): boolean {
   const t = useUi.getState().tool;
-  return t === 'plot' || t === 'balcony';
+  return t === 'plot' || t === 'balcony' || t === 'garden';
 }
 
 export function deleteSelection(): void {
@@ -1033,6 +1083,8 @@ export function deleteSelection(): void {
   const walls = st.selection.filter((id) => st.scene.walls[id]);
   const stairs = st.selection.filter((id) => st.scene.stairs[id]);
   const balconies = st.selection.filter((id) => st.scene.balconies[id]);
+  const zones = st.selection.filter((id) => st.scene.zones[id]);
+  if (zones.length && !items.length && !openings.length && !walls.length && !stairs.length && !balconies.length) return void editor.execute(removeZones(zones));
   if (balconies.length && !items.length && !openings.length && !walls.length && !stairs.length) return void editor.execute(removeBalconies(balconies));
   if (stairs.length && !items.length && !openings.length && !walls.length) editor.execute(removeStairs(stairs));
   else if (items.length) editor.execute(removeItems(items));

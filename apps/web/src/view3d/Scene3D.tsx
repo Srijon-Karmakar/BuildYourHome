@@ -22,6 +22,7 @@ import { sunAt } from './sun';
 import { canPick, CLICK_SLOP_PX, pickObject } from './pick';
 import { RoofMesh } from './RoofMesh';
 import { BalconyMesh } from './BalconyMesh';
+import { zonePolygon } from '@hd/editor-core';
 import { StairMesh } from './StairMesh';
 import { TIERS, type Tier } from './qualityLogic';
 import { useTier } from './qualityStore';
@@ -176,6 +177,18 @@ function Stairs({ tier }: { tier: Tier }) {
   return (
     <>
       {Object.values(scene.stairs).map((s) => (vis[s.fromLevel]?.visible ? <StairMesh key={s.id} stair={s} scene={scene} tier={tier} /> : null))}
+    </>
+  );
+}
+
+/** Garden surfaces (lawn, paving, driveway, paths) lie just above the ground. */
+function Zones({ tier }: { tier: Tier }) {
+  const zones = useStore(editor.store, (s) => s.scene.zones);
+  return (
+    <>
+      {Object.values(zones).map((z, i) => (
+        <FloorMesh key={z.id} polygon={zonePolygon(z)} elevation={-0.0025 + Math.min(i, 12) * 0.0004} materialId={z.material.id} tier={tier} roomId={z.id} layer={i + 1} />
+      ))}
     </>
   );
 }
@@ -363,6 +376,7 @@ export function Scene3D() {
       <Lighting tier={tier} />
       <TextureRedraw />
       <Ground tier={tier} />
+      <Zones tier={tier} />
       <Floors tier={tier} />
       <Walls tier={tier} />
       <Stairs tier={tier} />

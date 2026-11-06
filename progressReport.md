@@ -21,13 +21,33 @@
 | Phase 0 — Prototype / spike | Done (verdict GO) | 100% |
 | Phase 1 — MVP editor | Code complete; owner benchmark with furnished sample pending | ~97% |
 | Phase 2 — Interior depth + accounts | Built; Supabase live test + migrations 0002/0003 pending (owner) | ~90% |
-| Phase 3 — Exterior & lighting | In progress: stairs, balcony/porch, sun/sky, photo textures done; garden, export, interior lights, catalog growth to do | ~45% |
+| Phase 3 — Exterior & lighting | In progress: stairs, balcony/porch, garden, sun/sky, photo textures done; export, interior lights, catalog growth to do | ~60% |
 | Phase 4 — Mobile app + polish | Not started | 0% |
 | Phase 5 — Growth features | Not started | 0% |
 
 Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-05 (end of session).
 
 ## Log
+
+### [2026-11-06] P3-01 — Garden: draw areas, paths and fences
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified (297/297 browser checks; unit tests geometry 72, editor-core 152, web 79, assets 9, schema 8; typecheck, lint, build clean). Not tried on a phone.
+- **What was done:**
+  - **Garden tool** (key G, rail button "Garden"): pick a surface in the bar (Lawn, Paving, Driveway, Gravel, Deck, Path), click the corners, Enter or the first corner closes (paths: click the points of the centre line, Enter finishes). Areas and paths are `scene.zones` (`shape: area | path`, path width 1 m default, editable 0.3-6 m). Select, drag (one undo step), nudge with arrows, Delete, undo; the inspector swaps the surface (any ground material) and sets the path width. Paths get mitred corners (`pathPolygon` in `@hd/geometry`). In 3D the surfaces lie just above the ground with photo textures; overlapping ones are layered with a polygon offset.
+  - **Fences:** the wall tool's bottom bar now has Inside / Outside / **Fence**. Fence = wall kind `fence` (6 cm thick, 1.2 m high, wood slats); like plot-boundary walls it never forms rooms or roofs (`isHouseWall` helper replaces the old `!== 'boundary'` checks in rooms, roof footprint, plot checks and balcony railings).
+  - Selection now knows zones (`editor.select` list), Fit and the 3D framing include garden areas. Old files without zones still load.
+- **Owner change noticed:** the curtain is now always the full splash with the Start designing button, and the wordmark is a BYHOME logo (`ui/BrandLogo.tsx`); the e2e check for the old "brief loader" was updated to match.
+- **Notes:** fences can be drawn across house walls (the wall tool splits what it crosses, like any wall). No grass-planting or slope/terrain yet. Garden areas are on the ground only (not per floor).
+- **Next step:** P3-05 export (PNG / PDF plan / DXF), then interior lights + night polish (P3-03), catalog growth (P3-06); owner items unchanged (phone benchmark at Medium, Supabase migrations + redeem code + live test).
+
+### [2026-11-06] UI-01 — Branding, splash screen, deployment fixes, responsive phone / tablet layout
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done (owner to check on a real phone)
+- **What was done:** (1) **Render deploy:** static site; build command `pnpm install --frozen-lockfile && pnpm --filter @hd/web build`, publish dir `apps/web/dist`, set `NODE_VERSION=22` (do not use `corepack enable` on Render: read-only FS). (2) **Branding:** BYHOME logo (`public/logo/byhome-dark.png`, trimmed transparent copy) replaces the "Home Designer" text in the top bar and splash (`ui/BrandLogo.tsx`). (3) **Splash:** always shown with the "Start designing" button (orange, square); modern-house line art; credits (Senevon Studio, Srijon Karmakar, senevon.in, version 1.1.1, updated date, licence line); reveal = content falls away, orange seam opens horizontally from the button, halves part up/down, workspace settles in. (4) **Responsive:** below 900 px wide (or <= 500 px tall) the top bar is view switch + one **Menu** button; Account / Home / Display / Fit / Walk open as a bottom sheet (accordion). Phone portrait: tools in a sideways-scrolling bottom bar with Undo/Redo pinned, floors row above it, hint above that, cards fitted above the bar. Phone landscape: vertical scrolling tool bar on the left. Tablets use the sheet menu with the vertical rail.
+- **Files changed/created:** `apps/web/src/ui/{Curtain,BrandLogo,TopBar,ToolRail}.tsx`, `src/styles.css` (curtain section + responsive block at the end), `src/main.tsx` (curtain always `full`), `src/globals.d.ts`, `vite.config.ts` (injects `__APP_VERSION__`), `package.json` (version 1.1.1, `@types/node`), `tsconfig.json`, `pnpm-lock.yaml`, `public/logo/*`.
+- **Decisions made:** Licence wording on the splash ("Proprietary licence - All rights reserved") is an assumption; owner to confirm. Update date is the `APP_UPDATED` constant in `Curtain.tsx`. The unused `brief` curtain mode is still in the code.
+- **Problems / notes:** Verified with headless Chrome screenshots at 390x844, 360x640/700, 844x390 and 768x1024 plus desktop; `pnpm e2e` 297/297 pass. Not tested on a physical phone or iOS Safari. The welcome chooser card was not touched (its last row looks tight on short phones; check it is scrollable).
+- **Next step:** Owner checks the phone layout; then P3-01 as before.
 
 ### [2026-11-05] Session close-out — state for tomorrow
 - **Model/Author:** Claude Sonnet 5.5

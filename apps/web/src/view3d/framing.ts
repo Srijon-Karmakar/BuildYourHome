@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Scene } from '@hd/scene-schema';
+import { zonePoints } from '@hd/editor-core';
 
 export interface Framing {
   target: THREE.Vector3;
@@ -9,7 +10,7 @@ export interface Framing {
 
 /** Frame the building by its bounding sphere so any aspect ratio shows all of it. */
 export function computeFraming(scene: Scene, camera: THREE.PerspectiveCamera): Framing {
-  const nodes = [...Object.values(scene.nodes), ...(scene.plot?.boundary ?? []).map((p) => ({ p })), ...Object.values(scene.balconies).flatMap((b) => b.outline.map((p) => ({ p })))];
+  const nodes = [...Object.values(scene.nodes), ...(scene.plot?.boundary ?? []).map((p) => ({ p })), ...Object.values(scene.balconies).flatMap((b) => b.outline.map((p) => ({ p }))), ...zonePoints(scene).map((p) => ({ p }))];
   const height = Math.max(3, ...Object.values(scene.levels).map((l) => l.elevation + l.height));
   let cx = 0, cz = 0, radius = 5;
   if (nodes.length) {

@@ -49,7 +49,8 @@ function exists(scene: Scene, id: Id): boolean {
       scene.items[id] ??
       scene.roofs[id] ??
       scene.stairs[id] ??
-      scene.balconies[id],
+      scene.balconies[id] ??
+      scene.zones[id],
   );
 }
 

@@ -17,9 +17,11 @@ interface Props {
   /** The room this floor belongs to (clicking the floor selects it) and the floor it is on. */
   roomId?: string;
   levelId?: string;
+  /** Draw above other surfaces at the same height (overlapping garden areas): higher = on top. */
+  layer?: number;
 }
 
-export function FloorMesh({ polygon, elevation, materialId, tier, holes = [], roomId, levelId }: Props) {
+export function FloorMesh({ polygon, elevation, materialId, tier, holes = [], roomId, levelId, layer = 0 }: Props) {
   const selected = useIsSelected(roomId ?? '');
   const key = polygon.map((p) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`).join(';') + '|' + holes.map((h) => h.map((p) => `${p[0].toFixed(4)},${p[1].toFixed(4)}`).join(';')).join('/');
 
@@ -34,7 +36,15 @@ export function FloorMesh({ polygon, elevation, materialId, tier, holes = [], ro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, elevation]);
 
-  const material = useMemo(() => makeSurface(materialId, tier), [materialId, tier]);
+  const material = useMemo(() => {
+    const m = makeSurface(materialId, tier);
+    if (layer > 0) {
+      m.polygonOffset = true;
+      m.polygonOffsetFactor = -layer;
+      m.polygonOffsetUnits = -layer;
+    }
+    return m;
+  }, [materialId, tier, layer]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => material.dispose(), [material]);

@@ -11,6 +11,7 @@ const GROUPS: Array<{ title: string; rows: Array<[string, string]> }> = [
       ['N', 'Window tool'],
       ['S', 'Stairs tool'],
       ['B', 'Balcony / porch tool'],
+      ['G', 'Garden tool (lawn, paving, path)'],
       ['V', 'Select and move'],
       ['Esc', 'Finish / cancel'],
       ['Space + drag', 'Pan the plan'],

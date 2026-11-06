@@ -1,3 +1,4 @@
+import { Fragment, useEffect, useState } from 'react';
 import { activePlan } from '../plan/PlanCanvas';
 import { useUi, type ViewMode } from '../plan/session';
 import { AccountMenu } from './AccountMenu';
@@ -29,13 +30,37 @@ export function TopBar() {
   const walk = useUi((s) => s.walk);
   const setWalk = useUi((s) => s.setWalk);
   const bumpFit = useUi((s) => s.bumpFit);
+  // Compact screens (phones, small tablets): Account / Home / Display / Fit / Walk live in a bottom sheet.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [sheetKey, setSheetKey] = useState(0);
+  // Home lives in the top bar on compact screens (its card is a bottom sheet of its own).
+  const [homeOpen, setHomeOpen] = useState(false);
+  const [homeKey, setHomeKey] = useState(0);
+  const closeMenu = () => {
+    setMenuOpen(false);
+    setSheetKey((k) => k + 1); // remounts the menus so each one is collapsed next time
+  };
+  const closeAll = () => {
+    closeMenu();
+    setHomeKey((k) => k + 1);
+  };
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeMenu();
+    };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [menuOpen]);
 
   return (
-    <header className="topbar">
+    <header className={`topbar${menuOpen || homeOpen ? ' sheet-open' : ''}`}>
       <div className="brand">
         <div className="wordmark">
           <BrandLogo />
         </div>
+        <img className="brand-icon" src="/logo/byhome-icon.png" alt="Home Designer" draggable={false} />
         <SaveState />
       </div>
 
@@ -54,27 +79,72 @@ export function TopBar() {
         ))}
       </div>
 
-      <div className="topbar-right">
-        <AccountMenu />
-        <HomeMenu />
-        <DisplayMenu />
+      <div className="topbar-actions">
+        <HomeMenu key={homeKey} onOpenChange={setHomeOpen} />
         <button
           type="button"
-          className="pill quiet hide-phone"
+          className="pill walk-quick"
+          title="Walk through your home in first person (Esc to exit)"
+          aria-pressed={walk}
+          onClick={() => setWalk(!walk)}
+        >
+          {walk ? 'Exit walk' : 'Walk'}
+        </button>
+        <button
+          type="button"
+          className="pill menu-btn"
+          aria-label="Menu"
+          aria-haspopup="true"
+          aria-expanded={menuOpen}
+          onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
+        >
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M3 6H17M3 10H17M3 14H17" />
+          </svg>
+          <span className="lbl">Menu</span>
+        </button>
+      </div>
+
+      {(menuOpen || homeOpen) && <button type="button" className="sheet-backdrop" aria-label="Close menu" onClick={closeAll} />}
+
+      <div className={`topbar-right${menuOpen ? ' open' : ''}`}>
+        <div className="sheet-head">
+          <span className="sheet-grip" aria-hidden="true" />
+          <strong>Menu</strong>
+          <button type="button" className="sheet-close" aria-label="Close menu" onClick={closeMenu}>
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M5 5L15 15M15 5L5 15" />
+            </svg>
+          </button>
+        </div>
+        <Fragment key={sheetKey}>
+          <AccountMenu />
+          <div className="hm-desktop">
+            <HomeMenu />
+          </div>
+          <DisplayMenu />
+        </Fragment>
+        <button
+          type="button"
+          className="pill quiet fit-btn"
           title="Fit the whole plan on screen (F)"
           onClick={() => {
             activePlan?.fitToPlan();
             bumpFit();
+            closeMenu();
           }}
         >
           Fit
         </button>
         <button
           type="button"
-          className="pill"
+          className="pill walk-btn"
           title="Walk through your home in first person (Esc to exit)"
           aria-pressed={walk}
-          onClick={() => setWalk(!walk)}
+          onClick={() => {
+            setWalk(!walk);
+            closeMenu();
+          }}
         >
           {walk ? 'Exit walk' : 'Walk'}
         </button>

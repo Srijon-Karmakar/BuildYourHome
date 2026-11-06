@@ -54,7 +54,7 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 **Exit:** user can sign in on web and phone and see the same project; shared link opens a viewer for anonymous users; free vs premium gating works end-to-end with mock ads/billing.
 
 ## Phase 3 — Exterior richness & lighting (≈ 4–5 weeks)
-- [ ] P3-01 Garden/landscape items, paths, fences, boundary wall
+- [x] P3-01 Garden/landscape items, paths, fences, boundary wall (Garden tool: lawn / paving / driveway / gravel / deck areas and drawn paths; Fence option in the wall tool; outdoor catalog items; plot boundary)
 - [x] P3-02 Balcony / porch / stairs — stairs (straight / L / U, walkable; ADR-020) and balcony / porch slabs with automatic railing (glass / metal / wall / none)
 - [ ] P3-03 (time-of-day sun + sky done; interior lights still to do) Time-of-day sun + shadows; interior lights
 - [ ] P3-04 (first slice done: photo textures, sky, light AO, contact shadows, rounded furniture; ADR-021) Advanced realism: reflections/probes, baked AO lightmaps, better glass/water, bloom — tuned per tier

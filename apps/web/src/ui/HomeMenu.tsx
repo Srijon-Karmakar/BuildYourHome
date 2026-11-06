@@ -22,7 +22,7 @@ import { formatArea } from '../lib/units';
 import { LengthField, Section, Segmented, Swatches, TextField, Toggle } from './fields';
 
 /** Project-level settings: name, the ground around the house, and thickness for newly drawn walls. */
-export function HomeMenu() {
+export function HomeMenu({ onOpenChange }: { onOpenChange?: (open: boolean) => void } = {}) {
   const [open, setOpen] = useState(false);
   const scene = useStore(editor.store, (s) => s.scene);
   const pro = useUi((s) => s.pro);
@@ -32,6 +32,10 @@ export function HomeMenu() {
   const setTool = useUi((s) => s.setTool);
   const plot = scene.plot?.boundary;
   const outside = nodesOutsidePlot(scene).length;
+
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
 
   useEffect(() => {
     if (!open) return;

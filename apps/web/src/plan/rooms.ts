@@ -1,5 +1,6 @@
 import type { Id, Room, Scene, Vec2 } from '@hd/scene-schema';
 import { detectRooms, loopSignature } from '@hd/geometry';
+import { isHouseWall } from '@hd/editor-core';
 
 export interface RoomView {
   polygon: Vec2[];
@@ -20,7 +21,7 @@ export function levelRooms(scene: Scene, levelId: Id): RoomView[] {
   if (last && last.nodes === scene.nodes && last.walls === scene.walls && last.rooms === scene.rooms && last.level === levelId) {
     return last.out;
   }
-  const walls = Object.values(scene.walls).filter((w) => w.levelId === levelId && w.kind !== 'boundary');
+  const walls = Object.values(scene.walls).filter((w) => w.levelId === levelId && isHouseWall(w));
   const bySig = new Map<string, Room>();
   for (const r of Object.values(scene.rooms)) if (r.levelId === levelId) bySig.set(loopSignature(r.wallLoop), r);
   const out = detectRooms(scene.nodes, walls).map((d) => ({

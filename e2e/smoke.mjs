@@ -1456,12 +1456,15 @@ try {
     await tour.getByRole('button', { name: 'Done' }).click();
     check('Done closes the tour', (await tour.count()) === 0);
 
-    // Second visit: brief loader that opens by itself, no button, no tour.
+    // Second visit: the splash (with its button) shows every time; the tour does not repeat.
     await page.reload();
     await curtain.waitFor();
-    check('a returning visit shows a brief loader without a button', (await curtain.getByRole('button', { name: 'Start designing' }).count()) === 0);
+    check('a returning visit still opens on the splash with its button', (await curtain.getByRole('button', { name: 'Start designing' }).count()) === 1);
+    await page.waitForFunction(() => !document.querySelector('.curtain-cta')?.disabled, null, { timeout: 8000 });
+    await curtain.getByRole('button', { name: 'Start designing' }).click();
     await curtain.waitFor({ state: 'detached', timeout: 6000 });
-    check('…which lifts by itself', true);
+    check('…and Start designing opens the workspace', true);
+    await page.waitForTimeout(800);
     check('the tour does not repeat', (await page.getByRole('dialog', { name: 'Quick tour' }).count()) === 0);
 
     // Replay from Help; Esc skips.
@@ -1596,6 +1599,80 @@ try {
     await med.page.screenshot({ path: `${SP}/e2e-evening.png` });
     check('no page errors on Medium with the sky and photo textures', med.errors.length === 0, med.errors.slice(0, 2).join(' | '));
     await med.page.close();
+  }
+
+  // ---------------------------------------------------------------- 2s. garden: lawn / paving / path areas and fences
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?view=split');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForTimeout(500);
+    const box = await page.locator('canvas.plan-canvas').boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    for (const [dx, dy] of [[-60, -60], [60, -60], [60, 30], [-60, 30], [-60, -60]]) await page.mouse.click(cx + dx, cy + dy);
+    await page.keyboard.press('Escape');
+    const Z = () => page.evaluate(() => Object.values(window.__hd.editor.getState().scene.zones));
+
+    await page.keyboard.press('g');
+    const surf = page.getByRole('group', { name: 'Garden surface' });
+    check('the Garden tool (key G) offers six surfaces', (await page.evaluate(() => window.__hd.useUi.getState().tool)) === 'garden' && (await surf.getByRole('button').count()) === 6);
+    for (const [dx, dy] of [[-200, 60], [200, 60], [200, 180], [-200, 180]]) await page.mouse.click(cx + dx, cy + dy);
+    await page.keyboard.press('Enter');
+    let z = await Z();
+    check('Enter closes a lawn area', z.length === 1 && z[0].shape === 'area' && z[0].material.id === 'ground-grass');
+    const ins = page.getByRole('complementary', { name: 'Properties' });
+    check('the lawn is selected; the inspector offers surfaces', await ins.getByText('Surface').first().isVisible());
+    await ins.getByRole('radio', { name: 'Gravel' }).click();
+    check('the surface can be changed', (await Z())[0].material.id === 'ground-gravel');
+
+    // A path is drawn along a centre line; clicking the first point does not close it.
+    await page.keyboard.press('g');
+    await surf.getByRole('button', { name: 'Path' }).click();
+    for (const [dx, dy] of [[-150, 100], [0, 100], [0, 40]]) await page.mouse.click(cx + dx, cy + dy);
+    await page.keyboard.press('Enter');
+    z = await Z();
+    const path = z.find((q) => q.shape === 'path');
+    check('a path has a width and keeps its centre line', !!path && path.width === 1 && path.points.length === 3, JSON.stringify(path));
+    const wf = ins.locator('.f-row', { hasText: 'Width' }).locator('input');
+    await wf.fill('1.8');
+    await wf.press('Enter');
+    check('path width can be edited', Math.abs((await Z()).find((q) => q.shape === 'path').width - 1.8) < 1e-9);
+
+    // Dragging moves it as one undo step.
+    const before = (await Z())[0].points[0].slice();
+    await page.keyboard.press('Escape');
+    await page.mouse.move(cx + 150, cy + 150);
+    await page.mouse.down();
+    await page.mouse.move(cx + 150, cy + 170, { steps: 4 });
+    await page.mouse.up();
+    const after = (await Z())[0].points[0];
+    check('dragging moves the area', Math.abs(after[1] - before[1]) > 0.1);
+    await page.keyboard.press('Control+z');
+    check('the drag is one undo step', Math.abs((await Z())[0].points[0][1] - before[1]) < 1e-9);
+
+    // Fences: the wall tool's third option.
+    await page.keyboard.press('w');
+    await page.getByRole('group', { name: 'New wall type' }).getByRole('button', { name: 'Fence' }).click();
+    await page.mouse.click(cx - 220, cy - 120);
+    await page.mouse.click(cx + 220, cy - 120);
+    await page.keyboard.press('Escape');
+    const fences = await page.evaluate(() => Object.values(window.__hd.editor.getState().scene.walls).filter((w) => w.kind === 'fence'));
+    check('the Fence option draws a low thin fence (not a house wall)', fences.length === 1 && fences[0].height === 1.2 && fences[0].thickness === 0.06);
+    check('a fence does not change the rooms', (await page.evaluate(() => Object.keys(window.__hd.editor.getState().scene.rooms).length)) === 1);
+    await page.screenshot({ path: `${SP}/e2e-garden.png` });
+
+    // Delete.
+    await page.keyboard.press('v');
+    await page.evaluate(() => window.__hd.editor.select(Object.keys(window.__hd.editor.getState().scene.zones)));
+    await page.keyboard.press('Delete');
+    check('Delete removes the garden areas', (await Z()).length === 0);
+    check('no page errors in the garden flow', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
   }
 
   // ---------------------------------------------------------------- 3. benchmark

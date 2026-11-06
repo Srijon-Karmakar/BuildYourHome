@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from 'zustand';
 import { getAsset, CATEGORIES } from '@hd/assets';
-import type { Balcony, Item, Opening, Room, RoomType, Stair, Wall } from '@hd/scene-schema';
+import type { Zone, Balcony, Item, Opening, Room, RoomType, Stair, Wall } from '@hd/scene-schema';
 import { DOOR_STYLES, FRAME_COLORS, LEAF_COLORS, WINDOW_STYLES } from '@hd/scene-schema';
-import { batch, updateBalconies, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
+import { batch, updateZones, updateBalconies, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
 import { formatArea, formatLength } from '../lib/units';
 import { requireAccess } from '../cloud/store';
 import { deleteSelection } from '../plan/PlanController';
 import { levelRooms } from '../plan/rooms';
 import { editor, useUi } from '../plan/session';
-import { finishMaterials, materialsFor, paintMaterials } from '../view3d/placeholderMaterials';
+import { catalogMaterial, finishMaterials, materialsFor, paintMaterials } from '../view3d/placeholderMaterials';
 import { AngleField, Chips, ColorSwatches, LengthField, Section, SelectField, Segmented, Swatches, TextField, Toggle } from './fields';
 
 const ROOM_TYPES: Array<{ id: RoomType; label: string }> = [
@@ -70,7 +70,8 @@ export function Inspector() {
     if (empty) setCollapsed(isPhone());
   }, [empty]);
 
-  const { walls, openings, rooms, items, stairs, balconies } = useMemo(() => {
+  const { walls, openings, rooms, items, stairs, balconies, zones } = useMemo(() => {
+    const zn: Zone[] = [];
     const it: Item[] = [];
     const bl: Balcony[] = [];
     const st: Stair[] = [];
@@ -84,14 +85,15 @@ export function Inspector() {
       else if (scene.items[id]) it.push(scene.items[id]!);
       else if (scene.stairs[id]) st.push(scene.stairs[id]!);
       else if (scene.balconies[id]) bl.push(scene.balconies[id]!);
+      else if (scene.zones[id]) zn.push(scene.zones[id]!);
     }
-    return { walls: w, openings: o, rooms: r, items: it, stairs: st, balconies: bl };
+    return { walls: w, openings: o, rooms: r, items: it, stairs: st, balconies: bl, zones: zn };
   }, [selection, scene]);
 
   if (walk || empty) return null;
 
   // ------------------------------------------------------------------ header
-  const total = walls.length + openings.length + rooms.length + items.length + stairs.length + balconies.length;
+  const total = walls.length + openings.length + rooms.length + items.length + stairs.length + balconies.length + zones.length;
   let title: string;
   let subtitle = '';
   if (total === 1 && rooms[0]) {
@@ -108,6 +110,9 @@ export function Inspector() {
     const asset = getAsset(items[0].assetId);
     title = asset?.name ?? 'Item';
     subtitle = asset ? `${CATEGORIES.find((c) => c.id === asset.category)?.name ?? ''} · ${formatLength(asset.size[0] * items[0].scale[0], scene.meta.units)} × ${formatLength(asset.size[1] * items[0].scale[2], scene.meta.units)}` : '';
+  } else if (total === 1 && zones[0]) {
+    title = zones[0].shape === 'path' ? 'Path' : 'Garden area';
+    subtitle = catalogMaterial(zones[0].material.id).name;
   } else if (total === 1 && balconies[0]) {
     title = 'Balcony';
     subtitle = `${scene.levels[balconies[0].levelId]?.name ?? ''}`;
@@ -156,7 +161,9 @@ export function Inspector() {
   const needsRoom = stairs.length === 1 ? stairNeedsRoom(scene, stairs[0]!, stairRooms) : null;
   const balconyIds = balconies.map((b) => b.id);
   const editBalconies = (props: Parameters<typeof updateBalconies>[1]) => editor.execute(updateBalconies(balconyIds, props));
-  const canDelete = walls.length + openings.length + items.length + stairs.length + balconies.length > 0;
+  const zoneIds = zones.map((z) => z.id);
+  const editZones = (props: Parameters<typeof updateZones>[1]) => editor.execute(updateZones(zoneIds, props));
+  const canDelete = walls.length + openings.length + items.length + stairs.length + balconies.length + zones.length > 0;
 
   return (
     <aside className={`inspector${collapsed ? ' collapsed' : ''}`} aria-label="Properties">
@@ -295,6 +302,20 @@ export function Inspector() {
                   Duplicate
                 </button>
               </div>
+            </Section>
+          )}
+
+          {zones.length > 0 && (
+            <Section title={zones.every((z) => z.shape === 'path') ? 'Path' : 'Garden area'}>
+              <Swatches
+                label="Surface"
+                items={materialsFor('ground')}
+                value={common(zones.map((z) => z.material.id))}
+                onPick={(id) => editZones({ material: { id } })}
+              />
+              {zones.every((z) => z.shape === 'path') && (
+                <LengthField label="Width" value={common(zones.map((z) => z.width ?? 1), near)} min={0.3} max={6} step={0.1} onCommit={(width) => editZones({ width })} />
+              )}
             </Section>
           )}
 

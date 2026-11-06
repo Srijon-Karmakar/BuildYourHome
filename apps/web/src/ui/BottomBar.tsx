@@ -1,4 +1,5 @@
 import { useStore } from 'zustand';
+import { GARDEN_SURFACES } from '@hd/editor-core';
 import { editor, finishDrawing, finishPlot, useUi } from '../plan/session';
 import { nextTip } from './tipsLogic';
 
@@ -7,6 +8,7 @@ const CAPTION = {
   door: 'Move over a wall and click to add a door · it opens toward your side',
   window: 'Move over a wall and click to add a window',
   plot: 'Click each corner of your land · click the first corner or press Enter to close · Esc to cancel',
+  garden: 'Click the corners of the area (or the points of a path) · click the first corner or press Enter to finish · Esc to cancel',
   balcony: 'Click the corners of the balcony or porch · click the first corner or press Enter to close · Esc to cancel',
   stair: 'Click to place the stairs · R turns them · they climb to the floor above (one is added if needed) · Esc to stop',
   place: 'Click to place · R turns it · Esc to stop',
@@ -42,7 +44,11 @@ export function BottomBar() {
       : CAPTION[tool];
 
   const showDone = drawing && !walk && tool === 'wall';
-  const showPlotDone = (tool === 'plot' || tool === 'balcony') && !walk && view !== '3d';
+  const showPlotDone = (tool === 'plot' || tool === 'balcony' || tool === 'garden') && !walk && view !== '3d';
+  const showGarden = tool === 'garden' && !walk && view !== '3d';
+  const surface = useUi((s) => s.gardenSurface);
+  const setSurface = useUi((s) => s.setGardenSurface);
+  const minPoints = tool === 'garden' && surface === 'path' ? 2 : 3;
   const showKind = tool === 'wall' && !walk && view !== '3d';
   const showStairKind = tool === 'stair' && !walk && view !== '3d';
   const newStair = useUi((s) => s.newStair);
@@ -52,16 +58,25 @@ export function BottomBar() {
     <div className={`bottom${hasSelection && !walk ? ' with-inspector' : ''}`}>
       {showKind && (
         <div className="segmented" role="group" aria-label="New wall type">
-          {(['interior', 'exterior'] as const).map((k) => (
+          {(['interior', 'exterior', 'fence'] as const).map((k) => (
             <button
               key={k}
               type="button"
               className="seg"
-              title={k === 'interior' ? 'Inside walls: thinner partitions' : 'Outside walls: thicker, load-bearing'}
+              title={k === 'interior' ? 'Inside walls: thinner partitions' : k === 'exterior' ? 'Outside walls: thicker, load-bearing' : 'Garden fence: low and thin; never part of the house'}
               aria-pressed={kind === k}
               onClick={() => setKind(k)}
             >
-              {k === 'interior' ? 'Inside wall' : 'Outside wall'}
+              {k === 'interior' ? 'Inside wall' : k === 'exterior' ? 'Outside wall' : 'Fence'}
+            </button>
+          ))}
+        </div>
+      )}
+      {showGarden && (
+        <div className="segmented" role="group" aria-label="Garden surface">
+          {GARDEN_SURFACES.map((g) => (
+            <button key={g.id} type="button" className="seg" aria-pressed={surface === g.id} onClick={() => setSurface(g.id)}>
+              {g.label}
             </button>
           ))}
         </div>
@@ -121,7 +136,7 @@ export function BottomBar() {
       {showPlotDone && (
         <div className="context">
           {plotError && <span className="fine" role="alert">{plotError}</span>}
-          <button type="button" className="pill solid" title="Close the plot (Enter)" disabled={plotPoints < 3} onClick={finishPlot}>
+          <button type="button" className="pill solid" title="Close the plot (Enter)" disabled={plotPoints < minPoints} onClick={finishPlot}>
             Done
           </button>
         </div>

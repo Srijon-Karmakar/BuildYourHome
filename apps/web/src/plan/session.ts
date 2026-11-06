@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import { createEmptyScene, type Vec2 } from '@hd/scene-schema';
 import type { StairKind } from '@hd/geometry';
-import { addBalcony, balconyProblem, cleanPolygon, createEditor, createWallTool, DEFAULT_SNAP, plotProblem, setPlot, type SnapSettings } from '@hd/editor-core';
+import { addBalcony, addZone, balconyProblem, GARDEN_SURFACES, zoneProblem, type GardenSurface, cleanPolygon, createEditor, createWallTool, DEFAULT_SNAP, plotProblem, setPlot, type SnapSettings } from '@hd/editor-core';
 
 /** App-wide singletons for the editing session (one project open at a time). */
 export const editor = createEditor(createEmptyScene());
 export const wallTool = createWallTool(editor, () => useUi.getState().newWallKind);
 
-export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony';
+export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony' | 'garden';
 export type ViewMode = '2d' | '3d' | 'split';
 export type { FloorView } from '../view3d/floors';
 
@@ -70,8 +70,11 @@ interface UiState {
   /** True while a wall chain is in progress (drives the "Done" button). */
   drawing: boolean;
   /** Kind of the walls drawn next (outside walls are thicker by default). */
-  newWallKind: 'interior' | 'exterior';
-  setNewWallKind(k: 'interior' | 'exterior'): void;
+  newWallKind: 'interior' | 'exterior' | 'fence';
+  setNewWallKind(k: 'interior' | 'exterior' | 'fence'): void;
+  /** Surface the Garden tool lays next (lawn, paving, driveway, gravel, deck or a path). */
+  gardenSurface: GardenSurface;
+  setGardenSurface(s: GardenSurface): void;
   /** Which face of the selected walls paint swatches change; the plan highlights that side. */
   paintSide: 'both' | 'a' | 'b';
   setPaintSide(s: 'both' | 'a' | 'b'): void;
@@ -163,6 +166,8 @@ export const useUi = create<UiState>((set) => ({
   toggleSnap: (k) => set((s) => ({ snap: { ...s.snap, [k]: !s.snap[k] } })),
   setDrawing: (drawing) => set({ drawing }),
   newWallKind: 'interior',
+  gardenSurface: 'lawn',
+  setGardenSurface: (gardenSurface) => set({ gardenSurface }),
   setNewWallKind: (newWallKind) => set({ newWallKind }),
   paintSide: 'both',
   setPaintSide: (paintSide) => set({ paintSide }),
@@ -186,9 +191,24 @@ export function finishDrawing(): void {
 /** Close the hand-drawn plot: validate, store it, and go back to selecting. */
 export function finishPlot(): void {
   const ui = useUi.getState();
-  const pts = cleanPolygon(ui.plotDraft);
+  const isPath = ui.tool === 'garden' && GARDEN_SURFACES.find((x) => x.id === ui.gardenSurface)?.shape === 'path';
+  const pts = isPath ? ui.plotDraft.filter((p, i, a) => i === 0 || Math.hypot(p[0] - a[i - 1]![0], p[1] - a[i - 1]![1]) > 1e-3) : cleanPolygon(ui.plotDraft);
   if (pts.length === 0) {
     ui.setTool('select');
+    return;
+  }
+  if (ui.tool === 'garden') {
+    const surf = GARDEN_SURFACES.find((x) => x.id === ui.gardenSurface)!;
+    const bad = zoneProblem(surf.shape, pts);
+    if (bad) {
+      useUi.setState({ plotError: bad });
+      return;
+    }
+    const before = new Set(Object.keys(editor.getState().scene.zones));
+    editor.execute(addZone({ shape: surf.shape, points: pts, material: { id: surf.material } }));
+    const added = Object.keys(editor.getState().scene.zones).filter((id) => !before.has(id));
+    useUi.setState({ plotDraft: [], plotError: null, tool: 'select' });
+    if (added.length) editor.select(added);
     return;
   }
   if (ui.tool === 'balcony') {

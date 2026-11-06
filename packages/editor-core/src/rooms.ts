@@ -1,3 +1,4 @@
+import { isHouseWall } from './commands/walls';
 import { detectRooms, type DetectedRoom } from '@hd/geometry';
 import { DEFAULT_MATERIAL_FLOOR, type Id, type Room, type Scene } from '@hd/scene-schema';
 
@@ -41,7 +42,7 @@ export function syncRooms(d: Scene): void {
 
   for (const levelId of d.levelOrder) {
     // Compound walls / fences enclose the plot, not a room.
-    const levelWalls = Object.values(d.walls).filter((w) => w.levelId === levelId && w.kind !== 'boundary');
+    const levelWalls = Object.values(d.walls).filter((w) => w.levelId === levelId && isHouseWall(w));
     const detected = detectRooms(d.nodes, levelWalls);
     const existing = Object.values(d.rooms).filter((r) => r.levelId === levelId);
 

@@ -2,12 +2,13 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import type { Level, Roof, Scene } from '@hd/scene-schema';
 import { buildRoofMesh } from '@hd/geometry';
+import { isHouseWall } from '@hd/editor-core';
 import { makeSurface } from './materials';
 import type { Tier } from './qualityLogic';
 
 /** Wall centre-line points of a floor (outside walls only when there are any) and half the wall thickness. */
 export function roofFootprint(scene: Scene, levelId: string): { points: [number, number][]; wallHalf: number } {
-  const walls = Object.values(scene.walls).filter((w) => w.levelId === levelId && w.kind !== 'boundary');
+  const walls = Object.values(scene.walls).filter((w) => w.levelId === levelId && isHouseWall(w));
   const outer = walls.filter((w) => w.kind === 'exterior');
   const use = outer.length >= 3 ? outer : walls;
   const ids = new Set<string>();

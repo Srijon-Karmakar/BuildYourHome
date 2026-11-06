@@ -2365,3 +2365,714 @@ html[data-reveal] .bottom {
   color: var(--ink-2);
   font-size: 12px;
 }
+
+/* =====================================================================================================
+   Responsive layout (kept last so it overrides the older phone rules above)
+   - Desktop (>= 900 px wide, > 500 px tall): floating chrome as designed.
+   - Compact (< 900 px wide, or short landscape phones): top bar = [logo] view switch, Home, Walk, Menu.
+     Home opens as a bottom sheet; the Menu button opens a bottom sheet with Account / Display / Fit.
+   - Phone portrait (< 700 px): one slim tool bar at the bottom (scrolls sideways, Undo / Redo pinned); floors are
+     a small vertical selector on the right edge; the hint line is hidden; cards open above the bar.
+   - Short landscape (<= 500 px tall): vertical scrolling tool bar on the left, floors along the bottom.
+   ===================================================================================================== */
+
+/* Desktop: the compact-only controls do not exist. */
+.topbar-actions,
+.sheet-backdrop,
+.sheet-head,
+.brand-icon,
+.lv-short {
+  display: none;
+}
+
+.rail-pin,
+.hm-desktop {
+  display: contents;
+}
+
+.levels .pill.small svg {
+  display: none;
+}
+
+.menu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-btn svg,
+.sheet-close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* A bar whose card is open rises above the other floating bits (tip, hint). */
+.rail:has(.popover),
+.levels:has(.popover) {
+  z-index: 75;
+}
+
+.brand .save-state {
+  margin-top: 2px;
+}
+
+/* ---------- Compact: top bar + sheets ---------- */
+@media (max-width: 899px), (max-height: 500px) {
+  .topbar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 8px;
+    top: calc(var(--safe-t) + 8px);
+    left: calc(var(--safe-l) + 12px);
+    right: calc(var(--safe-r) + 12px);
+  }
+
+  .topbar.sheet-open {
+    z-index: 80; /* above the rail, floors and cards while a sheet is open */
+  }
+
+  .topbar .brand {
+    justify-self: start;
+    min-width: 0;
+  }
+
+  .topbar .segmented {
+    justify-self: center;
+  }
+
+  /* Home, Walk and Menu stay one tap away. */
+  .topbar-actions {
+    display: flex;
+    justify-self: end;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .topbar-actions .menu-anchor {
+    position: static;
+  }
+
+  .topbar-actions .pill {
+    min-height: 36px;
+    padding: 0 14px;
+    background: color-mix(in srgb, var(--paper-2) 92%, transparent);
+  }
+
+  .topbar-actions .pill.quiet {
+    border-color: var(--line);
+  }
+
+  .topbar-actions .pill[aria-expanded='true'],
+  .topbar-actions .pill[aria-pressed='true'] {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--paper-2);
+  }
+
+  .hm-desktop,
+  .topbar-right > .pill.walk-btn {
+    display: none;
+  }
+
+  .save-state {
+    max-width: 30vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sheet-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+    border: 0;
+    background: rgba(17, 17, 17, 0.38);
+    animation: sheet-fade 0.2s ease;
+  }
+
+  /* Menu sheet (Account / Display / Fit) */
+  .topbar-right {
+    display: none;
+    position: fixed;
+    z-index: 60;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-width: 560px;
+    max-height: min(88dvh, 680px);
+    margin: 0 auto;
+    padding: 0 16px calc(var(--safe-b) + 16px);
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-bottom: 0;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -14px 40px rgba(17, 17, 17, 0.2);
+    pointer-events: auto;
+  }
+
+  .topbar-right.open {
+    display: flex;
+    animation: sheet-up 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .sheet-head {
+    order: -3;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 0 8px;
+    background: var(--paper-2);
+  }
+
+  .sheet-head strong {
+    font-size: 17px;
+    font-weight: 400;
+  }
+
+  .sheet-grip {
+    position: absolute;
+    top: 7px;
+    left: 50%;
+    width: 38px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--stone);
+    translate: -50% 0;
+  }
+
+  .sheet-close {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(17, 17, 17, 0.06);
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .fit-btn {
+    order: 5;
+  }
+
+  .topbar-right > .pill,
+  .topbar-right .menu-anchor > .pill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 52px;
+    padding: 0 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--white);
+    color: var(--ink);
+    font-size: 15px;
+    text-align: left;
+  }
+
+  .topbar-right .menu-anchor > .pill::after {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-right: 1.6px solid var(--ink-3);
+    border-bottom: 1.6px solid var(--ink-3);
+    rotate: -45deg;
+    transition: rotate 0.2s ease;
+  }
+
+  .topbar-right .menu-anchor > .pill[aria-expanded='true']::after {
+    rotate: 45deg;
+  }
+
+  .topbar-right .menu-anchor {
+    position: static;
+  }
+
+  /* An opened menu expands in place inside the sheet. */
+  .topbar-right .popover,
+  .topbar-right .popover.below,
+  .topbar-right .acct-pop {
+    position: static;
+    inset: auto;
+    width: auto;
+    max-height: none;
+    overflow: visible;
+    transform: none;
+    margin-top: 6px;
+    padding: 6px 4px 8px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  /* Home: its own bottom sheet. */
+  .topbar-actions .popover,
+  .topbar-actions .popover.below,
+  .topbar-actions .home-pop {
+    position: fixed;
+    z-index: 60;
+    inset: auto 0 0 0;
+    width: auto;
+    max-width: 560px;
+    max-height: min(86dvh, 680px);
+    margin: 0 auto;
+    padding: 24px 16px calc(var(--safe-b) + 16px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transform: none;
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-bottom: 0;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -14px 40px rgba(17, 17, 17, 0.2);
+    animation: sheet-up 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .topbar-actions .home-pop::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: 38px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--stone);
+    translate: -50% 0;
+  }
+}
+
+/* ---------- Phone: compact top bar ---------- */
+@media (max-width: 699px) {
+  .topbar {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 6px;
+    top: calc(var(--safe-t) + 6px);
+    left: calc(var(--safe-l) + 8px);
+    right: calc(var(--safe-r) + 8px);
+  }
+
+  .topbar .brand .wordmark {
+    display: none;
+  }
+
+  .brand-icon {
+    display: block;
+    flex: none;
+    width: 26px;
+    height: auto;
+    user-select: none;
+  }
+
+  .save-state:not(.error) {
+    display: none;
+  }
+
+  .topbar .seg {
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 12.5px;
+  }
+
+  .topbar-actions {
+    gap: 5px;
+  }
+
+  .topbar-actions .pill {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 12.5px;
+  }
+
+  .menu-btn {
+    padding: 0 9px;
+  }
+
+  .menu-btn .lbl {
+    display: none;
+  }
+}
+
+@media (max-width: 339px) {
+  .brand-icon {
+    display: none;
+  }
+}
+
+/* ---------- Phone portrait ---------- */
+@media (max-width: 699px) {
+  .app {
+    --rail-h: 56px;
+  }
+
+  /* Tool bar: one slim row at the bottom that scrolls sideways; Undo / Redo stay pinned at the right. */
+  .rail {
+    top: auto;
+    left: calc(var(--safe-l) + 6px);
+    right: calc(var(--safe-r) + 6px);
+    bottom: calc(var(--safe-b) + 6px);
+    transform: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 4px 0 4px 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    background: var(--paper-2);
+    backdrop-filter: none;
+    border-radius: 16px;
+  }
+
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rail > .tool,
+  .rail > .rail-sep,
+  .rail > .menu-anchor {
+    flex: none;
+  }
+
+  .rail .tool {
+    width: 42px;
+    min-height: 46px;
+    padding: 4px 0 3px;
+    gap: 2px;
+  }
+
+  .rail .tool span {
+    font-size: 9px;
+  }
+
+  .rail-pin {
+    display: flex;
+    flex: none;
+    order: 99;
+    position: sticky;
+    right: 0;
+    margin-left: auto;
+    padding: 0 4px 0 2px;
+    background: var(--paper-2);
+    box-shadow: -12px 0 10px -4px var(--paper-2);
+  }
+
+  .rail-sep {
+    width: 1px;
+    height: auto;
+    margin: 8px 3px;
+    flex: none;
+  }
+
+  /* Snap options: a card above the bar, fitted to the screen. */
+  .rail .popover {
+    position: fixed;
+    z-index: 70;
+    left: 12px;
+    right: 12px;
+    bottom: calc(var(--safe-b) + var(--rail-h) + 12px);
+    width: auto;
+    max-height: 50dvh;
+    overflow-y: auto;
+    transform: none;
+  }
+
+  .bottom:not(.with-inspector) {
+    bottom: calc(var(--safe-b) + var(--rail-h) + 12px);
+  }
+
+  .furniture {
+    bottom: calc(var(--safe-b) + var(--rail-h) + 12px);
+    max-height: min(58dvh, calc(100dvh - 160px));
+  }
+
+  .inspector {
+    bottom: calc(var(--safe-b) + var(--rail-h) + 12px);
+    max-height: min(52dvh, calc(100dvh - 160px));
+  }
+
+  .perf {
+    top: calc(var(--safe-t) + 50px);
+  }
+}
+
+/* Portrait phones: the hint line goes, floors become a slim selector on the right edge. */
+@media (max-width: 699px) and (min-height: 501px) {
+  .caption {
+    display: none;
+  }
+
+  .bottom .seg {
+    min-height: 30px;
+    padding: 0 12px;
+    font-size: 12.5px;
+  }
+
+  .levels {
+    top: calc(var(--safe-t) + 50px);
+    left: auto;
+    right: calc(var(--safe-r) + 8px);
+    bottom: auto;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    gap: 6px;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .levels .segmented {
+    flex-direction: column;
+    padding: 2px;
+    border-radius: 16px;
+  }
+
+  .levels .seg {
+    min-width: 34px;
+    min-height: 34px;
+    padding: 0;
+    border-radius: 14px;
+    font-size: 13px;
+  }
+
+  .levels .seg .lv-full {
+    display: none;
+  }
+
+  .levels .seg .lv-short {
+    display: inline;
+  }
+
+  .levels .seg.caret::after {
+    content: none;
+  }
+
+  .levels > .pill.small {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    min-height: 38px;
+    padding: 0;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--paper-2) 92%, transparent);
+  }
+
+  .levels > .pill.small svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .levels > .pill.small .lbl {
+    display: none;
+  }
+
+  /* Floor settings: a card above the bar. */
+  .levels .popover.above {
+    position: fixed;
+    z-index: 70;
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: calc(var(--safe-b) + var(--rail-h) + 12px);
+    width: auto;
+    max-height: min(66dvh, 540px);
+    transform: none;
+  }
+}
+
+/* ---------- Short landscape (phones on their side) ---------- */
+@media (max-height: 500px) {
+  .topbar {
+    top: calc(var(--safe-t) + 6px);
+  }
+
+  .seg {
+    min-height: 30px;
+    padding: 0 14px;
+  }
+
+  .topbar-actions .pill {
+    min-height: 34px;
+    padding: 0 13px;
+  }
+
+  .topbar .brand .wordmark {
+    display: none;
+  }
+
+  /* Tools: a vertical bar on the left that scrolls; Undo / Redo stay pinned at its bottom. */
+  .rail {
+    top: calc(var(--safe-t) + 48px);
+    bottom: calc(var(--safe-b) + 8px);
+    left: calc(var(--safe-l) + 8px);
+    right: auto;
+    transform: none;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 4px 4px 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-width: none;
+    background: var(--paper-2);
+    backdrop-filter: none;
+  }
+
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rail > .tool,
+  .rail > .rail-sep,
+  .rail > .menu-anchor {
+    flex: none;
+  }
+
+  .rail .tool {
+    width: 50px;
+    min-height: 46px;
+    padding: 4px 0 3px;
+  }
+
+  .rail .tool span {
+    font-size: 9px;
+  }
+
+  .rail-pin {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    order: 99;
+    position: sticky;
+    bottom: 0;
+    right: auto;
+    margin: auto 0 0;
+    padding: 0 0 4px;
+    background: var(--paper-2);
+    box-shadow: 0 -10px 8px -4px var(--paper-2);
+  }
+
+  .rail-sep {
+    width: auto;
+    height: 1px;
+    margin: 4px 8px;
+    flex: none;
+  }
+
+  .rail .popover {
+    position: fixed;
+    z-index: 70;
+    left: calc(var(--safe-l) + 72px);
+    right: auto;
+    top: auto;
+    bottom: calc(var(--safe-b) + 8px);
+    width: 240px;
+    max-height: calc(100dvh - 70px);
+    overflow-y: auto;
+    transform: none;
+  }
+
+  /* Floors: bottom-left, beside the tool bar. */
+  .levels {
+    top: auto;
+    left: calc(var(--safe-l) + 72px);
+    right: calc(var(--safe-r) + 8px);
+    bottom: calc(var(--safe-b) + 8px);
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .levels::-webkit-scrollbar {
+    display: none;
+  }
+
+  .levels > * {
+    flex: none;
+  }
+
+  .levels .popover.above {
+    position: fixed;
+    z-index: 70;
+    left: calc(var(--safe-l) + 72px);
+    right: auto;
+    top: auto;
+    bottom: calc(var(--safe-b) + 56px);
+    width: 280px;
+    max-height: calc(100dvh - 120px);
+    transform: none;
+  }
+
+  .app.with-inspector .levels {
+    display: none;
+  }
+
+  .bottom:not(.with-inspector) {
+    left: calc(var(--safe-l) + 72px);
+    bottom: calc(var(--safe-b) + 56px);
+    max-width: calc(100% - 160px);
+    align-items: flex-start;
+    transform: none;
+  }
+
+  .inspector {
+    left: auto;
+    right: calc(var(--safe-r) + 8px);
+    top: calc(var(--safe-t) + 48px);
+    bottom: calc(var(--safe-b) + 8px);
+    width: 280px;
+    max-height: none;
+  }
+
+  .furniture {
+    left: calc(var(--safe-l) + 72px);
+    right: auto;
+    top: calc(var(--safe-t) + 48px);
+    bottom: calc(var(--safe-b) + 8px);
+    width: 340px;
+    max-height: none;
+  }
+
+  .perf {
+    top: calc(var(--safe-t) + 48px);
+    left: calc(var(--safe-l) + 72px);
+  }
+}

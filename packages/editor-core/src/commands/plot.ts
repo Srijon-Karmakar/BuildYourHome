@@ -1,6 +1,6 @@
 import { isSimplePolygon, pointInPolygon, polygonArea } from '@hd/geometry';
 import { type Id, type Scene, type Vec2 } from '@hd/scene-schema';
-import { addWall } from './walls';
+import { addWall, isHouseWall } from './walls';
 import type { Command } from '../types';
 
 export const PLOT_MIN_AREA_M2 = 4;
@@ -57,7 +57,7 @@ export function setPlot(boundary: readonly Vec2[] | null): Command {
 export function houseBounds(scene: Scene): { min: Vec2; max: Vec2 } | null {
   const boundaryNodes = new Set<Id>();
   for (const w of Object.values(scene.walls)) if (w.kind === 'boundary') boundaryNodes.add(w.a).add(w.b);
-  const walls = Object.values(scene.walls).filter((w) => w.kind !== 'boundary');
+  const walls = Object.values(scene.walls).filter(isHouseWall);
   const ids = new Set<Id>();
   for (const w of walls) ids.add(w.a).add(w.b);
   let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
@@ -100,7 +100,7 @@ export function nodesOutsidePlot(scene: Scene): Id[] {
   const plot = scene.plot?.boundary;
   if (!plot || plot.length < 3) return [];
   const used = new Set<Id>();
-  for (const w of Object.values(scene.walls)) if (w.kind !== 'boundary') used.add(w.a).add(w.b);
+  for (const w of Object.values(scene.walls)) if (isHouseWall(w)) used.add(w.a).add(w.b);
   return [...used].filter((id) => {
     const n = scene.nodes[id];
     return n ? !pointInPolygon(n.p, plot, 0.02) : false;

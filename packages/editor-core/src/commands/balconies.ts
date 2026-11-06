@@ -10,6 +10,7 @@ import {
 } from '@hd/geometry';
 import { newId, type Id, type MaterialRef, type Scene, type Vec2 } from '@hd/scene-schema';
 import { cleanPolygon } from './plot';
+import { isHouseWall } from './walls';
 import type { Command } from '../types';
 
 export const DEFAULT_BALCONY_FLOOR = 'floor-tile-beige';
@@ -97,7 +98,7 @@ export function removeBalconies(ids: readonly Id[]): Command {
 export function wallSegments(scene: Scene, levelId: Id): Segment[] {
   const out: Segment[] = [];
   for (const w of Object.values(scene.walls)) {
-    if (w.levelId !== levelId || w.kind === 'boundary') continue;
+    if (w.levelId !== levelId || !isHouseWall(w)) continue;
     const a = scene.nodes[w.a];
     const b = scene.nodes[w.b];
     if (a && b) out.push({ a: a.p, b: b.p });

@@ -18,7 +18,7 @@ export interface WallTool {
 }
 
 /** `kind` is read at each click so the UI can switch Inside/Outside while drawing. */
-export function createWallTool(editor: Editor, kind: () => 'interior' | 'exterior' = () => 'interior'): WallTool {
+export function createWallTool(editor: Editor, kind: () => 'interior' | 'exterior' | 'fence' = () => 'interior'): WallTool {
   let last: Vec2 | null = null;
   return {
     get last() {

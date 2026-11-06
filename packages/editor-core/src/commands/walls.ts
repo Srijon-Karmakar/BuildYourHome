@@ -22,6 +22,12 @@ function findNodeAt(d: Scene, levelId: Id, p: Vec2): Id | undefined {
   return undefined;
 }
 
+/** A garden fence: thin, low, wooden; drawn with the wall tool but never part of the house (no rooms, no roof). */
+export const FENCE_STYLE = { thickness: 0.06, height: 1.2, material: 'wall-wood-panel' } as const;
+
+/** Walls that belong to the house (rooms, roofs and the plot check look at these only). */
+export const isHouseWall = (w: { kind: Wall['kind'] }): boolean => w.kind !== 'boundary' && w.kind !== 'fence';
+
 export interface AddWallParams {
   levelId: Id;
   from: Vec2;
@@ -155,7 +161,9 @@ export function addWall(params: AddWallParams, rng?: () => number): Command {
       const kind = params.kind ?? 'interior';
       const thickness =
         params.thickness ??
-        (kind === 'interior'
+        (kind === 'fence'
+          ? FENCE_STYLE.thickness
+          : kind === 'interior'
           ? (d.defaults?.interiorThickness ?? WALL_THICKNESS_INTERIOR_M)
           : (d.defaults?.exteriorThickness ?? WALL_THICKNESS_EXTERIOR_M));
       for (let i = 0; i + 1 < chain.length; i++) {
@@ -171,9 +179,9 @@ export function addWall(params: AddWallParams, rng?: () => number): Command {
           b,
           kind,
           thickness,
-          height: params.height ?? level.height,
-          materialA: { id: DEFAULT_MATERIAL_WALL },
-          materialB: { id: DEFAULT_MATERIAL_WALL },
+          height: params.height ?? (kind === 'fence' ? FENCE_STYLE.height : level.height),
+          materialA: { id: kind === 'fence' ? FENCE_STYLE.material : DEFAULT_MATERIAL_WALL },
+          materialB: { id: kind === 'fence' ? FENCE_STYLE.material : DEFAULT_MATERIAL_WALL },
         };
       }
     },
