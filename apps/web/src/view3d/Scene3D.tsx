@@ -17,6 +17,7 @@ import { CUT_HEIGHT_M, levelVisibility, type LevelVis } from './floors';
 import { ItemMesh } from './furniture/ItemMesh';
 import { OpeningMesh } from './OpeningMesh';
 import { PerfProbe } from './PerfProbe';
+import { registerCapture } from '../export/capture3d';
 import { setTextureRedraw } from './photoTextures';
 import { sunAt } from './sun';
 import { canPick, CLICK_SLOP_PX, pickObject } from './pick';
@@ -30,6 +31,30 @@ import { WallMesh } from './WallMesh';
 
 // Post-processing (AO) is only downloaded on devices that reach the high tier.
 const Effects = lazy(() => import('./Effects'));
+
+/** Lets Home › Export take a high-resolution picture of this canvas. */
+function CaptureBridge() {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(
+    () =>
+      registerCapture(async () => {
+        const el = gl.domElement;
+        const prev = gl.getPixelRatio();
+        const k = Math.max(1, Math.min(2.5, 4096 / Math.max(el.width, el.height)));
+        gl.setPixelRatio(prev * k);
+        gl.render(scene, camera); // the picture is drawn without the screen-space AO pass; everything else is the same
+        const blob = await new Promise<Blob | null>((res) => el.toBlob(res, 'image/png'));
+        gl.setPixelRatio(prev);
+        invalidate();
+        return blob;
+      }),
+    [gl, scene, camera, invalidate],
+  );
+  return null;
+}
 
 /** Photo textures arrive after first paint; the demand-driven canvas needs a nudge to show them. */
 function TextureRedraw() {
@@ -375,6 +400,7 @@ export function Scene3D() {
     >
       <Lighting tier={tier} />
       <TextureRedraw />
+      <CaptureBridge />
       <Ground tier={tier} />
       <Zones tier={tier} />
       <Floors tier={tier} />

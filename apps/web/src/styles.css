@@ -290,21 +290,29 @@ button {
   border-color: var(--brick);
 }
 
-/* Tool rail */
-.rail {
+/* Tool bar: .rail-wrap = the floating glass capsule, .rail = the (scrolling) strip of tools, .rail-pin = Undo / Redo. */
+.rail-wrap {
   position: absolute;
   z-index: 10;
   left: calc(var(--safe-l) + 16px);
-  top: 50%;
-  transform: translateY(-50%);
+  top: 0;
+  bottom: 0;
+  height: fit-content;
+  max-height: calc(100% - 24px);
+  margin-block: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 6px;
+  border-radius: 999px;
+}
+
+.rail {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 6px;
-  background: color-mix(in srgb, var(--paper-2) 92%, transparent);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
+  min-width: 0;
+  min-height: 0;
 }
 
 .rail-sep {
@@ -1179,14 +1187,6 @@ button {
 
   .hide-phone {
     display: none;
-  }
-
-  .rail {
-    top: auto;
-    left: 50%;
-    bottom: calc(var(--safe-b) + 12px);
-    transform: translateX(-50%);
-    flex-direction: row;
   }
 
   .rail-sep {
@@ -2217,9 +2217,13 @@ html[data-reveal] .topbar {
   animation: reveal-from-top 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.8s backwards;
 }
 
-html[data-reveal] .rail,
 html[data-reveal] .levels {
   animation: reveal-from-left 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.9s backwards;
+}
+
+html[data-reveal] .rail-wrap {
+  animation: reveal-goo-v 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) 0.85s backwards;
+  transform-origin: left center;
 }
 
 html[data-reveal] .bottom {
@@ -2272,7 +2276,7 @@ html[data-reveal] .bottom {
   .curtain.lifting .curtain-panel,
   html[data-reveal] .panes,
   html[data-reveal] .topbar,
-  html[data-reveal] .rail,
+  html[data-reveal] .rail-wrap,
   html[data-reveal] .levels,
   html[data-reveal] .bottom {
     animation-duration: 0.3s !important;
@@ -2385,9 +2389,14 @@ html[data-reveal] .bottom {
   display: none;
 }
 
-.rail-pin,
 .hm-desktop {
   display: contents;
+}
+
+.rail-pin {
+  display: flex;
+  flex: none;
+  flex-direction: column;
 }
 
 .levels .pill.small svg {
@@ -2423,7 +2432,7 @@ html[data-reveal] .bottom {
 }
 
 /* A bar whose card is open rises above the other floating bits (tip, hint). */
-.rail:has(.popover),
+.rail-wrap:has(.popover),
 .levels:has(.popover) {
   z-index: 75;
 }
@@ -2733,26 +2742,40 @@ html[data-reveal] .bottom {
 /* ---------- Phone portrait ---------- */
 @media (max-width: 699px) {
   .app {
-    --rail-h: 56px;
+    --rail-h: 50px;
   }
 
-  /* Tool bar: one slim row at the bottom that scrolls sideways; Undo / Redo stay pinned at the right. */
-  .rail {
+  /* Tool bar: a glass capsule along the bottom; the tools scroll sideways, Undo / Redo stay pinned at the right. */
+  .rail-wrap {
     top: auto;
-    left: calc(var(--safe-l) + 6px);
-    right: calc(var(--safe-r) + 6px);
+    left: 0;
+    right: 0;
     bottom: calc(var(--safe-b) + 6px);
-    transform: none;
+    width: fit-content;
+    max-width: min(calc(100% - 16px), 308px);
+    height: auto;
+    max-height: none;
+    margin: 0 auto;
     flex-direction: row;
-    justify-content: flex-start;
-    padding: 4px 0 4px 4px;
+    align-items: center;
+    padding: 3px 10px;
+    transform-origin: center bottom;
+    --jx: 1.04;
+    --jy: 0.96;
+  }
+
+  .rail {
+    flex: 1;
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+    padding: 0;
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
-    background: var(--paper-2);
-    backdrop-filter: none;
-    border-radius: 16px;
+    border-radius: 999px;
+    --goo-r: 15px;
   }
 
   .rail::-webkit-scrollbar {
@@ -2765,33 +2788,35 @@ html[data-reveal] .bottom {
     flex: none;
   }
 
-  .rail .tool {
-    width: 42px;
-    min-height: 46px;
-    padding: 4px 0 3px;
-    gap: 2px;
+  .rail .tool,
+  .rail-pin .tool {
+    width: 36px;
+    min-height: 40px;
+    padding: 3px 0 2px;
+    gap: 1px;
   }
 
-  .rail .tool span {
-    font-size: 9px;
+  .rail .tool svg,
+  .rail-pin .tool svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .rail .tool span,
+  .rail-pin .tool span {
+    font-size: 8.5px;
   }
 
   .rail-pin {
-    display: flex;
-    flex: none;
-    order: 99;
-    position: sticky;
-    right: 0;
-    margin-left: auto;
-    padding: 0 4px 0 2px;
-    background: var(--paper-2);
-    box-shadow: -12px 0 10px -4px var(--paper-2);
+    flex-direction: row;
+    align-items: center;
+    margin-left: 2px;
   }
 
   .rail-sep {
     width: 1px;
-    height: auto;
-    margin: 8px 3px;
+    height: 22px;
+    margin: 0 3px;
     flex: none;
   }
 
@@ -2799,9 +2824,10 @@ html[data-reveal] .bottom {
   .rail .popover {
     position: fixed;
     z-index: 70;
-    left: 12px;
-    right: 12px;
-    bottom: calc(var(--safe-b) + var(--rail-h) + 12px);
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: calc(100% + 10px);
     width: auto;
     max-height: 50dvh;
     overflow-y: auto;
@@ -2937,22 +2963,24 @@ html[data-reveal] .bottom {
     display: none;
   }
 
-  /* Tools: a vertical bar on the left that scrolls; Undo / Redo stay pinned at its bottom. */
-  .rail {
+  /* Tools: a vertical glass capsule on the left; the tools scroll, Undo / Redo stay pinned at the bottom. */
+  .rail-wrap {
     top: calc(var(--safe-t) + 48px);
     bottom: calc(var(--safe-b) + 8px);
     left: calc(var(--safe-l) + 8px);
-    right: auto;
-    transform: none;
-    flex-direction: column;
-    justify-content: flex-start;
-    padding: 4px 4px 0;
+    height: auto;
+    max-height: none;
+    margin-block: 0;
+    padding: 10px 4px;
+  }
+
+  .rail {
+    flex: 1;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior-y: contain;
     scrollbar-width: none;
-    background: var(--paper-2);
-    backdrop-filter: none;
+    --goo-r: 18px;
   }
 
   .rail::-webkit-scrollbar {
@@ -2965,28 +2993,16 @@ html[data-reveal] .bottom {
     flex: none;
   }
 
-  .rail .tool {
+  .rail .tool,
+  .rail-pin .tool {
     width: 50px;
-    min-height: 46px;
+    min-height: 44px;
     padding: 4px 0 3px;
   }
 
-  .rail .tool span {
+  .rail .tool span,
+  .rail-pin .tool span {
     font-size: 9px;
-  }
-
-  .rail-pin {
-    display: flex;
-    flex: none;
-    flex-direction: column;
-    order: 99;
-    position: sticky;
-    bottom: 0;
-    right: auto;
-    margin: auto 0 0;
-    padding: 0 0 4px;
-    background: var(--paper-2);
-    box-shadow: 0 -10px 8px -4px var(--paper-2);
   }
 
   .rail-sep {
@@ -2999,10 +3015,10 @@ html[data-reveal] .bottom {
   .rail .popover {
     position: fixed;
     z-index: 70;
-    left: calc(var(--safe-l) + 72px);
+    left: calc(100% + 10px);
     right: auto;
     top: auto;
-    bottom: calc(var(--safe-b) + 8px);
+    bottom: 0;
     width: 240px;
     max-height: calc(100dvh - 70px);
     overflow-y: auto;
@@ -3075,4 +3091,281 @@ html[data-reveal] .bottom {
     top: calc(var(--safe-t) + 48px);
     left: calc(var(--safe-l) + 72px);
   }
+}
+
+/* =====================================================================================================
+   Solid orange bars (no borders, no shadows): every floating bar is flat brand orange; the pressed button is a white liquid blob that
+   stretches to the next button (see ui/Goo.tsx); the tool bar jellies in when the workspace opens.
+   ===================================================================================================== */
+:root {
+  --orange: #fd6504;
+  --orange-deep: #d95500;
+  --bar-orange: #ea5500;
+  --on-orange: #111;
+  --on-orange-dim: #111;
+}
+
+.rail-wrap,
+.segmented.goo,
+.levels > .pill.small,
+.topbar-right > .pill.walk-btn {
+  background: var(--bar-orange);
+  border: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.topbar-right > .pill.walk-btn {
+  color: var(--on-orange);
+}
+
+.topbar-right > .pill.walk-btn:hover {
+  background: #fff;
+  color: var(--on-orange);
+}
+
+/* ----- the liquid highlight ----- */
+.goo {
+  position: relative;
+}
+
+.goo-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 1;
+  filter: url(#hd-goo);
+  transition: opacity 0.2s ease;
+}
+
+.goo-layer[data-idle] {
+  opacity: 0;
+}
+
+.goo-blob {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-radius: var(--goo-r, 999px);
+  background: #fff;
+}
+
+.goo .tool,
+.goo .seg {
+  position: relative;
+  z-index: 1;
+}
+
+.goo .tool[aria-pressed='true'],
+.goo .seg[aria-pressed='true'] {
+  background: transparent;
+}
+
+.goo .tool {
+  color: var(--on-orange-dim);
+}
+
+.goo .seg {
+  color: var(--on-orange-dim);
+}
+
+.goo .tool[aria-pressed='true'] {
+  color: var(--on-orange);
+}
+
+.goo .seg[aria-pressed='true'] {
+  color: var(--on-orange);
+  font-weight: 500;
+}
+
+/* the Snap tool lives inside a popover anchor, outside the blob's reach */
+.goo .menu-anchor .tool[aria-pressed='true'] {
+  background: #fff;
+}
+
+.goo .tool:hover:not(:disabled),
+.goo .seg:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: var(--on-orange);
+}
+
+.goo .tool[aria-pressed='true']:hover:not(:disabled),
+.goo .seg[aria-pressed='true']:hover {
+  background: transparent;
+  color: var(--on-orange);
+}
+
+.rail {
+  --goo-r: 20px;
+}
+
+.rail-sep {
+  background: rgba(17, 17, 17, 0.3);
+}
+
+/* ----- jelly wobble of the bar when the highlight moves ----- */
+.rail-wrap {
+  --jx: 0.96;
+  --jy: 1.04;
+}
+
+.goo-jelly {
+  animation: goo-jelly 0.62s cubic-bezier(0.3, 1.1, 0.4, 1);
+}
+
+@keyframes goo-jelly {
+  0% {
+    scale: 1 1;
+  }
+  28% {
+    scale: var(--jx, 1.04) var(--jy, 0.96);
+  }
+  54% {
+    scale: calc(2 - var(--jx, 1.04)) calc(2 - var(--jy, 0.96));
+  }
+  78% {
+    scale: 1.01 0.995;
+  }
+  100% {
+    scale: 1 1;
+  }
+}
+
+/* ----- the tool bar morphs in when the workspace opens ----- */
+@keyframes reveal-goo-v {
+  0% {
+    translate: -48px 0;
+    scale: 0.35 0.8;
+    opacity: 0;
+  }
+  55% {
+    translate: 6px 0;
+    scale: 1.14 0.97;
+    opacity: 1;
+  }
+  78% {
+    translate: 0 0;
+    scale: 0.97 1.02;
+  }
+  100% {
+    translate: 0 0;
+    scale: 1 1;
+  }
+}
+
+@keyframes reveal-goo-h {
+  0% {
+    translate: 0 48px;
+    scale: 0.8 0.35;
+    opacity: 0;
+  }
+  55% {
+    translate: 0 -6px;
+    scale: 0.97 1.14;
+    opacity: 1;
+  }
+  78% {
+    translate: 0 0;
+    scale: 1.02 0.97;
+  }
+  100% {
+    translate: 0 0;
+    scale: 1 1;
+  }
+}
+
+@media (max-width: 699px) and (min-height: 501px) {
+  html[data-reveal] .rail-wrap {
+    animation-name: reveal-goo-h;
+    transform-origin: center bottom;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goo-jelly {
+    animation: none;
+  }
+}
+
+/* ----- other floating bars share the orange ----- */
+.segmented.goo {
+  --goo-r: 999px;
+}
+
+.levels > .pill.small {
+  color: var(--on-orange);
+}
+
+.levels > .pill.small:hover,
+.levels > .pill.small[aria-pressed='true'] {
+  background: #fff;
+  color: var(--on-orange);
+}
+
+@media (max-width: 899px), (max-height: 500px) {
+  .topbar-actions .pill,
+  .topbar-actions .pill.quiet {
+    background: var(--bar-orange);
+    border: 0;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    color: var(--on-orange);
+  }
+
+  .topbar-actions .pill[aria-expanded='true'],
+  .topbar-actions .pill[aria-pressed='true'] {
+    background: #fff;
+    color: var(--on-orange);
+  }
+}
+
+/* A shorter desktop window: the bar scrolls instead of running off the screen. */
+@media (max-height: 760px) and (min-width: 700px) and (min-height: 501px) {
+  .rail-wrap {
+    top: calc(var(--safe-t) + 64px);
+    bottom: calc(var(--safe-b) + 16px);
+    height: auto;
+    max-height: none;
+    margin-block: 0;
+    padding: 12px 6px;
+  }
+
+  .rail {
+    flex: 1;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rail > .tool,
+  .rail > .rail-sep,
+  .rail > .menu-anchor {
+    flex: none;
+  }
+
+  .rail .popover {
+    position: fixed;
+    left: calc(100% + 10px);
+    right: auto;
+    top: auto;
+    bottom: 0;
+    width: 220px;
+  }
+}
+
+/* Disabled tools stay readable on the orange bar. */
+.goo .tool:disabled {
+  opacity: 0.5;
 }

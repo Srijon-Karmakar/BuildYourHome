@@ -5,6 +5,7 @@ import { BottomBar } from './ui/BottomBar';
 import { FurniturePanel } from './ui/FurniturePanel';
 import { ConflictDialog, RecoveryDialog } from './ui/AccountDialogs';
 import { Curtain } from './ui/Curtain';
+import { GooFilter } from './ui/Goo';
 import { Help } from './ui/Help';
 import { Inspector } from './ui/Inspector';
 import { LevelSwitcher } from './ui/LevelSwitcher';
@@ -53,6 +54,7 @@ export function App() {
       <ConflictDialog />
       <PerfPanel />
       <Tour />
+      <GooFilter />
       <Curtain />
     </div>
   );

@@ -6,6 +6,7 @@ import { DisplayMenu } from './DisplayMenu';
 import { useSaveStatus } from '../lib/persistence';
 import { HomeMenu } from './HomeMenu';
 import { BrandLogo } from './BrandLogo';
+import { GooGroup } from './Goo';
 
 const VIEWS: Array<{ id: ViewMode; label: string; title: string }> = [
   { id: '2d', label: 'Plan', title: 'Floor plan only' },
@@ -13,7 +14,12 @@ const VIEWS: Array<{ id: ViewMode; label: string; title: string }> = [
   { id: '3d', label: '3D', title: '3D view only' },
 ];
 
-const SAVE_TEXT = { idle: '', saving: 'Saving…', saved: 'Saved', error: 'Could not save here — use Home › Save to file' } as const;
+const SAVE_TEXT = {
+  idle: '',
+  saving: 'Saving…',
+  saved: 'Saved',
+  error: 'Could not save here — use Home › Save to file',
+} as const;
 
 function SaveState() {
   const status = useSaveStatus((s) => s.status);
@@ -60,11 +66,16 @@ export function TopBar() {
         <div className="wordmark">
           <BrandLogo />
         </div>
-        <img className="brand-icon" src="/logo/byhome-icon.png" alt="Home Designer" draggable={false} />
+        <img
+          className="brand-icon"
+          src="/logo/byhome-icon.png"
+          alt="Home Designer"
+          draggable={false}
+        />
         <SaveState />
       </div>
 
-      <div className="segmented" role="group" aria-label="View">
+      <GooGroup className="segmented" role="group" aria-label="View" data-goo-host="">
         {VIEWS.map((v) => (
           <button
             key={v.id}
@@ -77,7 +88,7 @@ export function TopBar() {
             {v.label}
           </button>
         ))}
-      </div>
+      </GooGroup>
 
       <div className="topbar-actions">
         <HomeMenu key={homeKey} onOpenChange={setHomeOpen} />
@@ -105,7 +116,14 @@ export function TopBar() {
         </button>
       </div>
 
-      {(menuOpen || homeOpen) && <button type="button" className="sheet-backdrop" aria-label="Close menu" onClick={closeAll} />}
+      {(menuOpen || homeOpen) && (
+        <button
+          type="button"
+          className="sheet-backdrop"
+          aria-label="Close menu"
+          onClick={closeAll}
+        />
+      )}
 
       <div className={`topbar-right${menuOpen ? ' open' : ''}`}>
         <div className="sheet-head">

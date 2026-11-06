@@ -2,15 +2,19 @@ import { useStore } from 'zustand';
 import { GARDEN_SURFACES } from '@hd/editor-core';
 import { editor, finishDrawing, finishPlot, useUi } from '../plan/session';
 import { nextTip } from './tipsLogic';
+import { GooGroup } from './Goo';
 
 const CAPTION = {
   wall: 'Click to place points · type a length + Enter for an exact wall · Esc to finish',
   door: 'Move over a wall and click to add a door · it opens toward your side',
   window: 'Move over a wall and click to add a window',
   plot: 'Click each corner of your land · click the first corner or press Enter to close · Esc to cancel',
-  garden: 'Click the corners of the area (or the points of a path) · click the first corner or press Enter to finish · Esc to cancel',
-  balcony: 'Click the corners of the balcony or porch · click the first corner or press Enter to close · Esc to cancel',
-  stair: 'Click to place the stairs · R turns them · they climb to the floor above (one is added if needed) · Esc to stop',
+  garden:
+    'Click the corners of the area (or the points of a path) · click the first corner or press Enter to finish · Esc to cancel',
+  balcony:
+    'Click the corners of the balcony or porch · click the first corner or press Enter to close · Esc to cancel',
+  stair:
+    'Click to place the stairs · R turns them · they climb to the floor above (one is added if needed) · Esc to stop',
   place: 'Click to place · R turns it · Esc to stop',
   select: 'Tap a wall, room, door or furniture to edit it · drag to move',
   view3d: 'Drag to look around · scroll or pinch to zoom',
@@ -44,7 +48,8 @@ export function BottomBar() {
       : CAPTION[tool];
 
   const showDone = drawing && !walk && tool === 'wall';
-  const showPlotDone = (tool === 'plot' || tool === 'balcony' || tool === 'garden') && !walk && view !== '3d';
+  const showPlotDone =
+    (tool === 'plot' || tool === 'balcony' || tool === 'garden') && !walk && view !== '3d';
   const showGarden = tool === 'garden' && !walk && view !== '3d';
   const surface = useUi((s) => s.gardenSurface);
   const setSurface = useUi((s) => s.setGardenSurface);
@@ -57,47 +62,71 @@ export function BottomBar() {
   return (
     <div className={`bottom${hasSelection && !walk ? ' with-inspector' : ''}`}>
       {showKind && (
-        <div className="segmented" role="group" aria-label="New wall type">
+        <GooGroup className="segmented" role="group" aria-label="New wall type" data-goo-host="">
           {(['interior', 'exterior', 'fence'] as const).map((k) => (
             <button
               key={k}
               type="button"
               className="seg"
-              title={k === 'interior' ? 'Inside walls: thinner partitions' : k === 'exterior' ? 'Outside walls: thicker, load-bearing' : 'Garden fence: low and thin; never part of the house'}
+              title={
+                k === 'interior'
+                  ? 'Inside walls: thinner partitions'
+                  : k === 'exterior'
+                    ? 'Outside walls: thicker, load-bearing'
+                    : 'Garden fence: low and thin; never part of the house'
+              }
               aria-pressed={kind === k}
               onClick={() => setKind(k)}
             >
               {k === 'interior' ? 'Inside wall' : k === 'exterior' ? 'Outside wall' : 'Fence'}
             </button>
           ))}
-        </div>
+        </GooGroup>
       )}
       {showGarden && (
-        <div className="segmented" role="group" aria-label="Garden surface">
+        <GooGroup className="segmented" role="group" aria-label="Garden surface" data-goo-host="">
           {GARDEN_SURFACES.map((g) => (
-            <button key={g.id} type="button" className="seg" aria-pressed={surface === g.id} onClick={() => setSurface(g.id)}>
+            <button
+              key={g.id}
+              type="button"
+              className="seg"
+              aria-pressed={surface === g.id}
+              onClick={() => setSurface(g.id)}
+            >
               {g.label}
             </button>
           ))}
-        </div>
+        </GooGroup>
       )}
       {showStairKind && (
         <>
-          <div className="segmented" role="group" aria-label="Stair shape">
+          <GooGroup className="segmented" role="group" aria-label="Stair shape" data-goo-host="">
             {(['straight', 'L', 'U'] as const).map((k) => (
-              <button key={k} type="button" className="seg" aria-pressed={newStair.kind === k} onClick={() => setNewStair({ kind: k })}>
+              <button
+                key={k}
+                type="button"
+                className="seg"
+                aria-pressed={newStair.kind === k}
+                onClick={() => setNewStair({ kind: k })}
+              >
                 {k === 'straight' ? 'Straight' : k === 'L' ? 'L-shape' : 'U-shape'}
               </button>
             ))}
-          </div>
+          </GooGroup>
           {newStair.kind !== 'straight' && (
-            <div className="segmented" role="group" aria-label="Stair turn">
+            <GooGroup className="segmented" role="group" aria-label="Stair turn" data-goo-host="">
               {([false, true] as const).map((m) => (
-                <button key={String(m)} type="button" className="seg" aria-pressed={newStair.mirror === m} onClick={() => setNewStair({ mirror: m })}>
+                <button
+                  key={String(m)}
+                  type="button"
+                  className="seg"
+                  aria-pressed={newStair.mirror === m}
+                  onClick={() => setNewStair({ mirror: m })}
+                >
                   {m ? 'Turns right' : 'Turns left'}
                 </button>
               ))}
-            </div>
+            </GooGroup>
           )}
         </>
       )}
@@ -121,22 +150,43 @@ export function BottomBar() {
               {tip.action}
             </button>
           )}
-          <button type="button" className="ins-close" title="Hide tips" aria-label="Hide tips" onClick={() => useUi.getState().setTipsOn(false)}>
+          <button
+            type="button"
+            className="ins-close"
+            title="Hide tips"
+            aria-label="Hide tips"
+            onClick={() => useUi.getState().setTipsOn(false)}
+          >
             ×
           </button>
         </div>
       )}
       {showDone && (
         <div className="context">
-          <button type="button" className="pill solid" title="Finish this wall (Enter)" onClick={finishDrawing}>
+          <button
+            type="button"
+            className="pill solid"
+            title="Finish this wall (Enter)"
+            onClick={finishDrawing}
+          >
             Done
           </button>
         </div>
       )}
       {showPlotDone && (
         <div className="context">
-          {plotError && <span className="fine" role="alert">{plotError}</span>}
-          <button type="button" className="pill solid" title="Close the plot (Enter)" disabled={plotPoints < minPoints} onClick={finishPlot}>
+          {plotError && (
+            <span className="fine" role="alert">
+              {plotError}
+            </span>
+          )}
+          <button
+            type="button"
+            className="pill solid"
+            title="Close the plot (Enter)"
+            disabled={plotPoints < minPoints}
+            onClick={finishPlot}
+          >
             Done
           </button>
         </div>

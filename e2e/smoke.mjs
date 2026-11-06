@@ -1675,6 +1675,51 @@ try {
     await page.close();
   }
 
+  // ---------------------------------------------------------------- 2t. export: 3D picture, PDF plan, DXF
+  {
+    const { readFileSync } = await import('node:fs');
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?demo=1&view=2d');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForFunction(() => window.__hd.useCloud.getState().ready);
+    await page.getByRole('button', { name: 'Home' }).click();
+    const home = page.getByRole('group', { name: 'Home settings' });
+    check('Home has an Export section', await home.getByRole('button', { name: 'Plan (PDF)' }).isVisible());
+    const grab = async (name) => {
+      const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }), home.getByRole('button', { name }).click()]);
+      const path = `${SP}/export-${dl.suggestedFilename()}`;
+      await dl.saveAs(path);
+      return { name: dl.suggestedFilename(), data: readFileSync(path) };
+    };
+
+    const pdf = await grab('Plan (PDF)');
+    const ptxt = pdf.data.toString('latin1');
+    check('the PDF is named from the home and paper size', pdf.name === 'sample-home-plan-A4.pdf', pdf.name);
+    check('the PDF is a real PDF with the scale, title and room names', ptxt.startsWith('%PDF-1.4') && ptxt.includes('(Scale 1 : 50)') && ptxt.includes('(Sample home)') && ptxt.includes('(Living)'));
+
+    await home.getByRole('group', { name: 'Paper' }).getByRole('button', { name: 'A3' }).click();
+    const pdf3 = await grab('Plan (PDF)');
+    check('A3 gives an A3 file', pdf3.name === 'sample-home-plan-A3.pdf' && pdf3.data.toString('latin1').includes('/MediaBox [0 0 1190.551 841.89]'));
+
+    const dxf = await grab('CAD (DXF)');
+    const dtxt = dxf.data.toString('utf8');
+    check('the DXF has layers per floor and the room names', dxf.name === 'sample-home.dxf' && dtxt.includes('GROUND_FLOOR_WALLS') && dtxt.includes('\nLiving\n') && dtxt.trimEnd().endsWith('EOF'));
+
+    // 3D picture: switches to the Split view if needed, then saves a real PNG.
+    const png = await grab('3D picture');
+    const sig = png.data.subarray(0, 8).toString('hex');
+    const w = png.data.readUInt32BE(16);
+    const h = png.data.readUInt32BE(20);
+    check('the 3D picture is a PNG at least as large as the screen pane', sig === '89504e470d0a1a0a' && w >= 600 && h >= 700 && png.name === 'sample-home-3d.png', `${w}x${h}`);
+    check('exporting the picture opened the 3D view', (await page.evaluate(() => window.__hd.useUi.getState().view)) === 'split');
+    check('no page errors while exporting', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
   // ---------------------------------------------------------------- 3. benchmark
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });

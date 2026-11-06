@@ -58,7 +58,7 @@ Radii: 10 px controls, 16 px panels. Spacing scale: 4 / 8 / 12 / 16 / 24 / 40.
 │ └────┘            Click to place points · Esc to finish         │  caption
 └──────────────────────────────────────────────────────────────┘
 ```
-Compact (< 900 px wide or <= 500 px tall): top bar = view switch + one **Menu** button; Account / Home / Display / Fit / Walk open as a bottom sheet. Phones (< 700 px): the rail becomes a sideways-scrolling bottom bar (Undo / Redo pinned), floors sit in a row above it, the caption above that; cards open fitted above the bar. Short landscape: vertical scrolling rail on the left.
+Compact (< 900 px wide or <= 500 px tall): top bar = small logo, view switch, **Home**, **Walk**, **Menu** (Home and Menu open bottom sheets; Menu holds Account / Display / Fit). Phones (< 700 px): one slim sideways-scrolling tool bar at the bottom (Undo / Redo pinned), floors as a slim vertical selector on the right edge, no hint line; cards open above the bar. Short landscape: vertical scrolling tool bar on the left, floors along the bottom.
 
 ## 7. Components (implemented in `apps/web/src/ui/`)
 - **TopBar** — wordmark, segmented view switch (text, underline/ink-fill for active), Walk (outlined pill → brick fill when active), Fit.

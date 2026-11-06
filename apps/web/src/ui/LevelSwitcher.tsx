@@ -4,6 +4,7 @@ import { addLevel, copyLevel, removeLevel, setLevelProps, setRoof } from '@hd/ed
 import { materialsFor } from '../view3d/placeholderMaterials';
 import { editor, useUi } from '../plan/session';
 import { AngleField, LengthField, Segmented, Swatches, TextField } from './fields';
+import { GooGroup } from './Goo';
 
 /** One-glyph label for the narrow floor selector on phones: Ground floor → G, Floor 2 → 2, otherwise the initial. */
 function shortName(name: string): string {
@@ -71,7 +72,7 @@ export function LevelSwitcher() {
 
   return (
     <div ref={root} className="levels" role="group" aria-label="Floors">
-      <div className="segmented">
+      <GooGroup className="segmented" data-goo-host="">
         {order.map((id) => {
           const lv = levels[id]!;
           const isActive = id === active;
@@ -92,10 +93,16 @@ export function LevelSwitcher() {
             </button>
           );
         })}
-        <button type="button" className="seg" aria-label="Add floor" title="Add a floor on top" onClick={() => addAndGo(addLevel())}>
+        <button
+          type="button"
+          className="seg"
+          aria-label="Add floor"
+          title="Add a floor on top"
+          onClick={() => addAndGo(addLevel())}
+        >
           +
         </button>
-      </div>
+      </GooGroup>
       {view !== '2d' && Object.keys(roofs).length > 0 && (
         <button
           type="button"
@@ -125,7 +132,11 @@ export function LevelSwitcher() {
 
       {open && (
         <div className="popover above" role="group" aria-label="Floor settings">
-          <TextField label="Name" value={current.name} onCommit={(name) => editor.execute(setLevelProps(active, { name }))} />
+          <TextField
+            label="Name"
+            value={current.name}
+            onCommit={(name) => editor.execute(setLevelProps(active, { name }))}
+          />
           <LengthField
             label="Height"
             hint="Floor to floor"
@@ -151,7 +162,11 @@ export function LevelSwitcher() {
               {roof && (
                 <>
                   {roof.style !== 'flat' && (
-                    <AngleField label="Slope" value={roof.pitchDeg} onCommit={(pitchDeg) => editor.execute(setRoof(active, { pitchDeg }))} />
+                    <AngleField
+                      label="Slope"
+                      value={roof.pitchDeg}
+                      onCommit={(pitchDeg) => editor.execute(setRoof(active, { pitchDeg }))}
+                    />
                   )}
                   <LengthField
                     label="Overhang"
@@ -161,9 +176,18 @@ export function LevelSwitcher() {
                     step={0.05}
                     onCommit={(overhang) => editor.execute(setRoof(active, { overhang }))}
                   />
-                  <Swatches label="Roof material" items={materialsFor('roof')} value={roof.material.id} onPick={(materialId) => editor.execute(setRoof(active, { materialId }))} />
+                  <Swatches
+                    label="Roof material"
+                    items={materialsFor('roof')}
+                    value={roof.material.id}
+                    onPick={(materialId) => editor.execute(setRoof(active, { materialId }))}
+                  />
                   {(roof.style === 'gable' || roof.style === 'hip') && (
-                    <button type="button" className="pill small" onClick={() => editor.execute(setRoof(active, { swap: !roof.ridgeAngle }))}>
+                    <button
+                      type="button"
+                      className="pill small"
+                      onClick={() => editor.execute(setRoof(active, { swap: !roof.ridgeAngle }))}
+                    >
                       Turn the ridge 90°
                     </button>
                   )}
@@ -172,14 +196,23 @@ export function LevelSwitcher() {
             </>
           )}
           <div className="level-actions">
-            <button type="button" className="pill small" title="Duplicate this floor's walls, doors and rooms on a new floor on top" onClick={() => addAndGo(copyLevel(active))}>
+            <button
+              type="button"
+              className="pill small"
+              title="Duplicate this floor's walls, doors and rooms on a new floor on top"
+              onClick={() => addAndGo(copyLevel(active))}
+            >
               Copy to a new floor
             </button>
             <button
               type="button"
               className="pill small"
               disabled={order.length <= 1}
-              title={order.length <= 1 ? 'A home needs at least one floor' : 'Delete this floor and everything on it'}
+              title={
+                order.length <= 1
+                  ? 'A home needs at least one floor'
+                  : 'Delete this floor and everything on it'
+              }
               onClick={() => {
                 editor.execute(removeLevel(active));
                 setOpen(false);

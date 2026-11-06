@@ -17,6 +17,7 @@ import {
 import { polygonArea } from '@hd/geometry';
 import { editor, useUi } from '../plan/session';
 import { materialsFor } from '../view3d/placeholderMaterials';
+import { ExportActions } from './ExportActions';
 import { FileActions } from './FileActions';
 import { formatArea } from '../lib/units';
 import { LengthField, Section, Segmented, Swatches, TextField, Toggle } from './fields';
@@ -141,6 +142,9 @@ export function HomeMenu({ onOpenChange }: { onOpenChange?: (open: boolean) => v
           </Section>
           <Section title="File">
             <FileActions onDone={() => setOpen(false)} />
+          </Section>
+          <Section title="Export">
+            <ExportActions />
           </Section>
           <Section title="New walls">
             <LengthField
