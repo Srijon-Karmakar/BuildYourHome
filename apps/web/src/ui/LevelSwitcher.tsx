@@ -5,6 +5,7 @@ import { materialsFor } from '../view3d/placeholderMaterials';
 import { editor, useUi } from '../plan/session';
 import { AngleField, LengthField, Segmented, Swatches, TextField } from './fields';
 import { GooGroup } from './Goo';
+import { ViewsMenu } from './ViewsMenu';
 
 /** One-glyph label for the narrow floor selector on phones: Ground floor → G, Floor 2 → 2, otherwise the initial. */
 function shortName(name: string): string {
@@ -130,6 +131,7 @@ export function LevelSwitcher() {
         </button>
       )}
 
+      {view !== '2d' && <ViewsMenu />}
       {open && (
         <div className="popover above" role="group" aria-label="Floor settings">
           <TextField

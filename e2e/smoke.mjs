@@ -1633,7 +1633,7 @@ try {
     check('Enter closes a lawn area', z.length === 1 && z[0].shape === 'area' && z[0].material.id === 'ground-grass');
     const ins = page.getByRole('complementary', { name: 'Properties' });
     check('the lawn is selected; the inspector offers surfaces', await ins.getByText('Surface').first().isVisible());
-    await ins.getByRole('radio', { name: 'Gravel' }).click();
+    await ins.getByRole('radio', { name: 'Gravel', exact: true }).click();
     check('the surface can be changed', (await Z())[0].material.id === 'ground-gravel');
 
     // A path is drawn along a centre line; clicking the first point does not close it.
@@ -1837,6 +1837,53 @@ try {
     check('second tap deletes the home', (await n()) === 3);
     check('no page errors with workspaces', errors.length === 0, errors.slice(0, 2).join(' | '));
     await page.screenshot({ path: `${SP}/e2e-workspaces.png` });
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2t4. saved views and layers
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?demo=1&view=3d');
+    await page.waitForFunction(() => window.__hd && window.__hd.project);
+    await page.waitForTimeout(1500);
+    const proj = () => page.evaluate(() => window.__hd.project(3, 0, 3).map((v) => Math.round(v)));
+    const home = await proj();
+    await page.getByRole('button', { name: 'Views and layers' }).click();
+    const pop = page.getByRole('group', { name: 'Views and layers' }).last();
+    check('Views panel has saved views and layers', (await pop.getByText('Saved views').isVisible()) && (await pop.getByText('Layers', { exact: true }).isVisible()));
+    await pop.getByRole('button', { name: '+ Save this view' }).click();
+    check('saving a view stores the camera in the home', (await page.evaluate(() => Object.keys(window.__hd.editor.getState().scene.viewpoints).length)) === 1);
+    // move the camera by dragging the 3D view
+    await page.keyboard.press('Escape');
+    await page.mouse.move(900, 300);
+    await page.mouse.down();
+    await page.mouse.move(700, 380, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(600);
+    const moved = await proj();
+    check('dragging the view moves the camera', Math.abs(moved[0] - home[0]) + Math.abs(moved[1] - home[1]) > 20, JSON.stringify([home, moved]));
+    await page.getByRole('button', { name: 'Views and layers' }).click();
+    await pop.getByRole('button', { name: 'View 1', exact: true }).click();
+    await page.waitForTimeout(1200);
+    const back = await proj();
+    check('tapping a saved view flies the camera back', Math.abs(back[0] - home[0]) + Math.abs(back[1] - home[1]) < 6, JSON.stringify([home, back]));
+    // layers
+    const shot = async () => (await page.locator('canvas').first().screenshot()).toString('base64');
+    const base = await shot();
+    await pop.getByRole('switch', { name: 'Furniture' }).click();
+    check('Furniture can be hidden', (await page.evaluate(() => window.__hd.useUi.getState().hiddenLayers.furniture)) === true);
+    await page.waitForTimeout(500);
+    check('hiding furniture changes the 3D picture', (await shot()) !== base);
+    await pop.getByRole('switch', { name: 'Roofs' }).click().catch(() => {});
+    await pop.getByRole('button', { name: 'Show all' }).click();
+    check('Show all brings every layer back', (await page.evaluate(() => Object.values(window.__hd.useUi.getState().hiddenLayers).some(Boolean))) === false);
+    await pop.getByRole('button', { name: 'Delete View 1' }).click();
+    check('a saved view can be deleted', (await page.evaluate(() => Object.keys(window.__hd.editor.getState().scene.viewpoints).length)) === 0);
+    check('no page errors with views and layers', errors.length === 0, errors.slice(0, 2).join(' | '));
     await page.close();
   }
 

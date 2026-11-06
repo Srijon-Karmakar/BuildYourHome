@@ -22,6 +22,8 @@ import { setTextureRedraw } from './photoTextures';
 import { lampLevel, lampsOf, nearestLamps } from './lights';
 import { setLampGlow } from './furniture/kit';
 import { sunAt } from './sun';
+import { itemLayer } from './layers';
+import { registerCamera } from './cameraBridge';
 import { canPick, CLICK_SLOP_PX, pickObject } from './pick';
 import { RoofMesh } from './RoofMesh';
 import { BalconyMesh } from './BalconyMesh';
@@ -134,6 +136,38 @@ function CameraFit() {
     };
   }, [camera, gl]);
 
+  // Saved views: let the Views panel read the camera and fly it somewhere (a short eased move).
+  useEffect(() => {
+    let raf = 0;
+    return registerCamera({
+      get: () => ({
+        position: camera.position.toArray() as [number, number, number],
+        target: (controls ? controls.target : new THREE.Vector3()).toArray() as [number, number, number],
+        fov: camera.fov,
+      }),
+      fly: (to) => {
+        cancelAnimationFrame(raf);
+        const p0 = camera.position.clone();
+        const t0 = controls ? controls.target.clone() : new THREE.Vector3();
+        const p1 = new THREE.Vector3(...to.position);
+        const t1 = new THREE.Vector3(...to.target);
+        const start = performance.now();
+        const step = (now: number) => {
+          const k = Math.min(1, (now - start) / 650);
+          const e = k * k * (3 - 2 * k);
+          camera.position.lerpVectors(p0, p1, e);
+          if (controls) {
+            controls.target.lerpVectors(t0, t1, e);
+            controls.update();
+          } else camera.lookAt(new THREE.Vector3().lerpVectors(t0, t1, e));
+          invalidate();
+          if (k < 1) raf = requestAnimationFrame(step);
+        };
+        raf = requestAnimationFrame(step);
+      },
+    });
+  }, [camera, controls, invalidate]);
+
   useEffect(() => {
     const { target, distance } = computeFraming(editor.getState().scene, camera);
     const dir = new THREE.Vector3(0.45, 1.0, 0.75).normalize();
@@ -168,6 +202,7 @@ function Walls({ tier }: { tier: Tier }) {
   const vis = useLevelVis();
   const scene = useStore(editor.store, (s) => s.scene);
   const { walls, nodes, openings, levels, levelOrder } = scene;
+  const hidden = useUi((st) => st.hiddenLayers);
 
   // Shared, memoized geometry (also used by the plan view); recomputed only when walls/nodes/openings change.
   const data = useMemo(
@@ -185,7 +220,7 @@ function Walls({ tier }: { tier: Tier }) {
   return (
     <>
       {data.flatMap(({ level, walls: lw, geom }) =>
-        vis[level.id]?.visible === false
+        vis[level.id]?.visible === false || hidden.walls
           ? []
           : lw.map((w) => {
               const fp = geom.footprints[w.id];
@@ -202,7 +237,7 @@ function Walls({ tier }: { tier: Tier }) {
               ) : null;
             }),
       )}
-      {bySide.map((o) => {
+      {(hidden.openings ? [] : bySide).map((o) => {
         const w = walls[o.wallId];
         const level = w && levels[w.levelId];
         const fp = w && data.find((d) => d.level.id === w.levelId)?.geom.footprints[w.id];
@@ -217,6 +252,7 @@ function Walls({ tier }: { tier: Tier }) {
 function Floors({ tier }: { tier: Tier }) {
   const scene = useStore(editor.store, (s) => s.scene);
   const vis = useLevelVis();
+  if (useUi((st) => st.hiddenLayers.floors)) return null;
   return (
     <>
       {scene.levelOrder.flatMap((lid) =>
@@ -241,6 +277,7 @@ function Floors({ tier }: { tier: Tier }) {
 function Stairs({ tier }: { tier: Tier }) {
   const scene = useStore(editor.store, (s) => s.scene);
   const vis = useLevelVis();
+  if (useUi((st) => st.hiddenLayers.stairs)) return null;
   return (
     <>
       {Object.values(scene.stairs).map((s) => (vis[s.fromLevel]?.visible ? <StairMesh key={s.id} stair={s} scene={scene} tier={tier} /> : null))}
@@ -251,6 +288,7 @@ function Stairs({ tier }: { tier: Tier }) {
 /** Garden surfaces (lawn, paving, driveway, paths) lie just above the ground. */
 function Zones({ tier }: { tier: Tier }) {
   const zones = useStore(editor.store, (s) => s.scene.zones);
+  if (useUi((st) => st.hiddenLayers.garden)) return null;
   return (
     <>
       {Object.values(zones).map((z, i) => (
@@ -264,6 +302,7 @@ function Zones({ tier }: { tier: Tier }) {
 function Balconies({ tier }: { tier: Tier }) {
   const scene = useStore(editor.store, (s) => s.scene);
   const vis = useLevelVis();
+  if (useUi((st) => st.hiddenLayers.balconies)) return null;
   return (
     <>
       {Object.values(scene.balconies).map((b) => {
@@ -279,10 +318,12 @@ function Items() {
   const items = useStore(editor.store, (s) => s.scene.items);
   const levels = useStore(editor.store, (s) => s.scene.levels);
   const vis = useLevelVis();
+  const hidden = useUi((st) => st.hiddenLayers);
   return (
     <>
       {Object.values(items).map((it) => {
         const level = levels[it.levelId];
+        if (hidden[itemLayer(it.assetId, it.tag)]) return null;
         return level && vis[it.levelId]?.visible ? <ItemMesh key={it.id} item={it} elevation={level.elevation} /> : null;
       })}
     </>
@@ -425,6 +466,8 @@ export function Scene3D() {
   const walk = useUi((s) => s.walk);
   const tier = useTier();
   const cfg = TIERS[tier];
+  const hour = useStore(editor.store, (st) => st.scene.lighting.timeOfDay);
+  const dim = hour < 7.5 || hour > 16.5; // lamps only read as glowing when the daylight is low
   return (
     <Canvas
       shadows="soft"
@@ -465,7 +508,7 @@ export function Scene3D() {
       <AdaptiveDpr pixelated={false} />
       {cfg.ao && (tier === 'high' || !COARSE_POINTER) && (
         <Suspense fallback={null}>
-          <Effects msaa={cfg.msaa} quality={cfg.aoQuality} />
+          <Effects msaa={cfg.msaa} quality={cfg.aoQuality} bloom={cfg.bloom && dim} />
         </Suspense>
       )}
       <PerfProbe />

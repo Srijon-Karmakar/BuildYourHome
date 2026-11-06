@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { rippleNormal } from '../textures';
 import { ring, rod } from './builders2';
 import { ball, BLACK, box, CHROME, cyl, GLASS, GLOW, mat, shade, type Builder } from './kit';
 
@@ -8,7 +9,31 @@ const BARK = '#6e5a45';
 const SOIL = () => mat('#4a3a2c', 1);
 const STONE = () => mat('#a8a49c', 0.95);
 const BRASS = () => mat('#c9a47a', 0.4, 0.7);
-const WATER = () => mat('#4fa3c8', 0.05, 0.25, { transparent: true, opacity: 0.88 });
+let waterMat: THREE.MeshPhysicalMaterial | null = null;
+/** Glassy pond water: mirror-like clearcoat, a deep blue-green tint and gentle ripples in the reflections. */
+const WATER = () => {
+  if (!waterMat) {
+    // The ripple picture needs a canvas (not available in unit tests): without one the water is simply smooth.
+    const n = typeof document === 'undefined' ? null : rippleNormal(128);
+    if (n) {
+      n.wrapS = n.wrapT = THREE.RepeatWrapping;
+      n.repeat.set(3, 3);
+    }
+    waterMat = new THREE.MeshPhysicalMaterial({
+      color: '#2f7f9a',
+      roughness: 0.04,
+      metalness: 0.1,
+      clearcoat: 1,
+      clearcoatRoughness: 0.03,
+      envMapIntensity: 2.4,
+      transparent: true,
+      opacity: 0.92,
+      normalMap: n,
+      normalScale: new THREE.Vector2(0.35, 0.35),
+    });
+  }
+  return waterMat;
+};
 const leafMat = (hex: string, k = 0) => mat(shade(hex, k), 0.85);
 
 /** Half an ellipsoid sitting on y = 0 (a hill or mound). */

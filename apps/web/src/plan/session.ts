@@ -1,3 +1,4 @@
+import type { HiddenLayers, LayerId } from '../view3d/layers';
 import { create } from 'zustand';
 import { createEmptyScene, type Vec2 } from '@hd/scene-schema';
 import type { StairKind } from '@hd/geometry';
@@ -46,6 +47,10 @@ interface UiState {
   setLights(m: 'auto' | 'on' | 'off'): void;
   /** Draw roofs in 3D (turn off to look into the house from above). */
   showRoof: boolean;
+  /** 3D layers the user switched off (see view3d/layers). */
+  hiddenLayers: HiddenLayers;
+  toggleLayer(id: LayerId): void;
+  resetLayers(): void;
   toggleRoof(): void;
   /** Catalog item being placed (tool === 'place'). */
   placing: string | null;
@@ -114,6 +119,9 @@ interface UiState {
 
 export const useUi = create<UiState>((set) => ({
   showRoof: true,
+  hiddenLayers: {},
+  toggleLayer: (id) => set((s) => ({ hiddenLayers: { ...s.hiddenLayers, [id]: !s.hiddenLayers[id] } })),
+  resetLayers: () => set({ hiddenLayers: {}, showRoof: true }),
   lights: (() => {
     try {
       const v = localStorage.getItem('hd.lights');

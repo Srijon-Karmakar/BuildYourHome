@@ -3810,3 +3810,80 @@ html[data-reveal] .bottom {
     max-width: 96px;
   }
 }
+
+/* Readable over a dark (night) 3D scene */
+@media (min-width: 700px) {
+  .topbar-right {
+    background: rgba(244, 242, 237, 0.8);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 999px;
+    padding: 2px 12px;
+  }
+}
+
+/* The tool rail sits between the top bar and the floor switcher; the strip of tools scrolls when the screen is short. */
+@media (min-width: 700px) and (min-height: 501px) {
+  .rail-wrap {
+    top: calc(var(--safe-t) + 72px);
+    bottom: calc(var(--safe-b) + 84px);
+    max-height: calc(100% - 156px - var(--safe-t) - var(--safe-b));
+  }
+
+  .rail {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rail > .tool,
+  .rail > .rail-sep,
+  .rail > .menu-anchor,
+  .rail > .goo.mode-pair {
+    flex: none;
+  }
+}
+
+/* Views & layers */
+.views-pop {
+  min-width: 280px;
+  display: grid;
+  gap: 8px;
+}
+.vp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.layer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.layer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.05);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.layer[aria-checked='false'] {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+.layer-eye {
+  font-size: 12px;
+}

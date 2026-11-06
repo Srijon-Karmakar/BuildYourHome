@@ -57,9 +57,9 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 - [x] P3-01 Garden/landscape items, paths, fences, boundary wall (Garden tool: lawn / paving / driveway / gravel / deck areas and drawn paths; Fence option in the wall tool; outdoor catalog items; plot boundary)
 - [x] P3-02 Balcony / porch / stairs — stairs (straight / L / U, walkable; ADR-020) and balcony / porch slabs with automatic railing (glass / metal / wall / none)
 - [x] P3-03 Time-of-day sun + shadows; interior lights (sky, sun, moon, lamps that glow and light nearby rooms; ADR-021/023)
-- [ ] P3-04 (first slice done: photo textures, sky, light AO, contact shadows, rounded furniture; ADR-021) Advanced realism: reflections/probes, baked AO lightmaps, better glass/water, bloom — tuned per tier
-- [x] P3-05 (PNG, scaled PDF plan and DXF done; saved viewpoints and a layer-visibility panel are NOT done) Export PNG + scaled PDF plan + DXF; saved viewpoints; layers (FR-905)
-- [x] P3-06 Catalog growth: 254 items in 13 categories (incl. Appliances, Kids, Trees & nature, Scenery), 98 materials, 7 door + 5 window styles, 12 ready-made rooms, 5 environments (target was ≈ 250 items; materials ≈ 150 still short)
+- [x] P3-04 Realism pass: photo textures, sky, AO, contact shadows, glossy clear-coat floors, glass, ripple water, lamp bloom at night (planar reflections and baked AO lightmaps deliberately left out for phone speed; ADR-021)
+- [x] P3-05 Export PNG + scaled PDF plan + DXF; saved viewpoints; layer visibility panel (FR-905)
+- [x] P3-06 Catalog growth: 254 items in 13 categories (incl. Appliances, Kids, Trees & nature, Scenery), about 190 materials, 7 door + 5 window styles, 12 ready-made rooms, 5 environments (target was ≈ 250 items; materials target met)
 **Exit:** an exterior "hero view" looks good on high tier and runs on low tier.
 
 ## Phase 4 — Mobile app & polish (≈ 3–4 weeks)

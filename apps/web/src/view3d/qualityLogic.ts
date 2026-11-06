@@ -24,14 +24,18 @@ export interface TierConfig {
   aoQuality: 'performance' | 'medium';
   /** Sky shader instead of a flat background colour. */
   sky: boolean;
+  /** Glossy floors (polished tile, marble) get a clear-coat layer that mirrors the room's lights and windows. */
+  gloss: boolean;
+  /** Soft glow around bright lamps at night (needs the post-processing composer). */
+  bloom: boolean;
   /** Real point lights spent on the lamps nearest the camera (the rest only glow). */
   lamps: number;
 }
 
 export const TIERS: Record<Tier, TierConfig> = {
-  low: { dpr: [1, 1], shadows: false, shadowMapSize: 1024, envResolution: 64, ao: false, msaa: 0, textureSize: 256, normalMaps: false, photoTextures: false, aoQuality: 'performance', sky: false, lamps: 0 },
-  medium: { dpr: [1, 1.5], shadows: true, shadowMapSize: 1024, envResolution: 128, ao: true, msaa: 0, textureSize: 512, normalMaps: true, photoTextures: true, aoQuality: 'performance', sky: true, lamps: 3 },
-  high: { dpr: [1, 2], shadows: true, shadowMapSize: 2048, envResolution: 256, ao: true, msaa: 4, textureSize: 1024, normalMaps: true, photoTextures: true, aoQuality: 'medium', sky: true, lamps: 6 },
+  low: { dpr: [1, 1], shadows: false, shadowMapSize: 1024, envResolution: 64, ao: false, msaa: 0, textureSize: 256, normalMaps: false, photoTextures: false, aoQuality: 'performance', sky: false, gloss: false, bloom: false, lamps: 0 },
+  medium: { dpr: [1, 1.5], shadows: true, shadowMapSize: 1024, envResolution: 128, ao: true, msaa: 0, textureSize: 512, normalMaps: true, photoTextures: true, aoQuality: 'performance', sky: true, gloss: true, bloom: true, lamps: 3 },
+  high: { dpr: [1, 2], shadows: true, shadowMapSize: 2048, envResolution: 256, ao: true, msaa: 4, textureSize: 1024, normalMaps: true, photoTextures: true, aoQuality: 'medium', sky: true, gloss: true, bloom: true, lamps: 6 },
 };
 
 export const stepDown = (t: Tier): Tier => TIER_ORDER[Math.max(0, TIER_ORDER.indexOf(t) - 1)]!;

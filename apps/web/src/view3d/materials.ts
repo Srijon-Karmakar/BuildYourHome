@@ -18,7 +18,18 @@ import {
 export function makeSurface(id: string, tier: Tier): THREE.MeshStandardMaterial {
   const c = catalogMaterial(id);
   const cfg = TIERS[tier];
-  const mat = new THREE.MeshStandardMaterial({ color: c.color, roughness: c.roughness, metalness: c.metalness ?? 0 });
+  const shiny = cfg.gloss && c.group === 'floor' && c.roughness <= 0.4;
+  // Polished floors: a clear-coat layer (Medium / High) reflects the lights and windows of the room.
+  const mat: THREE.MeshStandardMaterial = shiny
+    ? new THREE.MeshPhysicalMaterial({
+        color: c.color,
+        roughness: Math.max(0.2, c.roughness - 0.08),
+        metalness: c.metalness ?? 0,
+        clearcoat: 0.4,
+        clearcoatRoughness: 0.2,
+        envMapIntensity: 1.6,
+      })
+    : new THREE.MeshStandardMaterial({ color: c.color, roughness: c.roughness, metalness: c.metalness ?? 0 });
 
   switch (c.pattern) {
     case 'wood':

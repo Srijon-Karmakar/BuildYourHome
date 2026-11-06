@@ -29,6 +29,16 @@ Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-
 
 ## Log
 
+### [2026-11-06] More materials, realism pass, saved views and layers
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified (379/379 browser checks; editor-core 165, web 94 unit tests; typecheck, lint clean). Looked at day and night screenshots at High quality.
+- **Materials:** 190 surface materials now (was ≈ 117 unique swatches): +24 wall paints (51 total), +14 wall finishes (brick, stone, slats, tile, concrete), +18 floors (woods, tiles, carpets, marbles, polished concrete, dark terrazzo), +8 ground, +9 roofs. All data in `view3d/placeholderMaterials.ts`; unit-test minimums raised.
+- **Realism (P3-04):** glossy floors (tile, marble, polished concrete: roughness ≤ 0.4) get a clear-coat layer that reflects the room's light and windows (Medium / High; new `TierConfig.gloss`); windows use a physical glass material; pond water is now mirror-like with a ripple normal map (`rippleNormal`); soft **lamp glow (bloom)** appears in the evening and at night on Medium (desktop) and High (`TierConfig.bloom`, only when the daylight is low, so daytime costs nothing). Not done: true planar reflections (too heavy for phones) and baked AO lightmaps.
+- **Saved views:** Views button in the bottom row (3D only): **Save this view**, tap to fly the camera back (eased move), rename, delete; up to 24, stored in the home file (`scene.viewpoints`; commands `saveViewpoint` / `renameViewpoint` / `removeViewpoint`).
+- **Layers:** same panel: hide Walls, Doors & windows, Floors, Furniture, Trees & scenery, Lawn & paths, Stairs, Balconies, Roofs; **Show all** resets. 3D view only; layers are a viewing aid and are not saved.
+- **Also fixed:** top bar had unreadable dark text over a night scene (now on a soft pill); the tool rail ran over the logo on 800-px-high screens and now sits between the top bar and the floor switcher, with the tools scrolling and Undo / Redo pinned.
+- **Next step:** templates and the offline app (P2-05, P2-06), then Phase 4. Owner items unchanged.
+
 ### [2026-11-06] Workspaces: + button, 3 free homes
 - **Model/Author:** Claude Sonnet 5.5
 - **Status:** Done and verified (370/370 browser checks; typecheck, lint clean).

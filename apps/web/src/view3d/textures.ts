@@ -404,3 +404,42 @@ export function carpetTexture(size: number): THREE.CanvasTexture {
   cache.set(key, tex);
   return tex;
 }
+
+/** Soft water ripples as a tangent-space normal map (sum of a few sine waves; tiles seamlessly). */
+export function rippleNormal(size = 128): THREE.CanvasTexture {
+  const key = `ripple:${size}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const waves = [
+    { kx: 2, ky: 1, a: 1, p: 0.3 },
+    { kx: -3, ky: 2, a: 0.7, p: 1.7 },
+    { kx: 5, ky: 4, a: 0.4, p: 2.9 },
+    { kx: 1, ky: -6, a: 0.3, p: 4.1 },
+  ];
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d')!;
+  const img = g.createImageData(size, size);
+  const k = (Math.PI * 2) / size;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let dx = 0;
+      let dy = 0;
+      for (const w of waves) {
+        const d = Math.cos((w.kx * x + w.ky * y) * k + w.p) * w.a * 0.09;
+        dx += d * w.kx;
+        dy += d * w.ky;
+      }
+      const len = Math.hypot(dx, dy, 1);
+      const i = (y * size + x) * 4;
+      img.data[i] = (-dx / len) * 127.5 + 127.5;
+      img.data[i + 1] = (-dy / len) * 127.5 + 127.5;
+      img.data[i + 2] = (1 / len) * 127.5 + 127.5;
+      img.data[i + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  const tex = finish(c, false);
+  cache.set(key, tex);
+  return tex;
+}

@@ -15,10 +15,10 @@ describe('material catalog', () => {
   });
 
   it('offers a good choice for every surface', () => {
-    expect(paintMaterials().length).toBeGreaterThanOrEqual(26);
-    expect(finishMaterials().length).toBeGreaterThanOrEqual(20);
-    expect(materialsFor('floor').length).toBeGreaterThanOrEqual(30);
-    expect(materialsFor('ground').length).toBeGreaterThanOrEqual(18);
+    expect(paintMaterials().length).toBeGreaterThanOrEqual(50);
+    expect(finishMaterials().length).toBeGreaterThanOrEqual(34);
+    expect(materialsFor('floor').length).toBeGreaterThanOrEqual(46);
+    expect(materialsFor('ground').length).toBeGreaterThanOrEqual(26);
     expect(materialsFor('roof').length).toBeGreaterThanOrEqual(19);
   });
 

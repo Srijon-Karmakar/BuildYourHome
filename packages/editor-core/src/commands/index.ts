@@ -11,3 +11,4 @@ export * from './zones';
 export * from './balconies';
 export * from './batch';
 export * from './clear';
+export * from './viewpoints';

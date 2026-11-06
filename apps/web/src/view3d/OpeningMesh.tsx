@@ -14,12 +14,15 @@ const OPEN_ANGLE = (80 * Math.PI) / 180;
 
 type Size = [number, number, number];
 
-const GLASS = new THREE.MeshStandardMaterial({
+const GLASS = new THREE.MeshPhysicalMaterial({
   color: '#bcd4e6',
   transparent: true,
-  opacity: 0.28,
-  roughness: 0.03,
-  envMapIntensity: 1.5,
+  opacity: 0.26,
+  roughness: 0.02,
+  clearcoat: 1,
+  clearcoatRoughness: 0.02,
+  ior: 1.5,
+  envMapIntensity: 2.2,
   depthWrite: false,
 });
 const HANDLE = new THREE.MeshStandardMaterial({
