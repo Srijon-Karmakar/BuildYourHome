@@ -27,13 +27,14 @@ import { registerCamera } from './cameraBridge';
 import NightSky from './NightSky';
 import Atmosphere from './Atmosphere';
 import GroundDetail from './GroundDetail';
-import { airColor, fogDensity, lightColor, weatherLook } from './weather';
+import TreeRing from './TreeRing';
+import { airColor, fogDensity, lightColor, SKY_LOOKS, weatherLook } from './weather';
 import { RoadExtras, RoadMesh } from './RoadMesh';
 import { setWindowGlow } from './OpeningMesh';
 import { canPick, CLICK_SLOP_PX, pickObject } from './pick';
 import { RoofMesh } from './RoofMesh';
 import { BalconyMesh } from './BalconyMesh';
-import { zonePolygon } from '@hd/editor-core';
+import { resolveEnvironment, zonePolygon } from '@hd/editor-core';
 import { StairMesh } from './StairMesh';
 import { TIERS, type Tier } from './qualityLogic';
 import { useTier } from './qualityStore';
@@ -420,13 +421,14 @@ function Lighting({ tier }: { tier: Tier }) {
   const cfg = TIERS[tier];
   const hour = useStore(editor.store, (s) => s.scene.lighting.timeOfDay);
   const weather = useStore(editor.store, (s) => s.scene.lighting.weather);
-  const horizon = useStore(editor.store, (s) => s.scene.lighting.horizon) ?? 'hills';
+  const lighting = useStore(editor.store, (s) => s.scene.lighting);
+  const env = useMemo(() => resolveEnvironment(lighting), [lighting]);
   const sun = useMemo(() => sunAt(hour), [hour]);
   const look = weatherLook(weather);
   const invalidate = useThree((s) => s.invalidate);
   const scene = useThree((s) => s.scene);
   const air = airColor(sun, look);
-  const density = fogDensity(sun, look);
+  const density = fogDensity(sun, look, env.haze);
   useEffect(() => {
     // Flat background (Low tier, and behind the sky); the sky shader draws over it on Medium / High.
     scene.background = new THREE.Color(air);
@@ -444,9 +446,9 @@ function Lighting({ tier }: { tier: Tier }) {
         <Sky
           distance={450}
           sunPosition={sun.dir.map((v) => v * 100) as [number, number, number]}
-          turbidity={sun.night ? 20 : 6}
-          rayleigh={sun.night ? 0.05 : 1.6}
-          mieCoefficient={0.004}
+          turbidity={sun.night ? 20 : SKY_LOOKS[env.sky].turbidity}
+          rayleigh={sun.night ? 0.05 : SKY_LOOKS[env.sky].rayleigh}
+          mieCoefficient={SKY_LOOKS[env.sky].mie}
           mieDirectionalG={0.85}
         />
       )}
@@ -458,7 +460,7 @@ function Lighting({ tier }: { tier: Tier }) {
         <Lightformer form="rect" intensity={0.7} position={[0, 3, -9]} scale={[14, 6, 1]} />
       </Environment>
       {cfg.sky && <NightSky sun={sun} />}
-      {cfg.sky && <Atmosphere sun={sun} weather={weather} horizon={horizon} tier={tier} />}
+      {cfg.sky && <Atmosphere sun={sun} weather={weather} env={env} tier={tier} />}
       {/* Moonlight: a cool, soft light from where the moon is (stronger the darker it is). */}
       {sun.night && <directionalLight position={moon.map((v) => v * 20) as [number, number, number]} intensity={0.08 + 0.22 * sun.darkness} color="#a9bcff" />}
       {/* Keyed by shadow-map size: three can't resize an existing shadow map in place. */}
@@ -496,7 +498,7 @@ function Ground({ tier }: { tier: Tier }) {
     return (
       <>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, 0]} receiveShadow>
-          <planeGeometry args={[300, 300]} />
+          <planeGeometry args={[180, 180]} />
           <meshStandardMaterial color="#cfccc4" roughness={1} />
         </mesh>
         <FloorMesh polygon={plot} elevation={-0.012} materialId={id} tier={tier} />
@@ -572,6 +574,7 @@ export function Scene3D() {
       <Ground tier={tier} />
       <Zones tier={tier} />
       <GroundDetail tier={tier} />
+      <TreeRing />
       <Floors tier={tier} />
       <Walls tier={tier} />
       <Stairs tier={tier} />

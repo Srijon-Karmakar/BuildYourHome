@@ -65,7 +65,7 @@ export function BottomBar() {
   const setNewStair = useUi((s) => s.setNewStair);
 
   return (
-    <div className={`bottom${hasSelection && !walk ? ' with-inspector' : ''}`}>
+    <div className={`bottom${hasSelection && !walk ? ' with-inspector' : ''}${view !== '2d' && !walk ? ' over-levels' : ''}`}>
       {showKind && (
         <GooGroup className="segmented" role="group" aria-label="New wall type" data-goo-host="">
           {(['interior', 'exterior', 'fence'] as const).map((k) => (

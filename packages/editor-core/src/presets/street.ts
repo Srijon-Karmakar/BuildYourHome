@@ -2,6 +2,7 @@ import { getAsset, itemFootprint } from '@hd/assets';
 import { lineLength, nearRoad, pointInPolygon, ROAD_DEFAULT_WIDTH_M, samplePath } from '@hd/geometry';
 import { newId, type Id, type Scene, type Vec2 } from '@hd/scene-schema';
 import { houseBounds } from '../commands/plot';
+import { stream } from '../random';
 import type { Command } from '../types';
 
 /**
@@ -172,18 +173,6 @@ export interface StreetOptions {
 export const streetTag = (roadId: Id): string => `street:${roadId}`;
 
 // ---- small helpers -----------------------------------------------------------------------------------------------
-
-/** A repeatable random stream: the same seed always gives the same street. */
-function stream(seed: number): () => number {
-  let a = (seed >>> 0) || 1;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 function pickWeighted<T extends Choice>(list: readonly T[], rng: () => number, used: Map<string, number>): T | null {
   const open = list.filter((p) => p.max === undefined || (used.get(p.asset) ?? 0) < p.max);

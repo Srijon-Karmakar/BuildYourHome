@@ -11,6 +11,7 @@ import { SamplesGallery } from './ui/SamplesGallery';
 import { sunAt } from './view3d/sun';
 import { Help } from './ui/Help';
 import { Inspector } from './ui/Inspector';
+import { EnvironmentPanel } from './ui/EnvironmentPanel';
 import { RoomsPanel } from './ui/RoomsPanel';
 import { ObjectBar } from './ui/ObjectBar';
 import { LevelSwitcher } from './ui/LevelSwitcher';
@@ -55,6 +56,7 @@ export function App() {
       <ToolRail />
       <BottomBar />
       <Inspector />
+      <EnvironmentPanel />
       <ObjectBar />
       <FurniturePanel />
       <RoomsPanel />

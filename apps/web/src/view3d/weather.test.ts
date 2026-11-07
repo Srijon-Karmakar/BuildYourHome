@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sunAt } from './sun';
-import { airColor, fogDensity, lightColor, WEATHERS, weatherLook } from './weather';
+import { airColor, fogDensity, lightColor, SKY_LOOKS, WEATHERS, weatherLook } from './weather';
 
 describe('weather look', () => {
   it('every weather has a look; unset means clear', () => {
@@ -26,5 +26,18 @@ describe('weather look', () => {
     expect(fogDensity(night, weatherLook('clear'))).toBeCloseTo(0.011, 5);
     expect(fogDensity(noon, weatherLook('fog'))).toBeCloseTo(0.016, 5);
     expect(lightColor(noon, weatherLook('clear'))).toBe(noon.color);
+  });
+
+  it('the haze setting thins or thickens the air on a clear day; fog and rain never get clearer than their own', () => {
+    const noon = sunAt(12);
+    const clear = weatherLook('clear');
+    expect(fogDensity(noon, clear, 'none')).toBe(0);
+    expect(fogDensity(noon, clear, 'misty')).toBeGreaterThan(fogDensity(noon, clear, 'light') * 3);
+    expect(fogDensity(noon, weatherLook('fog'), 'none')).toBeCloseTo(fogDensity(noon, weatherLook('fog'), 'light'), 6);
+  });
+
+  it('every sky look has shader settings, and deep blue is bluer (more scattering) than pale', () => {
+    expect(Object.keys(SKY_LOOKS).sort()).toEqual(['deep', 'dusty', 'natural', 'pale']);
+    expect(SKY_LOOKS.deep.rayleigh).toBeGreaterThan(SKY_LOOKS.pale.rayleigh);
   });
 });

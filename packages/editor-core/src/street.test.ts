@@ -10,7 +10,6 @@ import {
   MAX_STREET_BUILDINGS,
   planStreet,
   removeZones,
-  setHorizon,
   setPlot,
   setWeather,
   STREET_STYLES,
@@ -131,15 +130,5 @@ describe('weather', () => {
     expect(e.getState().scene.lighting.weather).toBeUndefined();
     e.undo();
     expect(e.getState().scene.lighting.weather).toBe('rain');
-  });
-
-  it('the horizon defaults to hills; city and none are stored, hills clears', () => {
-    const e = mk();
-    e.execute(setHorizon('city'));
-    expect(e.getState().scene.lighting.horizon).toBe('city');
-    e.execute(setHorizon('none'));
-    expect(e.getState().scene.lighting.horizon).toBe('none');
-    e.execute(setHorizon('hills'));
-    expect(e.getState().scene.lighting.horizon).toBeUndefined();
   });
 });

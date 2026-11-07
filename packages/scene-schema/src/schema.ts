@@ -240,6 +240,37 @@ export const Viewpoint = z.object({
   fov: z.number().positive(),
 });
 
+/** What stands far away on one side of the home (the environment editor). */
+export const SceneryKind = z.enum(['plains', 'hills', 'mountains', 'forest', 'sea', 'desert', 'city']);
+export const ScenerySide = z.object({
+  kind: SceneryKind,
+  /** 0.4 low … 1 normal … 1.8 tall. Unset = 1. */
+  height: z.number().min(0.4).max(1.8).optional(),
+  /** Colour of the hills / mountains / forest. Unset = natural. */
+  tone: z.enum(['natural', 'green', 'golden', 'rocky', 'misty']).optional(),
+  /** Snow on the mountain tops. */
+  snow: z.boolean().optional(),
+});
+
+/**
+ * The look of the place around the home in 3D: scenery on each side, sky, haze, birds, ground detail and a ring of trees.
+ * Every field is optional; unset means the default (open flat land, a few clouds, a little haze, birds, some ground detail).
+ */
+export const EnvironmentSettings = z.object({
+  /** North is up on the plan (−z); the sides are the four directions the scenery stands in. */
+  sides: z.object({ north: ScenerySide.optional(), east: ScenerySide.optional(), south: ScenerySide.optional(), west: ScenerySide.optional() }).optional(),
+  /** Unset = the weather decides. */
+  clouds: z.enum(['none', 'few', 'many']).optional(),
+  haze: z.enum(['none', 'light', 'misty']).optional(),
+  sky: z.enum(['natural', 'deep', 'pale', 'dusty']).optional(),
+  birds: z.boolean().optional(),
+  /** Grass tufts, pebbles, leaves and puddles on the ground. Unset = some. */
+  detail: z.enum(['none', 'some', 'lots']).optional(),
+  /** A ring of trees round the plot. Unset = none. */
+  trees: z.enum(['none', 'sparse', 'dense']).optional(),
+  treeKind: z.enum(['mixed', 'palm', 'pine', 'neem']).optional(),
+});
+
 export const Scene = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   id: Id,
@@ -274,8 +305,10 @@ export const Scene = z.object({
     date: z.string().optional(),
     /** The weather in the 3D view. Unset = clear. */
     weather: z.enum(['clear', 'cloudy', 'fog', 'rain']).optional(),
-    /** What stands on the horizon in the 3D view. Unset = hills. */
+    /** Older homes: what stood on the horizon. Read once to fill `environment`; no longer written. */
     horizon: z.enum(['none', 'hills', 'city']).optional(),
+    /** The environment editor's settings. Unset = open flat land. */
+    environment: EnvironmentSettings.optional(),
   }),
   viewpoints: z.record(z.string(), Viewpoint),
 });
@@ -299,5 +332,8 @@ export type Balcony = z.infer<typeof Balcony>;
 export type Zone = z.infer<typeof Zone>;
 export type RoadStyle = z.infer<typeof RoadStyle>;
 export type RoadExtra = z.infer<typeof RoadExtra>;
+export type SceneryKind = z.infer<typeof SceneryKind>;
+export type ScenerySide = z.infer<typeof ScenerySide>;
+export type EnvironmentSettings = z.infer<typeof EnvironmentSettings>;
 export type Viewpoint = z.infer<typeof Viewpoint>;
 export type Scene = z.infer<typeof Scene>;

@@ -8,6 +8,7 @@ export * from './roof';
 export * from './plot';
 export * from './stairs';
 export * from './zones';
+export * from './environment';
 export * from './balconies';
 export * from './batch';
 export * from './clear';

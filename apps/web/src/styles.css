@@ -628,6 +628,14 @@ button {
   gap: 8px;
 }
 
+/* In 3D the floor / Night / Environment / Views row runs along the bottom-left; on medium screens it reaches the middle
+   where this caption sits, so the caption rides just above it. */
+@media (min-width: 700px) and (max-width: 1600px) {
+  .bottom.over-levels .caption {
+    transform: translateY(-54px);
+  }
+}
+
 .caption {
   margin: 0;
   padding: 6px 14px;
@@ -1818,46 +1826,49 @@ a.pill.solid {
   overflow: hidden;
 }
 
-/* Two paper halves that part along the centre seam when the workspace is revealed. */
-/* --seam-y / --seam-x: where the reveal starts (the centre of the button; set in Curtain.tsx). */
+/* The frame: an empty window onto the workspace, ringed by a huge paper-coloured shadow (that is the splash's
+   background). --ft/--fr/--fb/--fl = its distance from each screen edge, set in Curtain.tsx to hug the content.
+   While the splash shows, its inside is paper too; on reveal the inside clears and the frame grows past the edges. */
 .curtain {
-  --seam-y: 50%;
-  --seam-x: 50%;
+  --ft: 0px;
+  --fr: 0px;
+  --fb: 0px;
+  --fl: 0px;
 }
 
-/* Two paper halves, split along a horizontal seam through the button; they part up and down. */
-.curtain-panel {
+.curtain-frame {
   position: absolute;
-  left: 0;
-  right: 0;
+  top: var(--ft);
+  right: var(--fr);
+  bottom: var(--fb);
+  left: var(--fl);
   background: var(--paper);
-  will-change: transform;
+  box-shadow: 0 0 0 0 rgba(253, 101, 4, 0), 0 0 0 150vmax var(--paper);
+  pointer-events: none;
 }
 
-.curtain-panel.t {
-  top: 0;
-  height: calc(var(--seam-y) + 1px);
-  border-bottom: 3px solid transparent;
-}
-
-.curtain-panel.b {
-  top: var(--seam-y);
-  bottom: 0;
-  border-top: 3px solid transparent;
-}
-
-.curtain-seam {
+/* The orange line (the PlotFramer frame): 6px stroke centred on the edge, half clipped = a 3px inner border. */
+.frame-line {
   position: absolute;
-  top: var(--seam-y);
-  left: 0;
+  inset: 0;
   width: 100%;
-  height: 2px;
-  margin-top: -1px;
-  background: var(--orange);
-  opacity: 0;
-  transform: scaleX(0);
-  transform-origin: var(--seam-x) 50%;
-  box-shadow: 0 0 24px 2px rgba(253, 101, 4, 0.55);
+  height: 100%;
+  fill: none;
+  stroke: var(--orange);
+  stroke-width: 6;
+  stroke-linejoin: miter;
+}
+
+.frame-line rect {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: frame-draw 1.25s cubic-bezier(0.65, 0, 0.2, 1) 0.05s forwards;
+}
+
+@keyframes frame-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 .curtain-inner {
@@ -2148,33 +2159,28 @@ a.pill.solid {
   color: var(--orange);
 }
 
-/* ----- Reveal: content falls away, halves part along the orange seam, workspace settles in ----- */
+/* ----- Reveal: content falls away, the frame clears and grows past the screen edges, the bars pop in as it passes ----- */
 .curtain.lifting {
   pointer-events: none;
 }
 
 .curtain.lifting .curtain-inner {
-  animation: curtain-out 0.55s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+  animation: curtain-out 0.5s cubic-bezier(0.5, 0, 0.75, 0) forwards;
 }
 
 .curtain.lifting .curtain-credits {
-  animation: curtain-out 0.45s ease forwards;
+  animation: curtain-out 0.4s ease forwards;
 }
 
-.curtain.lifting .curtain-panel {
-  border-color: var(--orange);
+.curtain.lifting .curtain-frame {
+  animation:
+    frame-grow 1.25s cubic-bezier(0.8, 0, 0.12, 1) 0.4s forwards,
+    frame-clear 0.35s ease 0.3s forwards,
+    frame-glow 1.25s ease 0.4s forwards;
 }
 
-.curtain.lifting .curtain-panel.t {
-  animation: panel-up 1.05s cubic-bezier(0.76, 0, 0.18, 1) 0.4s forwards;
-}
-
-.curtain.lifting .curtain-panel.b {
-  animation: panel-down 1.05s cubic-bezier(0.76, 0, 0.18, 1) 0.4s forwards;
-}
-
-.curtain.lifting .curtain-seam {
-  animation: seam-flash 0.9s ease 0.15s forwards;
+.curtain.lifting .frame-line {
+  animation: frame-line-out 0.3s ease 1.45s forwards;
 }
 
 @keyframes curtain-out {
@@ -2184,29 +2190,35 @@ a.pill.solid {
   }
 }
 
-@keyframes panel-up {
+@keyframes frame-grow {
   to {
-    transform: translateY(-102%);
+    top: -10px;
+    right: -10px;
+    bottom: -10px;
+    left: -10px;
   }
 }
 
-@keyframes panel-down {
+@keyframes frame-clear {
   to {
-    transform: translateY(102%);
+    background-color: transparent;
   }
 }
 
-@keyframes seam-flash {
+@keyframes frame-glow {
   0% {
-    transform: scaleX(0);
-    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(253, 101, 4, 0), 0 0 0 150vmax var(--paper);
   }
-  45% {
-    transform: scaleX(1);
-    opacity: 1;
+  30% {
+    box-shadow: 0 0 34px 6px rgba(253, 101, 4, 0.5), 0 0 0 150vmax var(--paper);
   }
   100% {
-    transform: scaleX(1);
+    box-shadow: 0 0 34px 6px rgba(253, 101, 4, 0), 0 0 0 150vmax var(--paper);
+  }
+}
+
+@keyframes frame-line-out {
+  to {
     opacity: 0;
   }
 }
@@ -2214,24 +2226,24 @@ a.pill.solid {
 /* The workspace beneath: views ease in from slightly zoomed, the chrome glides in from its edges.
    Uses the individual `scale` / `translate` properties so the elements' own transforms are untouched. */
 html[data-reveal] .panes {
-  animation: reveal-panes 1.5s cubic-bezier(0.2, 0.7, 0.2, 1) 0.2s backwards;
+  animation: reveal-panes 1.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.4s backwards;
 }
 
 html[data-reveal] .topbar {
-  animation: reveal-from-top 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.8s backwards;
+  animation: reveal-from-top 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 1.1s backwards;
 }
 
 html[data-reveal] .levels {
-  animation: reveal-from-left 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.9s backwards;
+  animation: reveal-from-left 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 1.2s backwards;
 }
 
 html[data-reveal] .rail-wrap {
-  animation: reveal-goo-v 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) 0.85s backwards;
+  animation: reveal-goo-v 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) 1.15s backwards;
   transform-origin: left center;
 }
 
 html[data-reveal] .bottom {
-  animation: reveal-from-bottom 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 1s backwards;
+  animation: reveal-from-bottom 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 1.3s backwards;
 }
 
 @keyframes reveal-panes {
@@ -2277,7 +2289,6 @@ html[data-reveal] .bottom {
   }
   .curtain.lifting .curtain-inner,
   .curtain.lifting .curtain-credits,
-  .curtain.lifting .curtain-panel,
   html[data-reveal] .panes,
   html[data-reveal] .topbar,
   html[data-reveal] .rail-wrap,
@@ -2286,11 +2297,20 @@ html[data-reveal] .bottom {
     animation-duration: 0.3s !important;
     animation-delay: 0s !important;
   }
-  .curtain.lifting .curtain-panel {
-    animation-name: curtain-out !important;
+  .frame-line rect {
+    stroke-dashoffset: 0;
   }
-  .curtain.lifting .curtain-seam {
-    display: none;
+  .curtain.lifting .curtain-frame {
+    animation: curtain-fade 0.3s ease forwards !important;
+  }
+  .curtain.lifting .frame-line {
+    animation: none !important;
+  }
+}
+
+@keyframes curtain-fade {
+  to {
+    opacity: 0;
   }
 }
 
@@ -3953,6 +3973,64 @@ html[data-reveal] .bottom {
 .dormer-row input[type='range'] {
   flex: 1;
   min-width: 0;
+}
+
+/* Environment editor (a panel in the properties panel's place) */
+.env-panel .ins-title.static {
+  flex: 1;
+  min-width: 0;
+  cursor: default;
+}
+.env-compass {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-areas:
+    '. n .'
+    'w h e'
+    '. s .';
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+.env-compass button {
+  min-height: 46px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  text-align: center;
+  cursor: pointer;
+}
+.env-compass button small {
+  display: block;
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.env-compass button[aria-pressed='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+.env-compass button[aria-pressed='true'] small {
+  color: rgba(255, 255, 255, 0.72);
+}
+.env-north { grid-area: n; }
+.env-west { grid-area: w; }
+.env-east { grid-area: e; }
+.env-south { grid-area: s; }
+.env-home {
+  grid-area: h;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.env-foot {
+  padding: 12px 0 4px;
 }
 
 /* Road panel: neighbours section */

@@ -68,8 +68,16 @@ export function RoadMesh({ zone, layer, tier }: { zone: Zone; layer: number; tie
   );
 }
 
+/** Where one copy of an instanced model stands. */
+export interface InstanceSpot {
+  x: number;
+  z: number;
+  rot: number;
+  scale?: number;
+}
+
 /** One instanced model: draw calls stay the same however many lights or trees stand along the road. */
-function Instances({ asset, spots }: { asset: string; spots: RoadSpot[] }) {
+export function Instances({ asset, spots }: { asset: string; spots: readonly InstanceSpot[] }) {
   const parts = useMemo(() => {
     const model = buildFurniture(asset);
     if (!model) return [];
@@ -86,6 +94,7 @@ function Instances({ asset, spots }: { asset: string; spots: RoadSpot[] }) {
     return spots.map((s) => {
       dummy.position.set(s.x, 0, s.z);
       dummy.rotation.set(0, s.rot, 0);
+      dummy.scale.setScalar(s.scale ?? 1);
       dummy.updateMatrix();
       return dummy.matrix.clone();
     });

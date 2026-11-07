@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useStore } from 'zustand';
-import { houseBounds, type Horizon, type Weather } from '@hd/editor-core';
+import { houseBounds, type ResolvedEnvironment, type Weather } from '@hd/editor-core';
 import { editor, useUi } from '../plan/session';
 import type { Tier } from './qualityLogic';
 import { catalogMaterial } from './placeholderMaterials';
 import { mix, type SunState } from './sun';
+import { cityAt, groundAt, isFlat, wallAt, type Ring } from './scenery';
 import { weatherLook } from './weather';
 
 /**
@@ -30,23 +31,26 @@ const rgb = (hex: string): [number, number, number] => {
   return [c.r, c.g, c.b];
 };
 
-/** A soft round puff (drawn once) that clouds are made of. */
+/**
+ * A soft round puff (drawn once) that clouds are made of. It is an alpha map (white in the middle, fading to black) and
+ * the colour is plain white, so the edges never go grey the way a transparent texture's do.
+ */
 function puffTexture(): THREE.CanvasTexture | null {
   if (typeof document === 'undefined') return null;
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const g = c.getContext('2d');
   if (!g) return null;
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, 128, 128);
   const grad = g.createRadialGradient(64, 64, 6, 64, 64, 62);
-  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0, '#fff');
   grad.addColorStop(0.5, 'rgba(255,255,255,0.92)');
   grad.addColorStop(0.8, 'rgba(255,255,255,0.35)');
   grad.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = grad;
   g.fillRect(0, 0, 128, 128);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  return new THREE.CanvasTexture(c);
 }
 
 /** How much of the day's colour a far thing keeps: dark at night, warm near sunset. */
@@ -90,9 +94,10 @@ function Clouds({ count, color, sun }: { count: number; color: string; sun: SunS
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     return g;
   }, [count]);
-  const material = useMemo(() => new THREE.PointsMaterial({ size: 56, sizeAttenuation: true, map, vertexColors: true, transparent: true, depthWrite: false, fog: false, toneMapped: false }), [map]);
+  const material = useMemo(() => new THREE.PointsMaterial({ size: 56, sizeAttenuation: true, alphaMap: map, vertexColors: true, transparent: true, depthWrite: false, fog: false, toneMapped: false }), [map]);
   useEffect(() => {
-    material.color.copy(tint(sun)).multiply(new THREE.Color(color));
+    // Brighter than white: the tone mapping of the post-processing pass would otherwise turn white clouds grey.
+    material.color.copy(tint(sun)).multiply(new THREE.Color(color)).multiplyScalar(1.5);
     material.opacity = 0.95 * (1 - sun.darkness);
     invalidate();
   }, [material, sun, color, invalidate]);
@@ -110,25 +115,43 @@ function Clouds({ count, color, sun }: { count: number; color: string; sun: SunS
 
 // ---- horizon -----------------------------------------------------------------------------------------------------
 
-/** A closed band of ground that rises and falls (hills), as one mesh with a colour gradient from base to crest. */
-function hillRing(radius: number, base: number, amp: number, seed: number, top: string, bottom: string): THREE.BufferGeometry {
-  const rnd = stream(seed);
-  const phases = [rnd() * 6.28, rnd() * 6.28, rnd() * 6.28];
-  const n = 120;
+const RING_SEGMENTS = 360;
+const FOOT = -8;
+
+/**
+ * One wall of scenery round the eye (a ring with four rows of colour: foot, low, high, top). Its height and colour
+ * at each angle come from the four sides of the environment blended together (see scenery.ts).
+ */
+function sceneryRing(env: ResolvedEnvironment, ring: Ring, radius: number): THREE.BufferGeometry | null {
   const pos: number[] = [];
   const col: number[] = [];
   const idx: number[] = [];
-  const t = rgb(top);
-  const b = rgb(bottom);
-  for (let i = 0; i <= n; i++) {
-    const a = (i / n) * Math.PI * 2;
-    const h = Math.max(3, base + amp * (0.55 * Math.sin(3 * a + phases[0]!) + 0.3 * Math.sin(7 * a + phases[1]!) + 0.15 * Math.sin(17 * a + phases[2]!)));
+  let any = false;
+  for (let i = 0; i <= RING_SEGMENTS; i++) {
+    const a = (i / RING_SEGMENTS) * Math.PI * 2;
+    const w = wallAt(env, ring, a);
+    if (w.h > 0.5) any = true;
+    const h = Math.max(0, w.h);
     const x = Math.cos(a) * radius;
     const z = Math.sin(a) * radius;
-    pos.push(x, h, z, x, -8, z);
-    col.push(...t, ...b);
-    if (i < n) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+    // Slopes that face the light are brighter and the others darker, so ridges read as solid shapes.
+    const slope = (wallAt(env, ring, a + 0.012).h - wallAt(env, ring, a - 0.012).h) / (0.024 * radius);
+    const shade = 1 - Math.max(-0.2, Math.min(0.2, slope * 0.3));
+    // Four rows: foot, then two partway up (the snow line on snowy mountains) and the top.
+    const y1 = Math.min(h, w.snowAt);
+    const y2 = Math.min(h, w.snowAt + 1.5);
+    pos.push(x, FOOT, z, x, y1, z, x, y2, z, x, h, z);
+    w.colors.forEach((c, r) => {
+      const k = r === 0 ? 1 : shade;
+      col.push(Math.min(1, c[0] * k), Math.min(1, c[1] * k), Math.min(1, c[2] * k));
+    });
+    if (i < RING_SEGMENTS) {
+      const r0 = i * 4;
+      const r1 = (i + 1) * 4;
+      for (let k = 0; k < 3; k++) idx.push(r0 + k, r0 + k + 1, r1 + k, r0 + k + 1, r1 + k + 1, r1 + k);
+    }
   }
+  if (!any) return null;
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
@@ -136,66 +159,66 @@ function hillRing(radius: number, base: number, amp: number, seed: number, top: 
   return g;
 }
 
-function Hills({ sun }: { sun: SunState }) {
+/** Hills, mountains, woodland and dunes on the horizon, as far and near walls, plus the land beyond the plot. */
+function Relief({ env, sun, key3 }: { env: ResolvedEnvironment; sun: SunState; key3: string }) {
   const invalidate = useThree((s) => s.invalidate);
-  const far = useMemo(() => hillRing(330, 30, 24, 11, '#8aa0ae', '#cdd6db'), []);
-  const near = useMemo(() => hillRing(255, 13, 11, 29, '#7d9876', '#b9c9b2'), []);
+  const far = useMemo(() => sceneryRing(env, 'far', 330), [key3]); // eslint-disable-line react-hooks/exhaustive-deps
+  const near = useMemo(() => sceneryRing(env, 'near', 255), [key3]); // eslint-disable-line react-hooks/exhaustive-deps
   const mat = useMemo(() => new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, fog: true }), []);
   useEffect(() => {
     mat.color.copy(tint(sun));
     invalidate();
   }, [mat, sun, invalidate]);
-  useEffect(
-    () => () => {
-      far.dispose();
-      near.dispose();
-      mat.dispose();
-    },
-    [far, near, mat],
-  );
+  useEffect(() => () => far?.dispose(), [far]);
+  useEffect(() => () => near?.dispose(), [near]);
+  useEffect(() => () => mat.dispose(), [mat]);
   return (
     <>
-      <mesh geometry={far} material={mat} frustumCulled={false} renderOrder={-5} />
-      <mesh geometry={near} material={mat} frustumCulled={false} renderOrder={-4} />
+      {far && <mesh geometry={far} material={mat} frustumCulled={false} renderOrder={-5} />}
+      {near && <mesh geometry={near} material={mat} frustumCulled={false} renderOrder={-4} />}
     </>
   );
 }
 
-function Skyline({ sun }: { sun: SunState }) {
+/** Buildings on the horizon wherever a side is a city; lit windows show at night. */
+function Skyline({ env, sun, key3 }: { env: ResolvedEnvironment; sun: SunState; key3: string }) {
   const invalidate = useThree((s) => s.invalidate);
-  const BUILDINGS = 70;
   const { matrices, colors, windows } = useMemo(() => {
     const rnd = stream(777);
     const dummy = new THREE.Object3D();
     const matrices: THREE.Matrix4[] = [];
     const colors: THREE.Color[] = [];
     const win: number[] = [];
-    for (let i = 0; i < BUILDINGS; i++) {
-      const a = ((i + rnd() * 0.6) / BUILDINGS) * Math.PI * 2;
+    const SLOTS = 150;
+    for (let i = 0; i < SLOTS; i++) {
+      const a = ((i + rnd() * 0.6) / SLOTS) * Math.PI * 2;
       const R = 255 + rnd() * 16;
       const w = 9 + rnd() * 17;
       const d = 10 + rnd() * 6;
       const tall = rnd() < 0.14;
-      const h = tall ? 55 + rnd() * 35 : 12 + rnd() * 34;
+      const base = tall ? 55 + rnd() * 35 : 12 + rnd() * 34;
+      const shade = 0.55 + rnd() * 0.3;
+      const spots = Array.from({ length: 5 + Math.floor(rnd() * 14) }, () => [rnd(), rnd()] as const);
+      const city = cityAt(env, a);
+      if (city.amount < 0.45) continue; // not a city on this side
+      const h = base * city.height * (0.5 + 0.5 * Math.min(1, (city.amount - 0.45) / 0.4));
       dummy.position.set(Math.cos(a) * R, 0, Math.sin(a) * R);
       dummy.rotation.set(0, -a + Math.PI / 2, 0);
       dummy.scale.set(w, h, d);
       dummy.updateMatrix();
       matrices.push(dummy.matrix.clone());
-      const shade = 0.55 + rnd() * 0.3;
       colors.push(new THREE.Color(shade * 0.78, shade * 0.84, shade * 0.92));
       // lit windows on the side that faces the viewer (toward the centre)
-      const n = 5 + Math.floor(rnd() * 14);
-      for (let k = 0; k < n; k++) {
-        const lx = (rnd() - 0.5) * (w - 2);
-        const ly = 2 + rnd() * (h - 4);
-        const lz = -d / 2 - 0.2; // toward the centre in the building's own frame
-        const v = new THREE.Vector3(lx, ly, lz).applyMatrix4(new THREE.Matrix4().makeRotationY(-a + Math.PI / 2)).add(new THREE.Vector3(Math.cos(a) * R, 0, Math.sin(a) * R));
-        win.push(v.x, v.y, v.z);
+      for (const [u, v] of spots) {
+        const lx = (u - 0.5) * (w - 2);
+        const ly = 2 + v * Math.max(1, h - 4);
+        const p = new THREE.Vector3(lx, ly, -d / 2 - 0.2).applyMatrix4(new THREE.Matrix4().makeRotationY(-a + Math.PI / 2)).add(new THREE.Vector3(Math.cos(a) * R, 0, Math.sin(a) * R));
+        win.push(p.x, p.y, p.z);
       }
     }
     return { matrices, colors, windows: new Float32Array(win) };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key3]);
   const mat = useMemo(() => new THREE.MeshBasicMaterial({ fog: true }), []);
   const box = useMemo(() => new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), []);
   const winGeo = useMemo(() => {
@@ -218,10 +241,12 @@ function Skyline({ sun }: { sun: SunState }) {
     },
     [mat, box, winGeo, winMat],
   );
+  if (matrices.length === 0) return null;
   return (
     <>
       <instancedMesh
-        args={[undefined, undefined, BUILDINGS]}
+        key={matrices.length}
+        args={[undefined, undefined, matrices.length]}
         material={mat}
         frustumCulled={false}
         renderOrder={-4}
@@ -242,24 +267,53 @@ function Skyline({ sun }: { sun: SunState }) {
   );
 }
 
-/** Flat ground from the edge of the scene out to the foot of the hills (so there is no gap between them). */
-function FarGround() {
-  const mat = useMemo(() => new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0 }), []);
+/** Flat ground from the edge of the scene out to the horizon, tinted by what lies that way (water, sand, woods, paving). */
+function FarGround({ env, key3 }: { env: ResolvedEnvironment; key3: string }) {
   const invalidate = useThree((s) => s.invalidate);
   const ground = useStore(editor.store, (s) => s.scene.terrain.groundMaterial.id);
   const hasPlot = useStore(editor.store, (s) => !!s.scene.plot);
   // The same colour as the ground just inside it (the plain verge around a plot, or the chosen ground), so there is no seam.
   const base = hasPlot ? '#cfccc4' : catalogMaterial(ground).color;
-  useEffect(() => {
-    mat.color.set(base).multiplyScalar(0.62); // the lit, flat ring reads lighter than the textured ground inside it
-    invalidate();
-  }, [mat, base, invalidate]);
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, vertexColors: true, side: THREE.DoubleSide }), []);
+  const geometry = useMemo(() => {
+    const c = new THREE.Color(base);
+    const k = hasPlot ? 0.67 : 0.62; // the lit, flat ring reads lighter than the textured ground inside it
+    const b: [number, number, number] = [c.r * k, c.g * k, c.b * k];
+    const radii = [88, 122, 345];
+    const N = 120;
+    const pos: number[] = [];
+    const col: number[] = [];
+    const idx: number[] = [];
+    for (let i = 0; i <= N; i++) {
+      const a = (i / N) * Math.PI * 2;
+      const raw = groundAt(env, a, [c.r, c.g, c.b]);
+      const target: [number, number, number] = [raw[0] * k, raw[1] * k, raw[2] * k];
+      // The first band eases from the home's ground into the colour of that side.
+      radii.forEach((r, k) => {
+        pos.push(Math.cos(a) * r, 0, Math.sin(a) * r);
+        const t = k === 0 ? 0 : 1;
+        col.push(b[0] + (target[0] - b[0]) * t, b[1] + (target[1] - b[1]) * t, b[2] + (target[2] - b[2]) * t);
+      });
+      if (i < N) {
+        for (let k = 0; k < 2; k++) {
+          const v00 = i * 3 + k;
+          const v10 = (i + 1) * 3 + k;
+          idx.push(v00, v10, v00 + 1, v10, v10 + 1, v00 + 1); // facing up
+        }
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key3, base, hasPlot]);
+  useEffect(() => invalidate(), [geometry, invalidate]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => mat.dispose(), [mat]);
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.06, 0]} material={mat} frustumCulled={false} renderOrder={-7}>
-      <ringGeometry args={[140, 345, 64, 1]} />
-    </mesh>
-  );
+  return <mesh geometry={geometry} material={mat} position={[0, -0.06, 0]} frustumCulled={false} renderOrder={-7} />;
 }
 
 // ---- birds -------------------------------------------------------------------------------------------------------
@@ -366,20 +420,25 @@ function Rain({ count }: { count: number }) {
 
 // ---- all together ------------------------------------------------------------------------------------------------
 
-export default function Atmosphere({ sun, weather, horizon, tier }: { sun: SunState; weather: Weather | undefined; horizon: Horizon; tier: Tier }) {
+export default function Atmosphere({ sun, weather, env, tier }: { sun: SunState; weather: Weather | undefined; env: ResolvedEnvironment; tier: Tier }) {
   const camera = useThree((s) => s.camera);
   const look = weatherLook(weather);
   const ref = useRef<THREE.Group>(null);
   // Distant things stand still relative to the eye: no parallax, so they read as far away.
   useFrame(() => ref.current?.position.set(camera.position.x, 0, camera.position.z));
-  const clouds = look.clouds;
+  // How many clouds: the weather decides unless the environment says otherwise (fog and rain are always an even grey sky).
+  const grey = weather === 'fog' || weather === 'rain';
+  const clouds = grey ? 0 : env.clouds === 'none' ? 0 : env.clouds === 'few' ? 9 : env.clouds === 'many' ? 44 : look.clouds;
+  // The scenery depends only on the four sides, so it is rebuilt only when they change.
+  const key3 = JSON.stringify(env.sides);
+  const flat = isFlat(env);
   return (
     <group ref={ref} position={[camera.position.x, 0, camera.position.z]}>
-      {horizon !== 'none' && <FarGround />}
-      {horizon === 'hills' && <Hills sun={sun} />}
-      {horizon === 'city' && <Skyline sun={sun} />}
+      <FarGround env={env} key3={key3} />
+      {!flat && <Relief env={env} sun={sun} key3={key3} />}
+      {!flat && <Skyline env={env} sun={sun} key3={key3} />}
       {clouds > 0 && <Clouds count={clouds} color={look.cloudColor} sun={sun} />}
-      {!look.rain && weather !== 'fog' && <Birds sun={sun} />}
+      {env.birds && !look.rain && weather !== 'fog' && <Birds sun={sun} />}
       {look.rain && tier !== 'low' && <Rain count={tier === 'high' ? 900 : 450} />}
     </group>
   );

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
 import { useStore } from 'zustand';
 import { getAsset } from '@hd/assets';
-import { houseBounds, zonePolygon } from '@hd/editor-core';
+import { houseBounds, resolveEnvironment, zonePolygon } from '@hd/editor-core';
 import { lineLength, pointInPolygon, samplePath } from '@hd/geometry';
 import type { Vec2 } from '@hd/scene-schema';
 import { editor, useUi } from '../plan/session';
@@ -142,23 +142,30 @@ function Blades(): THREE.BufferGeometry {
   return g;
 }
 
+/** More grass and pebbles when the environment asks for lots. */
+function scaled(tier: Tier, amount: 'some' | 'lots'): { tufts: number; pebbles: number } {
+  const base = tier === 'high' ? { tufts: 1300, pebbles: 160 } : { tufts: 600, pebbles: 90 };
+  const k = amount === 'lots' ? 2.2 : 1;
+  return { tufts: Math.round(base.tufts * k), pebbles: Math.round(base.pebbles * k) };
+}
+
 export default function GroundDetail({ tier }: { tier: Tier }) {
-  const on = useUi((s) => s.groundDetail);
   const invalidate = useThree((s) => s.invalidate);
   const scene = useStore(editor.store, (s) => s.scene);
   const weather = scene.lighting.weather;
+  const amount = resolveEnvironment(scene.lighting).detail;
   const ground = scene.terrain.groundMaterial.id;
   const hidden = useUi((s) => s.hiddenLayers.garden);
   const plan = useMemo(() => {
-    if (!on || tier === 'low') return null;
+    if (amount === 'none' || tier === 'low') return null;
     const level0 = scene.levelOrder[0];
     const trees = Object.values(scene.items)
       .filter((it) => it.levelId === level0 && getAsset(it.assetId)?.tags.includes('tree'))
       .map((it) => ({ x: it.position[0], z: it.position[2], color: it.variant }));
     const zones = Object.values(scene.zones).map((z) => ({ shape: z.shape, points: z.points, width: z.width, materialId: z.material.id, pavLeft: z.road?.pavLeft, pavRight: z.road?.pavRight }));
-    return planGroundDetail(ground, scene.plot?.boundary, zones, houseBounds(scene), trees, tier === 'high' ? { tufts: 1300, pebbles: 160 } : { tufts: 600, pebbles: 90 }, weather === 'rain');
+    return planGroundDetail(ground, scene.plot?.boundary, zones, houseBounds(scene), trees, scaled(tier, amount), weather === 'rain');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [on, tier, ground, weather, JSON.stringify([scene.plot?.boundary, Object.values(scene.zones).map((z) => [z.points, z.width, z.material.id]), Object.values(scene.walls).length, Object.values(scene.items).filter((it) => getAsset(it.assetId)?.tags.includes('tree')).map((it) => [it.position, it.variant])])]);
+  }, [amount, tier, ground, weather, JSON.stringify([scene.plot?.boundary, Object.values(scene.zones).map((z) => [z.points, z.width, z.material.id]), Object.values(scene.walls).length, Object.values(scene.items).filter((it) => getAsset(it.assetId)?.tags.includes('tree')).map((it) => [it.position, it.variant])])]);
 
   const blades = useMemo(() => Blades(), []);
   const bladeMat = useMemo(() => new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 1 }), []);

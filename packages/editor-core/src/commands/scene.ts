@@ -38,20 +38,6 @@ export function setWeather(weather: Weather): Command {
   };
 }
 
-export type Horizon = 'none' | 'hills' | 'city';
-
-/** What stands far away on the horizon in the 3D view (hills are the default). */
-export function setHorizon(horizon: Horizon): Command {
-  return {
-    type: 'SetHorizon',
-    label: 'Change horizon',
-    apply(d) {
-      if (horizon === 'hills') delete d.lighting.horizon;
-      else d.lighting.horizon = horizon;
-    },
-  };
-}
-
 /** Surface around the house (grass, sand, paving…). */
 export function setGround(material: MaterialRef): Command {
   return {

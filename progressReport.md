@@ -21,13 +21,24 @@
 | Phase 0 — Prototype / spike | Done (verdict GO) | 100% |
 | Phase 1 — MVP editor | Code complete; owner benchmark with furnished sample pending | ~97% |
 | Phase 2 — Interior depth + accounts | Built; Supabase live test + migrations 0002/0003 pending (owner) | ~90% |
-| Phase 3 — Exterior & lighting | In progress: stairs, balcony/porch, garden, sun/sky, photo textures, export, interior lights done; catalog growth, more realism to do | ~80% |
+| Phase 3 — Exterior & lighting | Done: stairs, balcony/porch, garden, sun/sky, photo textures, export, lights, roofs, trees, night, roads, neighbours, weather | ~98% |
 | Phase 4 — Mobile app + polish | Not started | 0% |
 | Phase 5 — Growth features | Not started | 0% |
 
 Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-05 (end of session).
 
 ## Log
+
+### [2026-11-07] Roads, neighbours and a living environment (P3-10)
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified (455/455 browser checks, offline 12/12; unit tests geometry 104, editor-core 196, web 157, assets 10, schema 8; typecheck, lint, build clean). Looked at screenshots of suburb, city and village streets, cloudy / fog / rain skies, the city skyline, sunset and night. Design in ADR-027.
+- **Roads and pavements.** New **Road** tool on the rail: click points along the plan, Enter to finish; pick Lane / Street / Main road / Avenue first. In the properties panel a road has: width, lanes (1-6), one-way, road surface (8), centre line (none / dashed / solid / double), edge lines, parking bays (left / right / both), kerb (flush to high), left and right pavement width and material (10), zebra crossings and speed bumps (slide each along the road), and **Along the road**: street lights, trees (6 kinds), benches, dustbins, bollard lights, each with side (both / left / right / alternate) and spacing. Crossing roads clean up their junction. Roads draw properly on the plan and in 3D (kerb faces, pavements, paint), count in PDF / DXF export and move / delete like garden areas.
+- **Neighbouring buildings.** 7 new buildings (bungalow, shop row, temple, school, office tower, farmhouse with barn, warehouse), wall colour choice on every neighbour (9 colours), street furniture (bus shelter, road sign, traffic light, billboard). **Neighbours along this road** (in the road panel): pick Suburb / Village / City / Bungalows / Apartments, then **Fill both sides**: buildings face the road on both sides, with trees in the gardens and people, dogs, cows, auto-rickshaws, buses, cars and bikes in the street; **Fill again** gives a different street, **Clear neighbours** removes it. You can still place any building one by one from Scenery.
+- **Environment.** **Display › Weather** (Clear, Cloudy, Fog, Rain): the light, sky and haze change; rain falls and the roads go wet with puddles. Clouds by day, **In the distance** (Hills, City skyline with lit windows at night, or Nothing), a few birds, and **Ground detail** (grass tufts, pebbles, soil patches, fallen leaves, puddles; off on Low).
+- **Small fixes on the way.** The properties panel says "Road"; Display and Home menus now open over the properties panel; Bigger / Smaller on the edit bar resizes a road.
+- **Limits.** Cars, people and animals stand still. Moving a road does not move its neighbours (fill again). Rain keeps the screen busy, so it uses more battery (the menu says so). Clouds, horizon and ground detail are drawn on Medium and High only.
+- **Files:** `packages/geometry/src/road/*`, `packages/editor-core/src/{commands/zones,commands/scene,presets/street}.ts`, `packages/scene-schema` (`RoadStyle`, `weather`, `horizon`), `packages/assets/src/catalog.ts`, `apps/web/src/view3d/{RoadMesh,Atmosphere,GroundDetail,weather}.ts(x)`, `view3d/furniture/builders8.ts`, `ui/RoadPanel.tsx`, `ui/DisplayMenu.tsx`, `plan/{session,PlanController,render}.ts`, `e2e/smoke.mjs` (25 new checks).
+- **Next step:** Phase 4 (phone app) when the developer accounts are ready; owner items unchanged.
 
 ### [2026-11-07] Trees, accurate stairs, night scene
 - **Model/Author:** Claude Sonnet 5.5
@@ -565,3 +576,9 @@ Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-
 - The Edit/Hand pair on the left tool bar was two 29px buttons with 8px labels, off-centre against the tools below. It is now one icon-only toggle (58px wide = same column as the tools, 3px inset track, 34px segments, white goo blob on the active one). Names stay as tooltips/aria-labels. Phone bottom bar unchanged. CSS only (end of `styles.css`).
 - Smoke test: 395/395 after the change (one earlier run crashed on `window.__hd` right after a hot reload; the re-run was clean).
 - Open: on windows shorter than ~900px the tool strip scrolls and the last tool shows cut off with no hint.
+
+## Splash: "frame grows into workspace" transition
+- **Intro:** an orange frame (the PlotFramer mark) draws itself (stroke draw, 1.25s) around the house sketch + logo + button, which sizes to the content (`fit()` in `Curtain.tsx` sets `--ft/--fr/--fb/--fl`; re-fits on resize / fonts). Credits sit outside the frame.
+- **Reveal (Start designing):** content falls away → the frame's inside clears into a window onto the workspace (orange glow) → the frame grows past the screen edges (1.25s) → bars pop in as it passes (delays in `html[data-reveal]` rules moved to 1.1–1.3s). `LIFT_MS` 1600 → 1950.
+- **How:** the frame is one empty box with a huge paper-coloured `box-shadow` (= the splash background), so only `top/right/bottom/left` animate. The old two-panel/seam parts were removed. CSS + SVG only (no WebGL); reduced motion = plain fade.
+- Verified by frame captures on desktop (1280×800) and phone (390×800). Smoke test: all curtain/tour checks pass; the full run later stops in the new Display › Horizon test (another in-progress feature, not this change).

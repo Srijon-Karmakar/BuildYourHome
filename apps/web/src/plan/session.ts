@@ -47,9 +47,9 @@ interface UiState {
   /** Lamps: on when it gets dark (auto), always on, or off. Remembered. */
   lights: 'auto' | 'on' | 'off';
   setLights(m: 'auto' | 'on' | 'off'): void;
-  /** Grass tufts, pebbles, leaves and puddles on the ground in 3D. Remembered. */
-  groundDetail: boolean;
-  setGroundDetail(on: boolean): void;
+  /** The environment editor panel (scenery, sky, ground and trees) is open. */
+  envOpen: boolean;
+  setEnvOpen(open: boolean): void;
   /** Draw roofs in 3D (turn off to look into the house from above). */
   showRoof: boolean;
   /** 3D layers the user switched off (see view3d/layers). */
@@ -173,21 +173,8 @@ export const useUi = create<UiState>((set) => ({
     }
     set({ lights });
   },
-  groundDetail: (() => {
-    try {
-      return localStorage.getItem('hd.groundDetail') !== 'off';
-    } catch {
-      return true;
-    }
-  })(),
-  setGroundDetail: (groundDetail) => {
-    try {
-      localStorage.setItem('hd.groundDetail', groundDetail ? 'on' : 'off');
-    } catch {
-      /* ignore */
-    }
-    set({ groundDetail });
-  },
+  envOpen: false,
+  setEnvOpen: (envOpen) => set({ envOpen }),
   toggleRoof: () => set((s) => ({ showRoof: !s.showRoof })),
   pro: (() => {
     try {

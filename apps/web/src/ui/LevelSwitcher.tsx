@@ -7,6 +7,7 @@ import { AngleField, LengthField, Segmented, Swatches, TextField } from './field
 import { GooGroup } from './Goo';
 import { ViewsMenu } from './ViewsMenu';
 import { NightButton } from './NightButton';
+import { EnvironmentButton } from './EnvironmentButton';
 
 /** One-glyph label for the narrow floor selector on phones: Ground floor → G, Floor 2 → 2, otherwise the initial. */
 function shortName(name: string): string {
@@ -145,6 +146,7 @@ export function LevelSwitcher() {
       )}
 
       {view !== '2d' && <NightButton />}
+      {view !== '2d' && <EnvironmentButton />}
       {view !== '2d' && <ViewsMenu />}
       {open && (
         <div className="popover above" role="group" aria-label="Floor settings">

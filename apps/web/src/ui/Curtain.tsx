@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useUi } from '../plan/session';
 import { BrandLogo } from './BrandLogo';
 
 /** Minimum time the loader is shown, so it reads as a calm intro rather than a flash. */
 const LOAD_FULL_MS = 1500;
 const LOAD_BRIEF_MS = 900;
-/** Total length of the reveal (panels part, workspace settles). Keep in step with `.curtain.lifting` in styles.css. */
-const LIFT_MS = 1600;
+/** Total length of the reveal (frame grows, workspace settles). Keep in step with `.curtain.lifting` in styles.css. */
+const LIFT_MS = 1950;
+/** Space between the splash content and the orange frame drawn around it. */
+const FRAME_PAD_X = 28;
+const FRAME_PAD_Y = 24;
 /** Date of the latest release, shown in the credits. */
 const APP_UPDATED = '5 Nov 2026';
 
@@ -63,25 +66,47 @@ function HouseArt() {
 }
 
 /**
- * Opening curtain: a clean paper-coloured screen where a modern house draws itself while the app settles, then a
- * "Start designing" button lifts the curtain into the editor: the content falls away, the two curtain halves part
- * up and down along a horizontal orange seam that opens from the button and the workspace settles in underneath (`html[data-reveal]` drives that in styles.css).
- * Respects reduced-motion (no drawing, quick fade).
+ * Opening curtain: a paper-coloured screen where an orange frame (the PlotFramer mark) draws itself around a modern
+ * house that sketches itself while the app settles. "Start designing" then grows that frame outward: it is a window
+ * onto the workspace that expands until it passes the screen edges, and the bars pop in as it goes by
+ * (`html[data-reveal]` drives the workspace side in styles.css). Reduced motion: no drawing, quick fade.
  */
 export function Curtain() {
   const mode = useUi((s) => s.curtain);
   const [phase, setPhase] = useState<'loading' | 'ready' | 'lifting'>('loading');
   const root = useRef<HTMLDivElement>(null);
-  const cta = useRef<HTMLButtonElement>(null);
+
+  /** Place the frame around the splash content (house, logo, tagline, button). Sets --ft/--fr/--fb/--fl in px. */
+  function fit() {
+    const el = root.current;
+    if (!el) return;
+    const parts = el.querySelectorAll<HTMLElement>(
+      '.curtain-house, .curtain-title, .curtain-sub, .curtain-cta',
+    );
+    if (!parts.length) return;
+    let l = Infinity;
+    let t = Infinity;
+    let r = -Infinity;
+    let b = -Infinity;
+    parts.forEach((p) => {
+      const q = p.getBoundingClientRect();
+      l = Math.min(l, q.left);
+      t = Math.min(t, q.top);
+      r = Math.max(r, q.right);
+      b = Math.max(b, q.bottom);
+    });
+    const w = el.clientWidth;
+    const h = el.clientHeight;
+    const px = (v: number) => `${Math.max(8, Math.round(v))}px`;
+    el.style.setProperty('--fl', px(l - FRAME_PAD_X));
+    el.style.setProperty('--ft', px(t - FRAME_PAD_Y));
+    el.style.setProperty('--fr', px(w - r - FRAME_PAD_X));
+    el.style.setProperty('--fb', px(h - b - FRAME_PAD_Y));
+  }
 
   function lift() {
     if (phase === 'lifting') return;
-    // The reveal opens horizontally from the button: the seam runs through its centre.
-    const r = cta.current?.getBoundingClientRect();
-    if (r && root.current) {
-      root.current.style.setProperty('--seam-y', `${r.top + r.height / 2}px`);
-      root.current.style.setProperty('--seam-x', `${r.left + r.width / 2}px`);
-    }
+    fit();
     setPhase('lifting');
     document.documentElement.dataset.reveal = 'on';
     window.setTimeout(() => {
@@ -89,6 +114,17 @@ export function Curtain() {
       useUi.getState().setCurtain('off');
     }, LIFT_MS);
   }
+
+  useLayoutEffect(() => {
+    if (mode === 'off') return;
+    fit();
+    const el = root.current;
+    const ro = typeof ResizeObserver === 'function' && el ? new ResizeObserver(() => fit()) : null;
+    if (el) ro?.observe(el);
+    void document.fonts?.ready.then(fit);
+    return () => ro?.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   useEffect(() => {
     if (mode === 'off') return;
@@ -119,9 +155,11 @@ export function Curtain() {
       aria-modal="true"
       aria-label="PlotFramer"
     >
-      <div className="curtain-panel t" aria-hidden="true" />
-      <div className="curtain-panel b" aria-hidden="true" />
-      <div className="curtain-seam" aria-hidden="true" />
+      <div className="curtain-frame" aria-hidden="true">
+        <svg className="frame-line">
+          <rect x="0" y="0" width="100%" height="100%" pathLength="1" />
+        </svg>
+      </div>
 
       <div className="curtain-inner">
         <HouseArt />
@@ -131,7 +169,6 @@ export function Curtain() {
         <p className="curtain-sub">Draw your home in 2D. Walk through it in 3D.</p>
         {mode === 'full' && (
           <button
-            ref={cta}
             type="button"
             className="curtain-cta"
             disabled={phase !== 'ready'}

@@ -8,6 +8,7 @@ import { RoofPanel } from './RoofPanel';
 import { isTree, TreeSize } from './TreeSize';
 import { StairRailPanel } from './StairRailPanel';
 import { RoadPanel } from './RoadPanel';
+import { useEnvPanelVisible } from './EnvironmentPanel';
 import { addRoofOverRooms, connectStairHall, continueStairUp, levelAbove, batch, updateZones, updateBalconies, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
 import { formatArea, formatLength } from '../lib/units';
 import { requireAccess } from '../cloud/store';
@@ -62,6 +63,7 @@ const openingName = (o: Opening) => (o.type === 'arch' ? 'Archway' : o.type === 
 export function Inspector() {
   const walk = useUi((s) => s.walk);
   const viewOnly = useUi((s) => s.viewOnly);
+  const envOpen = useEnvPanelVisible(); // the environment editor takes this spot while it is open
   const additive = useUi((s) => s.additive);
   const toggleAdditive = useUi((s) => s.toggleAdditive);
   const paintSide = useUi((s) => s.paintSide);
@@ -116,7 +118,7 @@ export function Inspector() {
     return { walls: w, openings: o, rooms: r, items: it, stairs: st, balconies: bl, zones: zn, roofs: rf };
   }, [selection, scene]);
 
-  if (walk || empty || viewOnly) return null;
+  if (walk || empty || viewOnly || envOpen) return null;
 
   // ------------------------------------------------------------------ header
   const total = walls.length + openings.length + rooms.length + items.length + stairs.length + balconies.length + zones.length + roofs.length;
