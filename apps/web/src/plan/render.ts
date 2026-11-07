@@ -1,7 +1,7 @@
 import { getAsset, itemFootprint, frontOf } from '@hd/assets';
 import type { Opening, Scene, Vec2, Vec3 } from '@hd/scene-schema';
 import type { SnapResult } from '@hd/editor-core';
-import { facePoint, leftNormal, stairToWorld, type StairLayout, type WallFootprint } from '@hd/geometry';
+import { facePoint, leftNormal, stairToWorld, type RoadLayout, type StairLayout, type WallFootprint } from '@hd/geometry';
 import { formatArea, formatLength, type DisplayUnits } from '../lib/units';
 import { toScreen, toWorld, type View } from './viewport';
 import type { LevelGeometry } from './wallGeom';
@@ -83,14 +83,14 @@ export interface RenderState {
   scene: Scene;
   levelId: string;
   selection: readonly string[];
-  tool: 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony' | 'garden' | 'room';
+  tool: 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony' | 'garden' | 'road' | 'room';
   hover: SnapResult | null;
   drawingFrom: Vec2 | null;
   gridStep: number;
   /** Ghost of the ready-made room about to be placed. */
   roomGhost: { outline: readonly Vec2[]; items: readonly (readonly Vec2[])[]; label: string; center: Vec2 } | null;
   /** Garden surfaces (lawn, paving, paths) on the ground. */
-  zones: readonly { polygon: readonly Vec2[]; color: string; selected: boolean; path: boolean }[];
+  zones: readonly { polygon: readonly Vec2[]; color: string; selected: boolean; path: boolean; road?: RoadLayout }[];
   /** Balconies of this floor with their railing runs. */
   balconies: readonly { outline: readonly Vec2[]; railings: readonly { a: Vec2; b: Vec2 }[]; selected: boolean }[];
   /** Stairs that start or end on this floor, plus the ghost of the ones about to be placed. */
@@ -844,14 +844,18 @@ function drawRoomGhost(ctx: CanvasRenderingContext2D, s: RenderState): void {
 }
 
 function drawZones(ctx: CanvasRenderingContext2D, s: RenderState): void {
-  for (const z of s.zones) {
+  const path = (poly: readonly Vec2[]) => {
     ctx.beginPath();
-    z.polygon.forEach((p, i) => {
+    poly.forEach((p, i) => {
       const [x, y] = toScreen(s.view, p[0], p[1]);
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
     ctx.closePath();
+  };
+  for (const z of s.zones) {
+    if (z.road) continue;
+    path(z.polygon);
     ctx.globalAlpha = 0.5;
     ctx.fillStyle = z.color;
     ctx.fill();
@@ -861,6 +865,44 @@ function drawZones(ctx: CanvasRenderingContext2D, s: RenderState): void {
     ctx.lineWidth = z.selected ? 2 : 1;
     ctx.stroke();
     ctx.setLineDash([]);
+  }
+  // Roads: all pavements first, then all carriageways on top of them (so a crossing road covers the other's pavement),
+  // then the paint.
+  const roads = s.zones.filter((z) => z.road);
+  for (const z of roads) {
+    for (const pav of [z.road!.left, z.road!.right]) {
+      if (!pav) continue;
+      path(pav);
+      ctx.fillStyle = '#d9d3c6';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(80,76,68,0.45)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+  for (const z of roads) {
+    path(z.road!.carriage);
+    ctx.fillStyle = z.color === '#000000' ? '#5d5e62' : '#5d5e62';
+    ctx.fill();
+  }
+  for (const z of roads) {
+    for (const m of z.road!.marks) {
+      ctx.beginPath();
+      m.pts.forEach((p, i) => {
+        const [x, y] = toScreen(s.view, p[0], p[1]);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+      ctx.fillStyle = m.color === 'yellow' ? '#e6b800' : '#f4f2ec';
+      ctx.fill();
+    }
+    if (z.selected) {
+      path(z.polygon);
+      ctx.strokeStyle = C.wallSel;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
   }
 }
 

@@ -3,8 +3,9 @@ import { useStore } from 'zustand';
 import { editor, useUi } from '../plan/session';
 import { startBenchmark } from '../view3d/benchmark';
 import type { FloorView } from '../view3d/floors';
-import { setTimeOfDay } from '@hd/editor-core';
+import { setHorizon, setTimeOfDay, setWeather, type Horizon } from '@hd/editor-core';
 import { hourLabel } from '../view3d/sun';
+import { WEATHERS } from '../view3d/weather';
 import type { QualitySetting } from '../view3d/qualityLogic';
 import { useBench, useQuality } from '../view3d/qualityStore';
 
@@ -35,6 +36,10 @@ export function DisplayMenu() {
   const hour = useStore(editor.store, (s) => s.scene.lighting.timeOfDay);
   const lights = useUi((s) => s.lights);
   const setLights = useUi((s) => s.setLights);
+  const weather = useStore(editor.store, (s) => s.scene.lighting.weather) ?? 'clear';
+  const horizon: Horizon = useStore(editor.store, (s) => s.scene.lighting.horizon) ?? 'hills';
+  const groundDetail = useUi((s) => s.groundDetail);
+  const setGroundDetail = useUi((s) => s.setGroundDetail);
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -115,6 +120,38 @@ export function DisplayMenu() {
               </button>
             ))}
           </div>
+
+          <h4 style={{ marginTop: 12 }}>Weather</h4>
+          <div className="f-chips" role="group" aria-label="Weather">
+            {WEATHERS.map((w) => (
+              <button key={w.id} type="button" aria-pressed={weather === w.id} onClick={() => editor.execute(setWeather(w.id))}>
+                {w.label}
+              </button>
+            ))}
+          </div>
+          <small className="fine">Rain keeps the screen busy, so it uses more battery.</small>
+
+          <h4 style={{ marginTop: 12 }}>In the distance</h4>
+          <div className="f-chips" role="group" aria-label="Horizon">
+            {(
+              [
+                ['hills', 'Hills'],
+                ['city', 'City'],
+                ['none', 'Nothing'],
+              ] as const
+            ).map(([id, label]) => (
+              <button key={id} type="button" aria-pressed={horizon === id} onClick={() => editor.execute(setHorizon(id))}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <button type="button" role="switch" aria-checked={groundDetail} className="switch-row" onClick={() => setGroundDetail(!groundDetail)}>
+            <div>
+              Ground detail
+              <small>Grass, pebbles, leaves, puddles</small>
+            </div>
+            <div className="switch" />
+          </button>
 
           <div className="f-chips" role="group" aria-label="Lamps">
             {([

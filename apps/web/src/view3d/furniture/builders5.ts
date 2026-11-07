@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BUILDING_COLORS } from '@hd/assets';
 import { rippleNormal } from '../textures';
 import { ring, rod } from './builders2';
 import { ball, BLACK, box, CHROME, cyl, GLASS, GLOW, mat, shade, type Builder } from './kit';
@@ -46,7 +47,7 @@ function dome(g: THREE.Group, rx: number, ry: number, rz: number, [x, z]: [numbe
 }
 
 /** A pyramid (hip) or gable roof over a bw × bd footprint starting at height y0. */
-function roofShape(g: THREE.Group, kind: 'hip' | 'gable', bw: number, bd: number, y0: number, hh: number, m: THREE.Material): void {
+export function roofShape(g: THREE.Group, kind: 'hip' | 'gable', bw: number, bd: number, y0: number, hh: number, m: THREE.Material): void {
   const x = bw / 2;
   const z = bd / 2;
   const c: Array<[number, number, number]> = [[-x, y0, -z], [x, y0, -z], [x, y0, z], [-x, y0, z]];
@@ -412,9 +413,10 @@ const stakeLight: Builder = ({ w, h }) => {
 
 /** A simple neighbouring building: body, roof, doors / windows suggested with boxes. */
 function building(opts: { wall: string; roof: 'flat' | 'hip' | 'gable'; roofColor: string; floors: number; trim?: string }): Builder {
-  return ({ w, d, h }) => {
+  return ({ w, d, h, c }) => {
     const g = new THREE.Group();
-    const wall = mat(opts.wall, 0.85);
+    const wallHex = c !== BUILDING_COLORS[0]!.id && c !== '#c9c4b9' ? c : opts.wall; // "As designed" keeps the model's own colour
+    const wall = mat(wallHex, 0.85);
     const trim = mat(opts.trim ?? '#f1efea', 0.6);
     const roofH = opts.roof === 'flat' ? 0.25 : Math.min(2.4, h * 0.3);
     const bodyH = h - roofH;
@@ -436,7 +438,7 @@ function building(opts: { wall: string; roof: 'flat' | 'hip' | 'gable'; roofColo
     const r = mat(opts.roofColor, 0.8);
     if (opts.roof === 'flat') {
       box(g, [w + 0.3, 0.25, d + 0.3], [0, bodyH, 0], r);
-      box(g, [w + 0.3, 0.5, 0.15], [0, bodyH + 0.25, d / 2 + 0.07], mat(opts.wall, 0.85));
+      box(g, [w + 0.3, 0.5, 0.15], [0, bodyH + 0.25, d / 2 + 0.07], wall);
     } else {
       const rm = mat(opts.roofColor, 0.8, 0, { side: THREE.DoubleSide });
       roofShape(g, opts.roof, w + 0.7, d + 0.7, bodyH, roofH, rm);
@@ -445,9 +447,9 @@ function building(opts: { wall: string; roof: 'flat' | 'hip' | 'gable'; roofColo
   };
 }
 
-const apartmentBlock: Builder = ({ w, d, h }) => {
+const apartmentBlock: Builder = ({ w, d, h, c }) => {
   const g = new THREE.Group();
-  box(g, [w, h - 0.4, d], [0, 0, 0], mat('#c9bfa6', 0.85));
+  box(g, [w, h - 0.4, d], [0, 0, 0], mat(c !== BUILDING_COLORS[0]!.id && c !== '#c9c4b9' ? c : '#c9bfa6', 0.85));
   box(g, [w + 0.2, 0.4, d + 0.2], [0, h - 0.4, 0], mat('#8f8c85', 0.9));
   const floors = Math.floor(h / 3);
   const cols = Math.round(w / 2.4);

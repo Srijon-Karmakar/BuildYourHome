@@ -49,7 +49,7 @@ export function ObjectBar() {
   const items = selection.filter((id) => scene.items[id]);
   const stairs = selection.filter((id) => scene.stairs[id]);
   const openings = selection.filter((id) => scene.openings[id]);
-  const paths = selection.filter((id) => scene.zones[id]?.shape === 'path');
+  const paths = selection.filter((id) => scene.zones[id]?.shape === 'path' || scene.zones[id]?.shape === 'road');
   const deletable = selection.filter((id) => !scene.rooms[id]);
   const roomIds = selection.filter((id) => scene.rooms[id]);
 
@@ -66,7 +66,7 @@ export function ObjectBar() {
       }),
       ...stairs.map((id) => updateStairs([id], { width: scene.stairs[id]!.width + dir * 0.1 })),
       ...openings.map((id) => setOpeningProps(id, { width: scene.openings[id]!.width + dir * 0.1 })),
-      ...paths.map((id) => updateZones([id], { width: (scene.zones[id]!.width ?? 1) + dir * 0.2 })),
+      ...paths.map((id) => updateZones([id], { width: (scene.zones[id]!.width ?? (scene.zones[id]!.shape === 'road' ? 6 : 1)) + dir * (scene.zones[id]!.shape === 'road' ? 0.5 : 0.2) })),
     ];
     if (cmds.length) editor.execute(batch(dir > 0 ? 'Make bigger' : 'Make smaller', cmds));
   };

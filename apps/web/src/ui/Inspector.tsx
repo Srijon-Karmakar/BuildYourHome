@@ -7,6 +7,7 @@ import { SHADE_COLORS, SHADE_STYLES, defaultShadeDepth, type ShadeStyle } from '
 import { RoofPanel } from './RoofPanel';
 import { isTree, TreeSize } from './TreeSize';
 import { StairRailPanel } from './StairRailPanel';
+import { RoadPanel } from './RoadPanel';
 import { addRoofOverRooms, connectStairHall, continueStairUp, levelAbove, batch, updateZones, updateBalconies, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
 import { formatArea, formatLength } from '../lib/units';
 import { requireAccess } from '../cloud/store';
@@ -139,7 +140,7 @@ export function Inspector() {
     title = 'Roof';
     subtitle = `${scene.levels[roofs[0].levelId]?.name ?? ''} · ${roofs[0].style}`;
   } else if (total === 1 && zones[0]) {
-    title = zones[0].shape === 'path' ? 'Path' : 'Garden area';
+    title = zones[0].shape === 'road' ? 'Road' : zones[0].shape === 'path' ? 'Path' : 'Garden area';
     subtitle = catalogMaterial(zones[0].material.id).name;
   } else if (total === 1 && balconies[0]) {
     title = 'Balcony';
@@ -363,8 +364,10 @@ export function Inspector() {
 
           {roofs.length > 0 && <RoofPanel roofs={roofs} />}
 
-          {zones.length > 0 && (
-            <Section title={zones.every((z) => z.shape === 'path') ? 'Path' : 'Garden area'}>
+          {zones.some((z) => z.shape === 'road') && <RoadPanel roads={zones.filter((z) => z.shape === 'road')} />}
+
+          {zones.some((z) => z.shape !== 'road') && (
+            <Section title={zones.filter((z) => z.shape !== 'road').every((z) => z.shape === 'path') ? 'Path' : 'Garden area'}>
               <Swatches
                 label="Surface"
                 items={materialsFor('ground')}

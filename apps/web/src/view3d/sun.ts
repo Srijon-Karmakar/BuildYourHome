@@ -24,7 +24,7 @@ const SUNSET = 18;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const hex = (n: number) => Math.round(clamp(n, 0, 255)).toString(16).padStart(2, '0');
-function mix(a: string, b: string, t: number): string {
+export function mix(a: string, b: string, t: number): string {
   const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
   const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
   return `#${pa.map((v, i) => hex(v + (pb[i]! - v) * t)).join('')}`;

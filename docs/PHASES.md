@@ -63,6 +63,7 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 - [x] P3-07 Owner feedback round 4: automatic roofs per floor + roof designer, sunshades, stairs that build their own room, walk field of view / eye height, spot-light fittings, phone speed (ADR-024)
 - [x] P3-08 Stair railings (wood / metal / glass), spiral stairs, roof dormer windows
 - [x] P3-09 Trees with real crowns, seasons and sizes; exact stair linking and snapping; night scene (ADR-026)
+- [x] P3-10 Roads and pavements (draw on the plan, lanes / markings / crossings / kerbs / pavements / street lights and trees), neighbouring buildings (7 new types) with street fill in 5 styles, street life, weather (clear / cloudy / fog / rain), clouds, horizon (hills / city), ground detail (ADR-027)
 **Exit:** an exterior "hero view" looks good on high tier and runs on low tier.
 
 ## Phase 4 — Mobile app & polish (≈ 3–4 weeks)

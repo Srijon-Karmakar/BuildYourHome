@@ -10,14 +10,14 @@ export const PATH_DEFAULT_WIDTH_M = 1;
  * The outline of a path of constant `width` along a centre line (mitred corners, with the mitre limited so sharp
  * turns don't spike). Needs at least two distinct points. Counter-clockwise on the plan.
  */
-export function pathPolygon(line: readonly Vec2[], width: number): Vec2[] {
+export function pathPolygon(line: readonly Vec2[], width: number, maxWidth: number = PATH_MAX_WIDTH_M): Vec2[] {
   const pts: Vec2[] = [];
   for (const p of line) {
     const last = pts[pts.length - 1];
     if (!last || Math.hypot(p[0] - last[0], p[1] - last[1]) > 1e-3) pts.push([p[0], p[1]]);
   }
   if (pts.length < 2) return [];
-  const h = Math.min(PATH_MAX_WIDTH_M, Math.max(PATH_MIN_WIDTH_M, width)) / 2;
+  const h = Math.min(maxWidth, Math.max(PATH_MIN_WIDTH_M, width)) / 2;
   // Unit direction and left normal of each segment.
   const dirs = pts.slice(0, -1).map((p, i) => {
     const q = pts[i + 1]!;

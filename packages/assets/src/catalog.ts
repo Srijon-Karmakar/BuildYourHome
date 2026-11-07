@@ -92,6 +92,46 @@ const CAR_PAINTS: AssetColor[] = [
   { id: '#a9acb0', name: 'Silver' },
 ];
 
+/** Wall colours for neighbouring buildings. The first keeps each model's own colour (builders test for it). */
+export const BUILDING_COLORS: AssetColor[] = [
+  { id: '#e7dfcf', name: 'As designed' },
+  { id: '#f1efea', name: 'White' },
+  { id: '#efe3c4', name: 'Cream' },
+  { id: '#e6c86a', name: 'Yellow' },
+  { id: '#d9a58a', name: 'Peach' },
+  { id: '#c4604a', name: 'Brick red' },
+  { id: '#b7cbd9', name: 'Sky blue' },
+  { id: '#b4c2a4', name: 'Sage green' },
+  { id: '#b9bcbf', name: 'Grey' },
+];
+const CLOTHES: AssetColor[] = [
+  { id: '#3f5f86', name: 'Blue' },
+  { id: '#b23a34', name: 'Red' },
+  { id: '#e0b81a', name: 'Yellow' },
+  { id: '#4a7a52', name: 'Green' },
+  { id: '#f1efea', name: 'White' },
+  { id: '#7a4a86', name: 'Purple' },
+];
+const TAXI_PAINTS: AssetColor[] = [
+  { id: '#e0b81a', name: 'Yellow' },
+  { id: '#2f7a4a', name: 'Green' },
+  { id: '#2b2a28', name: 'Black' },
+  { id: '#3f5f86', name: 'Blue' },
+];
+const BUS_PAINTS: AssetColor[] = [
+  { id: '#c0392b', name: 'Red' },
+  { id: '#2f6f8f', name: 'Blue' },
+  { id: '#e0a43a', name: 'Orange' },
+  { id: '#4a7a52', name: 'Green' },
+  { id: '#e8e8e6', name: 'White' },
+];
+const SIGN_COLORS: AssetColor[] = [
+  { id: '#2f6f8f', name: 'Blue' },
+  { id: '#c0392b', name: 'Red' },
+  { id: '#2f7a4a', name: 'Green' },
+  { id: '#e0a43a', name: 'Amber' },
+];
+
 type Spec = Omit<Asset, 'placeholder' | 'tier' | 'tags' | 'solid' | 'mount' | 'shape'> &
   Partial<Pick<Asset, 'tier' | 'tags' | 'solid' | 'mount' | 'shape'>>;
 
@@ -397,11 +437,11 @@ export const CATALOG: readonly Asset[] = [
   a({ id: 'watering-can', name: 'Watering can', category: 'nature', size: [0.45, 0.25, 0.4], solid: false, tags: ['decor', 'garden', 'tool'] }),
   a({ id: 'stake-light', name: 'Garden stake light', category: 'nature', size: [0.2, 0.2, 0.5], shape: 'round', solid: false, tags: ['light', 'path', 'solar'] }),
   // ---- Batch 5 · scenery
-  a({ id: 'neighbour-modern', name: 'Neighbour: modern house', category: 'scenery', size: [9.0, 8.0, 6.5], tags: ['house', 'building', 'neighbour', 'flat roof'] }),
-  a({ id: 'neighbour-villa', name: 'Neighbour: villa', category: 'scenery', size: [10.0, 8.5, 7.5], tags: ['house', 'building', 'neighbour', 'bungalow'] }),
-  a({ id: 'neighbour-row', name: 'Neighbour: row house', category: 'scenery', size: [10.0, 6.5, 7.5], tags: ['house', 'building', 'neighbour', 'terrace'] }),
-  a({ id: 'neighbour-hut', name: 'Neighbour: village house', category: 'scenery', size: [5.0, 4.5, 3.6], tags: ['house', 'building', 'neighbour', 'village', 'tiled'] }),
-  a({ id: 'apartment-block', name: 'Apartment block', category: 'scenery', size: [14.0, 10.0, 16.0], tier: 'premium', tags: ['building', 'flats', 'tower', 'city'] }),
+  a({ id: 'neighbour-modern', name: 'Neighbour: modern house', category: 'scenery', size: [9.0, 8.0, 6.5], colors: BUILDING_COLORS, tags: ['house', 'building', 'neighbour', 'flat roof'] }),
+  a({ id: 'neighbour-villa', name: 'Neighbour: villa', category: 'scenery', size: [10.0, 8.5, 7.5], colors: BUILDING_COLORS, tags: ['house', 'building', 'neighbour', 'bungalow'] }),
+  a({ id: 'neighbour-row', name: 'Neighbour: row house', category: 'scenery', size: [10.0, 6.5, 7.5], colors: BUILDING_COLORS, tags: ['house', 'building', 'neighbour', 'terrace'] }),
+  a({ id: 'neighbour-hut', name: 'Neighbour: village house', category: 'scenery', size: [5.0, 4.5, 3.6], colors: BUILDING_COLORS, tags: ['house', 'building', 'neighbour', 'village', 'tiled'] }),
+  a({ id: 'apartment-block', name: 'Apartment block', category: 'scenery', size: [14.0, 10.0, 16.0], tier: 'premium', colors: BUILDING_COLORS, tags: ['building', 'flats', 'tower', 'city'] }),
   a({ id: 'pond-small', name: 'Garden pond', category: 'scenery', size: [3.0, 2.4, 0.2], solid: false, tags: ['water', 'lake', 'fish'] }),
   a({ id: 'pond-large', name: 'Large pond', category: 'scenery', size: [6.5, 4.5, 0.2], solid: false, tier: 'premium', tags: ['water', 'lake'] }),
   a({ id: 'pond-round', name: 'Round pond', category: 'scenery', size: [4.0, 4.0, 0.2], shape: 'round', solid: false, tags: ['water', 'lake'] }),
@@ -412,6 +452,24 @@ export const CATALOG: readonly Asset[] = [
   a({ id: 'pavement', name: 'Pavement', category: 'scenery', size: [2.0, 14.0, 0.12], solid: false, tags: ['sidewalk', 'footpath'] }),
   a({ id: 'street-light', name: 'Street light', category: 'scenery', size: [1.0, 0.4, 6.5], solid: false, tags: ['light', 'pole', 'road'] }),
   a({ id: 'compound-wall', name: 'Long compound wall', category: 'scenery', size: [10.0, 0.25, 1.9], tags: ['boundary', 'fence', 'gate'] }),
+  // ---- Batch 9 · more neighbours, street furniture and street life
+  a({ id: 'neighbour-bungalow', name: 'Neighbour: bungalow', category: 'scenery', size: [11.0, 9.0, 5.2], colors: BUILDING_COLORS, tags: ['house', 'building', 'neighbour', 'bungalow', 'tiled'] }),
+  a({ id: 'neighbour-shops', name: 'Neighbour: shop row', category: 'scenery', size: [12.0, 8.0, 7.5], colors: BUILDING_COLORS, tags: ['shop', 'market', 'building', 'neighbour', 'bazaar'] }),
+  a({ id: 'neighbour-temple', name: 'Neighbour: temple', category: 'scenery', size: [9.0, 9.0, 11.0], colors: BUILDING_COLORS, tags: ['temple', 'mandir', 'building', 'neighbour', 'worship'] }),
+  a({ id: 'neighbour-school', name: 'Neighbour: school', category: 'scenery', size: [22.0, 10.0, 8.0], tier: 'premium', colors: BUILDING_COLORS, tags: ['school', 'building', 'neighbour', 'college'] }),
+  a({ id: 'neighbour-tower', name: 'Neighbour: office tower', category: 'scenery', size: [14.0, 14.0, 42.0], tier: 'premium', colors: BUILDING_COLORS, tags: ['office', 'skyscraper', 'building', 'city', 'neighbour'] }),
+  a({ id: 'neighbour-farm', name: 'Neighbour: farmhouse and barn', category: 'scenery', size: [16.0, 10.0, 6.2], colors: BUILDING_COLORS, tags: ['farm', 'barn', 'village', 'building', 'neighbour'] }),
+  a({ id: 'neighbour-warehouse', name: 'Neighbour: warehouse', category: 'scenery', size: [20.0, 14.0, 8.0], colors: BUILDING_COLORS, tags: ['godown', 'factory', 'building', 'neighbour', 'industrial'] }),
+  a({ id: 'bus-shelter', name: 'Bus shelter', category: 'scenery', size: [3.4, 1.6, 2.6], solid: false, tags: ['bus stop', 'street', 'road'] }),
+  a({ id: 'signboard', name: 'Road sign', category: 'scenery', size: [0.9, 0.1, 2.6], solid: false, colors: SIGN_COLORS, tags: ['sign', 'board', 'street', 'road'] }),
+  a({ id: 'traffic-light', name: 'Traffic light', category: 'scenery', size: [0.5, 0.5, 4.6], solid: false, tags: ['signal', 'street', 'road', 'light'] }),
+  a({ id: 'billboard', name: 'Billboard', category: 'scenery', size: [6.0, 0.5, 8.0], solid: false, colors: SIGN_COLORS, tags: ['advert', 'hoarding', 'street', 'sign'] }),
+  a({ id: 'person-standing', name: 'Person, standing', category: 'scenery', size: [0.5, 0.35, 1.7], solid: false, colors: CLOTHES, tags: ['people', 'human', 'life', 'street'] }),
+  a({ id: 'person-walking', name: 'Person, walking', category: 'scenery', size: [0.5, 0.5, 1.7], solid: false, colors: CLOTHES, tags: ['people', 'human', 'life', 'street', 'pedestrian'] }),
+  a({ id: 'dog', name: 'Street dog', category: 'scenery', size: [0.35, 0.8, 0.55], solid: false, tags: ['animal', 'pet', 'life', 'street'] }),
+  a({ id: 'cow', name: 'Cow', category: 'scenery', size: [0.7, 1.9, 1.4], solid: false, tags: ['animal', 'cattle', 'life', 'village', 'street'] }),
+  a({ id: 'auto-rickshaw', name: 'Auto-rickshaw', category: 'scenery', size: [1.4, 2.7, 1.7], solid: false, colors: TAXI_PAINTS, tags: ['vehicle', 'taxi', 'tuk tuk', 'life', 'street'] }),
+  a({ id: 'bus', name: 'Bus', category: 'scenery', size: [2.5, 10.5, 3.2], solid: false, tier: 'premium', colors: BUS_PAINTS, tags: ['vehicle', 'transport', 'life', 'street'] }),
 ];
 
 const BY_ID = new Map(CATALOG.map((x) => [x.id, x]));

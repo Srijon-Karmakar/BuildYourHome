@@ -24,6 +24,34 @@ export function setTimeOfDay(hours: number): Command {
   };
 }
 
+export type Weather = 'clear' | 'cloudy' | 'fog' | 'rain';
+
+/** Weather in the 3D view (clear, cloudy, fog, rain). */
+export function setWeather(weather: Weather): Command {
+  return {
+    type: 'SetWeather',
+    label: 'Change weather',
+    apply(d) {
+      if (weather === 'clear') delete d.lighting.weather;
+      else d.lighting.weather = weather;
+    },
+  };
+}
+
+export type Horizon = 'none' | 'hills' | 'city';
+
+/** What stands far away on the horizon in the 3D view (hills are the default). */
+export function setHorizon(horizon: Horizon): Command {
+  return {
+    type: 'SetHorizon',
+    label: 'Change horizon',
+    apply(d) {
+      if (horizon === 'hills') delete d.lighting.horizon;
+      else d.lighting.horizon = horizon;
+    },
+  };
+}
+
 /** Surface around the house (grass, sand, paving…). */
 export function setGround(material: MaterialRef): Command {
   return {

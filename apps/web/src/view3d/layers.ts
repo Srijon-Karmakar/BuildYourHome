@@ -19,7 +19,7 @@ export type HiddenLayers = Partial<Record<LayerId, boolean>>;
 
 /** Trees, ponds, neighbours and other outdoor pieces form their own layer; everything else is furniture. */
 export function itemLayer(assetId: string, tag?: string): LayerId {
-  if (tag === 'env') return 'outdoor';
+  if (tag === 'env' || tag?.startsWith('street:')) return 'outdoor';
   const c = getAsset(assetId)?.category;
   return c === 'nature' || c === 'scenery' || c === 'outdoor' ? 'outdoor' : 'furniture';
 }

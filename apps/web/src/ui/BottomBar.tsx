@@ -1,5 +1,5 @@
 import { useStore } from 'zustand';
-import { GARDEN_SURFACES } from '@hd/editor-core';
+import { GARDEN_SURFACES, ROAD_PRESETS } from '@hd/editor-core';
 import { editor, finishDrawing, finishPlot, useUi } from '../plan/session';
 import { nextTip } from './tipsLogic';
 import { GooGroup } from './Goo';
@@ -10,6 +10,7 @@ const CAPTION = {
   window: 'Move over a wall and click to add a window',
   plot: 'Click each corner of your land · click the first corner or press Enter to close · Esc to cancel',
   room: 'Click to place the room · R turns it · it snaps to walls you already have · Esc to stop',
+  road: 'Click along the road · click the last point twice or press Enter to finish · Esc to cancel',
   garden:
     'Click the corners of the area (or the points of a path) · click the first corner or press Enter to finish · Esc to cancel',
   balcony:
@@ -50,11 +51,14 @@ export function BottomBar() {
 
   const showDone = drawing && !walk && tool === 'wall';
   const showPlotDone =
-    (tool === 'plot' || tool === 'balcony' || tool === 'garden') && !walk && view !== '3d';
+    (tool === 'plot' || tool === 'balcony' || tool === 'garden' || tool === 'road') && !walk && view !== '3d';
   const showGarden = tool === 'garden' && !walk && view !== '3d';
   const surface = useUi((s) => s.gardenSurface);
   const setSurface = useUi((s) => s.setGardenSurface);
-  const minPoints = tool === 'garden' && surface === 'path' ? 2 : 3;
+  const minPoints = tool === 'road' || (tool === 'garden' && surface === 'path') ? 2 : 3;
+  const showRoad = tool === 'road' && !walk && view !== '3d';
+  const roadPreset = useUi((s) => s.roadPreset);
+  const setRoadPreset = useUi((s) => s.setRoadPreset);
   const showKind = tool === 'wall' && !walk && view !== '3d';
   const showStairKind = tool === 'stair' && !walk && view !== '3d';
   const newStair = useUi((s) => s.newStair);
@@ -95,6 +99,15 @@ export function BottomBar() {
               onClick={() => setSurface(g.id)}
             >
               {g.label}
+            </button>
+          ))}
+        </GooGroup>
+      )}
+      {showRoad && (
+        <GooGroup className="segmented" role="group" aria-label="Road type" data-goo-host="">
+          {ROAD_PRESETS.map((p) => (
+            <button key={p.id} type="button" className="seg" title={`${p.width} m wide`} aria-pressed={roadPreset === p.id} onClick={() => setRoadPreset(p.id)}>
+              {p.label}
             </button>
           ))}
         </GooGroup>

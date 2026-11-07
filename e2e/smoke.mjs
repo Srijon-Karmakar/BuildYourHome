@@ -2419,6 +2419,120 @@ try {
     await page.close();
   }
 
+  // ---------------------------------------------------------------- 2b. roads, neighbours, weather
+  {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.goto(BASE + '?view=2d');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForTimeout(500);
+    const box = await page.locator('canvas.plan-canvas').boundingBox();
+    const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+    const roads = () => page.evaluate(() => Object.values(window.__hd.editor.getState().scene.zones).filter((z) => z.shape === 'road'));
+    const street = () => page.evaluate(() => Object.values(window.__hd.editor.getState().scene.items).filter((i) => i.tag?.startsWith('street:')).length);
+    const rail = page.getByRole('navigation', { name: 'Tools' });
+
+    await rail.getByRole('button', { name: 'Road', exact: true }).click();
+    check('the Road tool is on the rail', (await page.evaluate(() => window.__hd.useUi.getState().tool)) === 'road');
+    await page.getByRole('group', { name: 'Road type' }).getByRole('button', { name: 'Main road' }).click();
+    for (const [dx, dy] of [[-560, 120], [0, 120], [520, 200]]) {
+      await page.mouse.move(cx + dx, cy + dy);
+      await page.mouse.click(cx + dx, cy + dy);
+      await page.waitForTimeout(60);
+    }
+    await page.keyboard.press('Enter');
+    let r = await roads();
+    check('three clicks and Enter draw a road with the chosen type (9 m, double centre line, kerbs, pavements)', r.length === 1 && r[0].width === 9 && r[0].road.centre === 'double' && r[0].road.pavLeft > 1 && r[0].road.kerb > 0, JSON.stringify(r[0]?.road));
+    check('then the tool goes back to Select and the road is selected', (await page.evaluate(() => window.__hd.useUi.getState().tool)) === 'select' && (await page.evaluate(() => window.__hd.editor.getState().selection.length)) === 1);
+    await page.screenshot({ path: `${SP}/e2e-road-plan.png` });
+
+    const insp = page.getByRole('complementary', { name: 'Properties' });
+    await insp.getByRole('group', { name: 'Start from' }).getByRole('button', { name: 'Avenue' }).click();
+    r = await roads();
+    check('Start from › Avenue gives 14 m and 4 lanes', r[0].width === 14 && r[0].road.lanes === 4);
+    await insp.getByRole('group', { name: 'Lanes' }).getByRole('button', { name: '2', exact: true }).click();
+    await insp.getByRole('group', { name: 'Centre line' }).getByRole('button', { name: 'Dashed' }).click();
+    await insp.getByRole('switch', { name: 'Edge lines', exact: true }).click();
+    r = await roads();
+    check('lanes, centre line and edge lines are editable', r[0].road.lanes === 2 && r[0].road.centre === 'dashed' && r[0].road.edges === false, JSON.stringify(r[0].road));
+    await insp.getByRole('group', { name: 'Parking bays' }).getByRole('button', { name: 'Both' }).click();
+    await insp.getByRole('group', { name: 'Kerb' }).getByRole('button', { name: 'High' }).click();
+    r = await roads();
+    check('parking bays and kerb height are editable', r[0].road.parking === 'both' && r[0].road.kerb === 0.18);
+    await insp.getByRole('button', { name: '+ Add a zebra crossing' }).click();
+    await insp.getByRole('button', { name: '+ Add a speed bump' }).click();
+    r = await roads();
+    check('a zebra crossing and a speed bump can be added', r[0].road.crossings.length === 1 && r[0].road.bumps.length === 1);
+    check('a main road starts with street lights; trees switch on along it too', (await roads())[0].road.extras.some((e) => e.kind === 'light'));
+    await insp.getByRole('switch', { name: 'Trees', exact: true }).click();
+    r = await roads();
+    check('street lights and trees can both be along the road', r[0].road.extras.some((e) => e.kind === 'light') && r[0].road.extras.some((e) => e.kind === 'tree'), JSON.stringify(r[0].road.extras));
+
+    // Neighbours
+    const nb = insp.getByRole('group', { name: 'Neighbours' });
+    await nb.getByRole('group', { name: 'Street style' }).getByRole('button', { name: 'City' }).click();
+    await nb.getByRole('button', { name: 'Fill both sides' }).click();
+    const n1 = await street();
+    check('Fill both sides puts neighbours and street life along the road', n1 > 3, `${n1} items`);
+    const kinds = await page.evaluate(() => [...new Set(Object.values(window.__hd.editor.getState().scene.items).filter((i) => i.tag?.startsWith('street:')).map((i) => i.assetId))]);
+    check('they are buildings, trees and people / vehicles', kinds.some((k) => k.startsWith('neighbour') || k === 'apartment-block') && kinds.some((k) => k.startsWith('person') || k === 'car' || k === 'auto-rickshaw' || k === 'bus'), kinds.join(','));
+    await page.keyboard.press('Control+z');
+    check('one undo takes them all away', (await street()) === 0);
+    await page.keyboard.press('Control+y');
+    check('and redo brings them back', (await street()) === n1);
+    await nb.getByRole('group', { name: 'Street style' }).getByRole('button', { name: 'Village' }).click();
+    await nb.getByRole('button', { name: 'Fill again' }).click();
+    const hut = await page.evaluate(() => Object.values(window.__hd.editor.getState().scene.items).some((i) => i.tag?.startsWith('street:') && ['neighbour-hut', 'neighbour-farm', 'neighbour-temple'].includes(i.assetId)));
+    check('filling again with another style replaces the first fill', hut && (await street()) > 3);
+    await nb.getByRole('button', { name: 'Clear neighbours' }).click();
+    check('Clear neighbours removes them (the road stays)', (await street()) === 0 && (await roads()).length === 1);
+    await nb.getByRole('button', { name: 'Fill both sides' }).click();
+    await page.screenshot({ path: `${SP}/e2e-road-panel.png` });
+
+    // 3D with weather
+    await page.getByRole('button', { name: '3D', exact: true }).click();
+    await page.waitForTimeout(1500);
+    await page.getByRole('button', { name: 'Display' }).click();
+    const disp = page.getByRole('group', { name: 'Display' });
+    const light = () => page.evaluate(() => window.__hd.editor.getState().scene.lighting);
+    await disp.getByRole('group', { name: 'Weather' }).getByRole('button', { name: 'Rain' }).click();
+    check('Display › Weather › Rain is stored in the scene', (await light()).weather === 'rain');
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: `${SP}/e2e-weather-rain.png` });
+    for (const w of ['Fog', 'Cloudy']) {
+      await disp.getByRole('group', { name: 'Weather' }).getByRole('button', { name: w }).click();
+      await page.waitForTimeout(500);
+    }
+    check('Cloudy is stored', (await light()).weather === 'cloudy');
+    await disp.getByRole('group', { name: 'Weather' }).getByRole('button', { name: 'Clear' }).click();
+    check('Clear takes the weather out of the scene again', (await light()).weather === undefined);
+    await disp.getByRole('group', { name: 'Horizon' }).getByRole('button', { name: 'City' }).click();
+    check('the horizon can be a city skyline', (await light()).horizon === 'city');
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SP}/e2e-horizon-city.png` });
+    await disp.getByRole('group', { name: 'Horizon' }).getByRole('button', { name: 'Nothing' }).click();
+    check('or nothing at all', (await light()).horizon === 'none');
+    await disp.getByRole('group', { name: 'Horizon' }).getByRole('button', { name: 'Hills' }).click();
+    check('Hills is the default again', (await light()).horizon === undefined);
+    const gd = disp.getByRole('switch', { name: /Ground detail/ });
+    await gd.click();
+    check('Ground detail can be switched off (and is remembered)', (await page.evaluate(() => window.__hd.useUi.getState().groundDetail)) === false && (await page.evaluate(() => localStorage.getItem('hd.groundDetail'))) === 'off');
+    await gd.click();
+    await page.keyboard.press('Escape');
+
+    // Deleting the road takes its neighbours with it
+    await page.getByRole('button', { name: 'Plan', exact: true }).click();
+    await page.waitForTimeout(400);
+    check('the neighbours are still there before the delete', (await street()) > 3);
+    await page.evaluate(() => { const ed = window.__hd.editor; ed.select(Object.values(ed.getState().scene.zones).filter((z) => z.shape === 'road').map((z) => z.id)); });
+    await page.keyboard.press('Delete');
+    check('deleting the road also removes the neighbours that were filled in along it', (await roads()).length === 0 && (await street()) === 0);
+    check('no page errors with roads, neighbours and weather', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
   // ---------------------------------------------------------------- 3. benchmark
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });

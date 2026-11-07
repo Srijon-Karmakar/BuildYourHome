@@ -189,15 +189,47 @@ export const Balcony = z.object({
   floorMaterial: MaterialRef,
 });
 
-/** A garden surface on the ground: a lawn / paving / driveway area (outline) or a path (centre line + width). */
+/** Something placed along a road: street lights, trees, benches, bins or bollards, at a spacing, on one or both sides. */
+export const RoadExtra = z.object({
+  kind: z.enum(['light', 'tree', 'bench', 'bin', 'bollard']),
+  side: z.enum(['both', 'left', 'right', 'alternate']),
+  spacing: z.number().min(3).max(80),
+  /** Trees: which tree of the catalog. */
+  asset: z.string().optional(),
+});
+
+/** The look of a road: lanes, markings, kerb, pavements, crossings, bumps, parking and what stands along it. */
+export const RoadStyle = z.object({
+  lanes: z.number().int().min(1).max(6),
+  oneWay: z.boolean().optional(),
+  centre: z.enum(['none', 'dashed', 'solid', 'double']),
+  /** Edge lines near the kerbs. */
+  edges: z.boolean(),
+  /** Kerb height in metres (0 = pavement level with the road). */
+  kerb: z.number().min(0).max(0.25),
+  /** Pavement widths on the left and right of the direction you drew the road in (m; 0 = none). */
+  pavLeft: z.number().min(0).max(6),
+  pavRight: z.number().min(0).max(6),
+  pavMaterial: MaterialRef,
+  parking: z.enum(['none', 'left', 'right', 'both']),
+  /** Zebra crossings and speed bumps: where along the road (0 = start, 1 = end). */
+  crossings: z.array(z.number().min(0).max(1)).max(8),
+  bumps: z.array(z.number().min(0).max(1)).max(8),
+  extras: z.array(RoadExtra).max(6),
+});
+
+/** A garden surface on the ground: a lawn / paving / driveway area (outline), a path (centre line + width) or a road. */
 export const Zone = z.object({
   id: Id,
-  shape: z.enum(['area', 'path']),
+  shape: z.enum(['area', 'path', 'road']),
   /** Area outline, or the path's centre line. */
   points: z.array(Vec2),
-  /** Path width in metres (paths only). */
+  /** Path width in metres (paths and roads; for a road, the carriageway). */
   width: z.number().positive().optional(),
+  /** A road's surface, or a path's / area's material. */
   material: MaterialRef,
+  /** Roads only. */
+  road: RoadStyle.optional(),
 });
 
 export const Viewpoint = z.object({
@@ -237,7 +269,14 @@ export const Scene = z.object({
       exteriorThickness: z.number().positive().optional(),
     })
     .optional(),
-  lighting: z.object({ timeOfDay: z.number().min(0).max(24), date: z.string().optional() }),
+  lighting: z.object({
+    timeOfDay: z.number().min(0).max(24),
+    date: z.string().optional(),
+    /** The weather in the 3D view. Unset = clear. */
+    weather: z.enum(['clear', 'cloudy', 'fog', 'rain']).optional(),
+    /** What stands on the horizon in the 3D view. Unset = hills. */
+    horizon: z.enum(['none', 'hills', 'city']).optional(),
+  }),
   viewpoints: z.record(z.string(), Viewpoint),
 });
 
@@ -258,5 +297,7 @@ export type RoofBox = z.infer<typeof RoofBox>;
 export type Stair = z.infer<typeof Stair>;
 export type Balcony = z.infer<typeof Balcony>;
 export type Zone = z.infer<typeof Zone>;
+export type RoadStyle = z.infer<typeof RoadStyle>;
+export type RoadExtra = z.infer<typeof RoadExtra>;
 export type Viewpoint = z.infer<typeof Viewpoint>;
 export type Scene = z.infer<typeof Scene>;

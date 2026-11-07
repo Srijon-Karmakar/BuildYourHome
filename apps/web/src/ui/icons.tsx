@@ -147,3 +147,11 @@ export const IconWindow = () =>
       <path d="M12 4.5v15M5 12h14" />
     </>,
   );
+
+export const IconRoad = () =>
+  wrap(
+    <>
+      <path d="M8 3L4 21M16 3l4 18" />
+      <path d="M12 5v3M12 11v3M12 17v3" />
+    </>,
+  );

@@ -135,7 +135,7 @@ button {
 /* ---------- Floating chrome ---------- */
 .topbar {
   position: absolute;
-  z-index: 10;
+  z-index: 13; /* its menus (Display, Home…) open over the properties panel */
   top: calc(var(--safe-t) + 14px);
   left: calc(var(--safe-l) + 20px);
   right: calc(var(--safe-r) + 20px);
@@ -3953,6 +3953,17 @@ html[data-reveal] .bottom {
 .dormer-row input[type='range'] {
   flex: 1;
   min-width: 0;
+}
+
+/* Road panel: neighbours section */
+.road-extra {
+  display: grid;
+  gap: 6px;
+}
+.road-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 /* Ready-made homes gallery */

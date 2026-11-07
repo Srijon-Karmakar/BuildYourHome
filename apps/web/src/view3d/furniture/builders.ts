@@ -13,6 +13,7 @@ import { BUILDERS3 } from './builders3';
 import { BUILDERS4 } from './builders4';
 import { BUILDERS5 } from './builders5';
 import { BUILDERS6 } from './builders6';
+import { BUILDERS8 } from './builders8';
 import { TREE_BUILDERS } from './trees';
 import { ball, BLACK, box, CHROME, cyl, GLASS, GLOW, legs, mat, mergeByMaterial, shade, WHITE, type Builder } from './kit';
 
@@ -370,6 +371,7 @@ const BUILDERS: Record<string, Builder> = {
   ...BUILDERS4,
   ...BUILDERS5,
   ...BUILDERS6,
+  ...BUILDERS8,
   ...TREE_BUILDERS, // the lumpy-crowned trees replace the first, simpler ones
   'bed-king': bed(2),
   'painting-large': wallArt,

@@ -44,8 +44,8 @@ import {
   type SnapResult,
 } from '@hd/editor-core';
 import { cancelPlot, editor, finishDrawing, finishPlot, useUi, wallTool } from './session';
-import { stairLayout, stairOutlineWorld, type StairLayout } from '@hd/geometry';
-import { addStairAssembly, snapStairToWalls } from '@hd/editor-core';
+import { roadLayout, stairLayout, stairOutlineWorld, type StairLayout } from '@hd/geometry';
+import { addStairAssembly, roadCoverage, snapStairToWalls } from '@hd/editor-core';
 import { drawPlan, pointInPolygon, type ItemGhost, type OpeningPreview, type StairDraw } from './render';
 import { levelRooms } from './rooms';
 import { highlightSides } from './wallFaces';
@@ -345,7 +345,13 @@ export class PlanController {
       hover: this.hover,
       drawingFrom: ui.tool === 'wall' ? wallTool.last : null,
       roomGhost: this.roomGhostDraw(),
-      zones: Object.values(st.scene.zones).map((z) => ({ polygon: zonePolygon(z), color: catalogMaterial(z.material.id).color, selected: st.selection.includes(z.id), path: z.shape === 'path' })),
+      zones: Object.values(st.scene.zones).map((z) => ({
+        polygon: zonePolygon(z),
+        color: catalogMaterial(z.material.id).color,
+        selected: st.selection.includes(z.id),
+        path: z.shape !== 'area',
+        road: z.shape === 'road' && z.road ? roadLayout(z.points, z.width ?? 6, z.road, roadCoverage(st.scene, z.id)) : undefined,
+      })),
       balconies: Object.values(st.scene.balconies)
         .filter((b) => b.levelId === st.activeLevelId)
         .map((b) => ({ outline: b.outline, railings: balconyRailings(st.scene, b.id), selected: st.selection.includes(b.id) })),
@@ -747,7 +753,7 @@ export class PlanController {
       this.mode = 'pan';
       return;
     }
-    if (tool === 'wall' || tool === 'plot' || tool === 'balcony' || tool === 'garden') {
+    if (tool === 'wall' || tool === 'plot' || tool === 'balcony' || tool === 'garden' || tool === 'road') {
       this.mode = 'place';
       this.hover = this.snapAt(p.x, p.y);
     } else if (tool === 'door' || tool === 'window') {
@@ -823,7 +829,7 @@ export class PlanController {
     if (!prev) {
       // Hovering mouse (no button down).
       const tool = useUi.getState().tool;
-      if ((tool === 'wall' || tool === 'plot' || tool === 'balcony' || tool === 'garden') && e.pointerType === 'mouse') {
+      if ((tool === 'wall' || tool === 'plot' || tool === 'balcony' || tool === 'garden' || tool === 'road') && e.pointerType === 'mouse') {
         this.hover = this.snapAt(p.x, p.y);
         this.invalidate();
       } else if ((tool === 'door' || tool === 'window') && e.pointerType === 'mouse') {
@@ -969,7 +975,7 @@ export class PlanController {
       const s = this.snapAt(p.x, p.y);
       const ui = useUi.getState();
       const first = ui.plotDraft[0];
-      const pathTool = ui.tool === 'garden' && GARDEN_SURFACES.find((x) => x.id === ui.gardenSurface)?.shape === 'path';
+      const pathTool = ui.tool === 'road' || (ui.tool === 'garden' && GARDEN_SURFACES.find((x) => x.id === ui.gardenSurface)?.shape === 'path');
       if (!pathTool && first && ui.plotDraft.length >= 3 && Math.hypot(s.point[0] - first[0], s.point[1] - first[1]) * this.view.scale < 14) finishPlot();
       else ui.setPlotDraft([...ui.plotDraft, s.point]);
       this.hover = e.pointerType === 'mouse' ? this.snapAt(p.x, p.y) : null;
@@ -1236,7 +1242,7 @@ export class PlanController {
 /** The wall-like tools that collect corner points (plot outline, balcony slab). */
 function isDraftTool(): boolean {
   const t = useUi.getState().tool;
-  return t === 'plot' || t === 'balcony' || t === 'garden';
+  return t === 'plot' || t === 'balcony' || t === 'garden' || t === 'road';
 }
 
 export function deleteSelection(): void {

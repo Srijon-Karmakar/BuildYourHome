@@ -21,10 +21,14 @@ import { registerCapture } from '../export/capture3d';
 import { setTextureRedraw } from './photoTextures';
 import { lampLevel, lampsOf, nearestLamps } from './lights';
 import { setLampGlow } from './furniture/kit';
-import { moonDirection, sunAt } from './sun';
+import { mix, moonDirection, sunAt } from './sun';
 import { itemLayer } from './layers';
 import { registerCamera } from './cameraBridge';
 import NightSky from './NightSky';
+import Atmosphere from './Atmosphere';
+import GroundDetail from './GroundDetail';
+import { airColor, fogDensity, lightColor, weatherLook } from './weather';
+import { RoadExtras, RoadMesh } from './RoadMesh';
 import { setWindowGlow } from './OpeningMesh';
 import { canPick, CLICK_SLOP_PX, pickObject } from './pick';
 import { RoofMesh } from './RoofMesh';
@@ -315,15 +319,20 @@ function Stairs({ tier }: { tier: Tier }) {
   );
 }
 
-/** Garden surfaces (lawn, paving, driveway, paths) lie just above the ground. */
+/** Garden surfaces (lawn, paving, driveway, paths) lie just above the ground; roads are their own meshes. */
 function Zones({ tier }: { tier: Tier }) {
   const zones = useStore(editor.store, (s) => s.scene.zones);
   if (useUi((st) => st.hiddenLayers.garden)) return null;
   return (
     <>
-      {Object.values(zones).map((z, i) => (
-        <FloorMesh key={z.id} polygon={zonePolygon(z)} elevation={-0.0025 + Math.min(i, 12) * 0.0004} materialId={z.material.id} tier={tier} roomId={z.id} layer={i + 1} />
-      ))}
+      {Object.values(zones).map((z, i) =>
+        z.shape === 'road' ? (
+          <RoadMesh key={z.id} zone={z} layer={i + 1} tier={tier} />
+        ) : (
+          <FloorMesh key={z.id} polygon={zonePolygon(z)} elevation={-0.0025 + Math.min(i, 12) * 0.0004} materialId={z.material.id} tier={tier} roomId={z.id} layer={i + 1} />
+        ),
+      )}
+      <RoadExtras />
     </>
   );
 }
@@ -410,20 +419,28 @@ function Ceilings({ tier }: { tier: Tier }) {
 function Lighting({ tier }: { tier: Tier }) {
   const cfg = TIERS[tier];
   const hour = useStore(editor.store, (s) => s.scene.lighting.timeOfDay);
+  const weather = useStore(editor.store, (s) => s.scene.lighting.weather);
+  const horizon = useStore(editor.store, (s) => s.scene.lighting.horizon) ?? 'hills';
   const sun = useMemo(() => sunAt(hour), [hour]);
+  const look = weatherLook(weather);
   const invalidate = useThree((s) => s.invalidate);
   const scene = useThree((s) => s.scene);
+  const air = airColor(sun, look);
+  const density = fogDensity(sun, look);
   useEffect(() => {
     // Flat background (Low tier, and behind the sky); the sky shader draws over it on Medium / High.
-    scene.background = new THREE.Color(sun.background);
-    // A little night haze: far things sink into the dark blue instead of ending in a hard edge.
-    scene.fog = sun.darkness > 0.05 ? new THREE.FogExp2(new THREE.Color('#0c1426'), 0.011 * sun.darkness) : null;
+    scene.background = new THREE.Color(air);
+    // Haze: a little by day, thick in fog and rain, and the dark-blue night haze at night. Far things sink into it
+    // instead of ending in a hard edge.
+    scene.fog = density > 0.0004 ? new THREE.FogExp2(new THREE.Color(sun.darkness > 0.05 ? mix(air, '#0c1426', sun.darkness) : air), density) : null;
     invalidate();
-  }, [sun, scene, invalidate]);
+  }, [air, density, sun.darkness, scene, invalidate]);
   const moon = useMemo(() => moonDirection(sun.hour), [sun.hour]);
+  const overcast = weather !== undefined && weather !== 'clear'; // a flat grey sky; clear days get the sky shader
+  const intensity = sun.intensity * look.sun;
   return (
     <>
-      {cfg.sky && sun.darkness < 1 && (
+      {cfg.sky && sun.darkness < 1 && !overcast && (
         <Sky
           distance={450}
           sunPosition={sun.dir.map((v) => v * 100) as [number, number, number]}
@@ -433,7 +450,7 @@ function Lighting({ tier }: { tier: Tier }) {
           mieDirectionalG={0.85}
         />
       )}
-      <Environment resolution={cfg.envResolution} background={false} environmentIntensity={sun.env}>
+      <Environment resolution={cfg.envResolution} background={false} environmentIntensity={sun.env * look.env}>
         <color attach="background" args={['#c9c4b9']} />
         <Lightformer form="rect" intensity={2.4} position={[0, 7, 0]} rotation-x={Math.PI / 2} scale={[24, 24, 1]} />
         <Lightformer form="rect" intensity={1.4} position={[-9, 3, 0]} rotation-y={Math.PI / 2} scale={[12, 6, 1]} />
@@ -441,15 +458,16 @@ function Lighting({ tier }: { tier: Tier }) {
         <Lightformer form="rect" intensity={0.7} position={[0, 3, -9]} scale={[14, 6, 1]} />
       </Environment>
       {cfg.sky && <NightSky sun={sun} />}
+      {cfg.sky && <Atmosphere sun={sun} weather={weather} horizon={horizon} tier={tier} />}
       {/* Moonlight: a cool, soft light from where the moon is (stronger the darker it is). */}
       {sun.night && <directionalLight position={moon.map((v) => v * 20) as [number, number, number]} intensity={0.08 + 0.22 * sun.darkness} color="#a9bcff" />}
       {/* Keyed by shadow-map size: three can't resize an existing shadow map in place. */}
       <directionalLight
         key={`${cfg.shadows}-${cfg.shadowMapSize}`}
         position={sun.dir.map((v) => v * 22) as [number, number, number]}
-        intensity={sun.intensity}
-        color={sun.color}
-        castShadow={cfg.shadows && sun.intensity > 0.02}
+        intensity={intensity}
+        color={lightColor(sun, look)}
+        castShadow={cfg.shadows && intensity > 0.02 && look.shadows}
         shadow-mapSize={[cfg.shadowMapSize, cfg.shadowMapSize]}
         shadow-camera-left={-25}
         shadow-camera-right={25}
@@ -553,6 +571,7 @@ export function Scene3D() {
       <CaptureBridge />
       <Ground tier={tier} />
       <Zones tier={tier} />
+      <GroundDetail tier={tier} />
       <Floors tier={tier} />
       <Walls tier={tier} />
       <Stairs tier={tier} />

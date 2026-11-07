@@ -9,8 +9,8 @@ describe('catalog integrity', () => {
     const cats = new Set(CATEGORIES.map((c) => c.id));
     for (const x of CATALOG) {
       expect(cats.has(x.category), x.id).toBe(true);
-      // Outdoor things (cars, pools, trees) are bigger than anything indoors.
-      expect(x.size.every((v) => v > 0 && v < (x.category === 'scenery' ? 20 : x.category === 'outdoor' || x.category === 'nature' ? 8 : 4)), x.id).toBe(true);
+      // Outdoor things (cars, pools, trees) are bigger than anything indoors; scenery includes a school and an office tower.
+      expect(x.size.every((v) => v > 0 && v < (x.category === 'scenery' ? 50 : x.category === 'outdoor' || x.category === 'nature' ? 8 : 4)), x.id).toBe(true);
       expect(x.placeholder).toBe(true);
     }
   });

@@ -2,13 +2,13 @@ import type { HiddenLayers, LayerId } from '../view3d/layers';
 import { create } from 'zustand';
 import { createEmptyScene, type Vec2 } from '@hd/scene-schema';
 import type { StairKind } from '@hd/geometry';
-import { setAutoRoofs, setRoof, addBalcony, addZone, balconyProblem, GARDEN_SURFACES, zoneProblem, type GardenSurface, cleanPolygon, createEditor, createWallTool, DEFAULT_SNAP, plotProblem, setPlot, type SnapSettings } from '@hd/editor-core';
+import { type RoadPresetId, roadStyleFor, setAutoRoofs, setRoof, addBalcony, addZone, balconyProblem, GARDEN_SURFACES, zoneProblem, type GardenSurface, cleanPolygon, createEditor, createWallTool, DEFAULT_SNAP, plotProblem, setPlot, type SnapSettings } from '@hd/editor-core';
 
 /** App-wide singletons for the editing session (one project open at a time). */
 export const editor = createEditor(createEmptyScene());
 export const wallTool = createWallTool(editor, () => useUi.getState().newWallKind);
 
-export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony' | 'garden' | 'room';
+export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony' | 'garden' | 'road' | 'room';
 export type ViewMode = '2d' | '3d' | 'split';
 export type { FloorView } from '../view3d/floors';
 
@@ -47,6 +47,9 @@ interface UiState {
   /** Lamps: on when it gets dark (auto), always on, or off. Remembered. */
   lights: 'auto' | 'on' | 'off';
   setLights(m: 'auto' | 'on' | 'off'): void;
+  /** Grass tufts, pebbles, leaves and puddles on the ground in 3D. Remembered. */
+  groundDetail: boolean;
+  setGroundDetail(on: boolean): void;
   /** Draw roofs in 3D (turn off to look into the house from above). */
   showRoof: boolean;
   /** 3D layers the user switched off (see view3d/layers). */
@@ -91,6 +94,9 @@ interface UiState {
   setNewWallKind(k: 'interior' | 'exterior' | 'fence'): void;
   /** Surface the Garden tool lays next (lawn, paving, driveway, gravel, deck or a path). */
   gardenSurface: GardenSurface;
+  /** The kind of road the Road tool draws next. */
+  roadPreset: RoadPresetId;
+  setRoadPreset(p: RoadPresetId): void;
   setGardenSurface(s: GardenSurface): void;
   /** Which face of the selected walls paint swatches change; the plan highlights that side. */
   paintSide: 'both' | 'interior' | 'exterior';
@@ -167,6 +173,21 @@ export const useUi = create<UiState>((set) => ({
     }
     set({ lights });
   },
+  groundDetail: (() => {
+    try {
+      return localStorage.getItem('hd.groundDetail') !== 'off';
+    } catch {
+      return true;
+    }
+  })(),
+  setGroundDetail: (groundDetail) => {
+    try {
+      localStorage.setItem('hd.groundDetail', groundDetail ? 'on' : 'off');
+    } catch {
+      /* ignore */
+    }
+    set({ groundDetail });
+  },
   toggleRoof: () => set((s) => ({ showRoof: !s.showRoof })),
   pro: (() => {
     try {
@@ -239,6 +260,8 @@ export const useUi = create<UiState>((set) => ({
   setDrawing: (drawing) => set({ drawing }),
   newWallKind: 'interior',
   gardenSurface: 'lawn',
+  roadPreset: 'street',
+  setRoadPreset: (roadPreset) => set({ roadPreset }),
   setGardenSurface: (gardenSurface) => set({ gardenSurface }),
   setNewWallKind: (newWallKind) => set({ newWallKind }),
   paintSide: 'both',
@@ -295,10 +318,24 @@ export function finishDrawing(): void {
 /** Close the hand-drawn plot: validate, store it, and go back to selecting. */
 export function finishPlot(): void {
   const ui = useUi.getState();
-  const isPath = ui.tool === 'garden' && GARDEN_SURFACES.find((x) => x.id === ui.gardenSurface)?.shape === 'path';
+  const isPath = ui.tool === 'road' || (ui.tool === 'garden' && GARDEN_SURFACES.find((x) => x.id === ui.gardenSurface)?.shape === 'path');
   const pts = isPath ? ui.plotDraft.filter((p, i, a) => i === 0 || Math.hypot(p[0] - a[i - 1]![0], p[1] - a[i - 1]![1]) > 1e-3) : cleanPolygon(ui.plotDraft);
   if (pts.length === 0) {
     ui.setTool('select');
+    return;
+  }
+  if (ui.tool === 'road') {
+    const preset = roadStyleFor(ui.roadPreset);
+    const bad = zoneProblem('road', pts, preset.width);
+    if (bad) {
+      useUi.setState({ plotError: bad });
+      return;
+    }
+    const before = new Set(Object.keys(editor.getState().scene.zones));
+    editor.execute(addZone({ shape: 'road', points: pts, material: { id: 'ground-asphalt' }, width: preset.width, road: preset.style }));
+    const added = Object.keys(editor.getState().scene.zones).filter((id) => !before.has(id));
+    useUi.setState({ plotDraft: [], plotError: null, tool: 'select' });
+    if (added.length) editor.select(added);
     return;
   }
   if (ui.tool === 'garden') {

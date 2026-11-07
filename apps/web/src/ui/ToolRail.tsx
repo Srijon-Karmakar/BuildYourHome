@@ -6,6 +6,7 @@ import {
   IconRooms,
   IconPen,
   IconGarden,
+  IconRoad,
   IconBalcony,
   IconDoor,
   IconFurniture,
@@ -139,6 +140,18 @@ export function ToolRail() {
         >
           <IconGarden />
           <span>Garden</span>
+        </button>
+
+        <button
+          type="button"
+          className="tool"
+          title="Draw a road with pavements, markings and street lights"
+          aria-pressed={editable && tool === 'road'}
+          disabled={!editable || viewOnly}
+          onClick={() => setTool('road')}
+        >
+          <IconRoad />
+          <span>Road</span>
         </button>
 
         <button
