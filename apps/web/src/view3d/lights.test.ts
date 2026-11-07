@@ -62,4 +62,28 @@ describe('lamps', () => {
     expect(TIERS.medium.lamps).toBeGreaterThan(0);
     expect(TIERS.high.lamps).toBeGreaterThanOrEqual(TIERS.medium.lamps);
   });
+
+  it('fittings: downlights and panels are spot lights that shine down, uplighters up, picture lights at the wall', () => {
+    const e = createEditor(createEmptyScene());
+    const L = e.getState().activeLevelId;
+    e.execute(addItem({ levelId: L, assetId: 'downlight', position: [1, 3, 1] }));
+    e.execute(addItem({ levelId: L, assetId: 'uplight', position: [2, 0, 1] }));
+    e.execute(addItem({ levelId: L, assetId: 'picture-light', position: [3, 2, 0.1], rotationY: 0 }));
+    e.execute(addItem({ levelId: L, assetId: 'pendant-cluster', position: [4, 3, 1] }));
+    const lamps = lampsOf(e.getState().scene);
+    const by = (kind: string) => lamps.filter((l) => l.kind === kind);
+    expect(by('spot')).toHaveLength(3);
+    expect(by('point')).toHaveLength(1);
+    const down = lamps.find((l) => l.pos[0] === 1)!;
+    expect(down.dir).toEqual([0, -1, 0]);
+    expect(down.pos[1]).toBeCloseTo(2.97, 2);
+    expect(lamps.find((l) => l.pos[0] === 2)!.dir).toEqual([0, 1, 0]);
+    const pic = lamps.find((l) => Math.abs(l.pos[0] - 3) < 1e-6)!;
+    expect(pic.dir[1]).toBeLessThan(0);
+    expect(Math.hypot(pic.dir[0], pic.dir[2])).toBeGreaterThan(0.5); // aims along the wall surface, not straight down
+    expect(nearestLamps(lamps, [0, 0, 0], 9, 'spot')).toHaveLength(3);
+    expect(nearestLamps(lamps, [0, 0, 0], 9, 'point')).toHaveLength(1);
+    expect(TIERS.low.spots).toBe(0);
+    expect(TIERS.high.spots).toBeGreaterThanOrEqual(TIERS.medium.spots);
+  });
 });

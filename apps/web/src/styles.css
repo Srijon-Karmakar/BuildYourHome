@@ -3887,3 +3887,158 @@ html[data-reveal] .bottom {
 .layer-eye {
   font-size: 12px;
 }
+
+/* Walk mode: view settings */
+.walk-settings {
+  position: absolute;
+  z-index: 12;
+  right: 14px;
+  bottom: 70px;
+}
+.walk-settings .popover {
+  right: 0;
+  left: auto;
+  min-width: 250px;
+  display: grid;
+  gap: 10px;
+}
+.ws-range {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+.ws-range input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent, #e8590c);
+}
+
+/* ---------- Edit / Hand switch on the left tool bar: one tidy toggle, as wide as the tools below it ---------- */
+@media (min-width: 700px) and (min-height: 501px) {
+  .rail > .goo.mode-pair {
+    box-sizing: border-box;
+    width: 58px;
+    margin: 0 0 2px;
+    padding: 3px;
+    gap: 0;
+    justify-content: stretch;
+    border-radius: 16px;
+    background: rgba(17, 17, 17, 0.1);
+    --goo-r: 13px;
+  }
+
+  .rail .mode-pair .tool {
+    flex: 1 1 0;
+    width: auto;
+    min-height: 34px;
+    padding: 0;
+    border-radius: 13px;
+  }
+
+  .rail .mode-pair .tool span {
+    display: none;
+  }
+
+  .rail .mode-pair .tool svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* Roof dormers list */
+.dormer-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.dormer-row input[type='range'] {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Ready-made homes gallery */
+.welcome-card.samples {
+  max-width: 980px;
+  width: min(980px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  display: grid;
+  gap: 12px;
+}
+.welcome-card.samples header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.welcome-card.samples h1 {
+  margin: 0;
+}
+.sample-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sample-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 12px;
+}
+.sample-card {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  text-align: left;
+  padding: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  font: inherit;
+  cursor: pointer;
+}
+.sample-card:hover,
+.sample-card:focus-visible {
+  border-color: rgba(0, 0, 0, 0.4);
+  background: #fff;
+}
+.sample-card.armed {
+  border-color: #b3261e;
+  background: #fff4f2;
+}
+.sample-thumb {
+  position: relative;
+  display: grid;
+  height: 150px;
+  border-radius: 10px;
+  background: #e8e5de;
+  overflow: hidden;
+}
+.sample-mini {
+  width: 100%;
+  height: 100%;
+}
+.sample-badge {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #111;
+  color: #fff;
+  font-size: 11px;
+  font-style: normal;
+}
+.sample-blurb {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Night scene: the logo gets a light backing so it stays readable over the dark sky. */
+.app[data-night] .topbar .brand {
+  background: rgba(244, 242, 237, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 16px;
+  padding: 4px 12px 6px;
+  align-self: start;
+}

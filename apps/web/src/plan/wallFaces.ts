@@ -52,3 +52,11 @@ export function highlightSides(scene: Scene, ids: readonly Id[], target: PaintTa
   }
   return out;
 }
+
+/** Which side of a wall is the outside: +1 = left face (plan side `a`), -1 = right face. Open or inner walls count as +1. */
+export function exteriorSide(scene: Scene, wall: Wall): 1 | -1 {
+  const k = wallFaceKinds(scene, wall);
+  if (k.a === 'out' && k.b === 'in') return 1;
+  if (k.b === 'out' && k.a === 'in') return -1;
+  return 1;
+}

@@ -74,7 +74,7 @@ export const ROOM_PRESETS: readonly RoomPreset[] = [
   {
     id: 'kitchen', name: 'Kitchen', description: 'Cabinets, sink, stove, fridge, island', w: 4.0, d: 3.4, roomType: 'kitchen', floor: 'floor-tile-white', ceilingLight: true,
     openings: [{ side: 'S', type: 'door', at: 0.7 }, { side: 'E', type: 'window', at: 1.7, width: 1.3 }],
-    items: [{ asset: 'fridge', side: 'N', along: -1.4 }, { asset: 'kitchen-base', side: 'N', along: -0.6 }, { asset: 'stove', side: 'N', along: 0.05 }, { asset: 'kitchen-sink', side: 'N', along: 0.95 }, { asset: 'kitchen-base', side: 'N', along: 1.6 }, { asset: 'kitchen-island', x: -0.1, z: 0.2 }, { asset: 'bar-stool', x: -0.7, z: 0.95 }, { asset: 'bar-stool', x: 0.5, z: 0.95 }],
+    items: [{ asset: 'fridge', side: 'N', along: -1.4 }, { asset: 'kitchen-base', side: 'N', along: -0.6 }, { asset: 'stove', side: 'N', along: 0.05 }, { asset: 'kitchen-sink', side: 'N', along: 0.95 }, { asset: 'kitchen-island', x: -0.1, z: 0.2 }, { asset: 'bar-stool', x: -0.7, z: 0.95 }, { asset: 'bar-stool', x: 0.5, z: 0.95 }],
   },
   {
     id: 'bathroom', name: 'Bathroom', description: 'Toilet, basin, shower', w: 2.5, d: 2.3, roomType: 'bathroom', floor: 'floor-tile-grey', ceilingLight: true,

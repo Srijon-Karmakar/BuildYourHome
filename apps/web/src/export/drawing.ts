@@ -116,13 +116,13 @@ export function buildDrawing(scene: Scene, levelId: Id): Drawing {
     for (const t of layout.treads) {
       const [x0, z0, x1, z1] = t.rect;
       const [dx, dz] = t.dir;
-      const seg: [Vec2, Vec2] = dz < 0 ? [[x0, z0], [x1, z0]] : dz > 0 ? [[x0, z1], [x1, z1]] : dx < 0 ? [[x0, z0], [x0, z1]] : [[x1, z0], [x1, z1]];
+      const seg: [Vec2, Vec2] = t.line ? t.line : dz < 0 ? [[x0, z0], [x1, z0]] : dz > 0 ? [[x0, z1], [x1, z1]] : dx < 0 ? [[x0, z0], [x0, z1]] : [[x1, z0], [x1, z1]];
       prims.push({ layer: 'STAIRS', type: 'poly', pts: seg.map((p) => stairToWorld(origin, s.rotationY, p)), closed: false });
     }
     const first = layout.treads[0];
     const last = layout.treads[layout.treads.length - 1];
     if (first && last) {
-      const c = (t: typeof first): Vec2 => stairToWorld(origin, s.rotationY, [(t.rect[0] + t.rect[2]) / 2, (t.rect[1] + t.rect[3]) / 2]);
+      const c = (t: typeof first): Vec2 => stairToWorld(origin, s.rotationY, t.centre ?? [(t.rect[0] + t.rect[2]) / 2, (t.rect[1] + t.rect[3]) / 2]);
       prims.push({ layer: 'STAIRS', type: 'text', pos: c(first), text: s.fromLevel === levelId ? 'UP' : 'DN', mm: 2.2, align: 'center' });
     }
   }

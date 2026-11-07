@@ -2,7 +2,7 @@ import type { HiddenLayers, LayerId } from '../view3d/layers';
 import { create } from 'zustand';
 import { createEmptyScene, type Vec2 } from '@hd/scene-schema';
 import type { StairKind } from '@hd/geometry';
-import { roofIdFor, setRoof, addBalcony, addZone, balconyProblem, GARDEN_SURFACES, zoneProblem, type GardenSurface, cleanPolygon, createEditor, createWallTool, DEFAULT_SNAP, plotProblem, setPlot, type SnapSettings } from '@hd/editor-core';
+import { setAutoRoofs, setRoof, addBalcony, addZone, balconyProblem, GARDEN_SURFACES, zoneProblem, type GardenSurface, cleanPolygon, createEditor, createWallTool, DEFAULT_SNAP, plotProblem, setPlot, type SnapSettings } from '@hd/editor-core';
 
 /** App-wide singletons for the editing session (one project open at a time). */
 export const editor = createEditor(createEmptyScene());
@@ -33,6 +33,8 @@ interface UiState {
   /** First-run welcome / "New home" chooser. */
   welcomeOpen: boolean;
   setWelcomeOpen(open: boolean): void;
+  samplesOpen: boolean;
+  setSamplesOpen(open: boolean): void;
   /** "Next step" tips (chosen on the welcome screen; can be hidden for good). */
   tipsOn: boolean;
   setTipsOn(on: boolean): void;
@@ -49,6 +51,11 @@ interface UiState {
   showRoof: boolean;
   /** 3D layers the user switched off (see view3d/layers). */
   hiddenLayers: HiddenLayers;
+  /** Walk mode: field of view (degrees, vertical) and eye height (metres); remembered between visits. */
+  walkFov: number;
+  walkEye: number;
+  setWalkFov(v: number): void;
+  setWalkEye(v: number): void;
   toggleLayer(id: LayerId): void;
   resetLayers(): void;
   toggleRoof(): void;
@@ -102,8 +109,8 @@ interface UiState {
   toggleSnap(k: 'grid' | 'nodes' | 'walls' | 'angle'): void;
   setDrawing(v: boolean): void;
   /** Settings of the stairs the Stairs tool places next. */
-  newStair: { kind: StairKind; mirror: boolean; width: number };
-  setNewStair(p: Partial<{ kind: StairKind; mirror: boolean; width: number }>): void;
+  newStair: { kind: StairKind; mirror: boolean; width: number; hall: boolean; toTop: boolean };
+  setNewStair(p: Partial<{ kind: StairKind; mirror: boolean; width: number; hall: boolean; toTop: boolean }>): void;
   /** Rotation (radians) of the stairs about to be placed. */
   stairRotation: number;
   rotateStair(delta: number): void;
@@ -117,8 +124,30 @@ interface UiState {
   toggleAdditive(): void;
 }
 
+function storedNumber(key: string, fallback: number, lo: number, hi: number): number {
+  try {
+    const v = Number(localStorage.getItem(key));
+    return Number.isFinite(v) && v >= lo && v <= hi && localStorage.getItem(key) !== null ? v : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function saveNumber(key: string, v: number, lo: number, hi: number): number {
+  const n = Math.min(hi, Math.max(lo, Number.isFinite(v) ? v : lo));
+  try {
+    localStorage.setItem(key, String(n));
+  } catch {
+    /* ignore */
+  }
+  return n;
+}
+
 export const useUi = create<UiState>((set) => ({
   showRoof: true,
+  walkFov: storedNumber('hd.walkFov', 80, 50, 110),
+  walkEye: storedNumber('hd.walkEye', 1.65, 0.8, 2.1),
+  setWalkFov: (v) => set({ walkFov: saveNumber('hd.walkFov', v, 50, 110) }),
+  setWalkEye: (v) => set({ walkEye: saveNumber('hd.walkEye', v, 0.8, 2.1) }),
   hiddenLayers: {},
   toggleLayer: (id) => set((s) => ({ hiddenLayers: { ...s.hiddenLayers, [id]: !s.hiddenLayers[id] } })),
   resetLayers: () => set({ hiddenLayers: {}, showRoof: true }),
@@ -164,6 +193,8 @@ export const useUi = create<UiState>((set) => ({
   setTourPending: (tourPending) => set({ tourPending }),
   welcomeOpen: false,
   setWelcomeOpen: (welcomeOpen) => set({ welcomeOpen }),
+  samplesOpen: false,
+  setSamplesOpen: (samplesOpen) => set({ samplesOpen }),
   tipsOn: false,
   setTipsOn: (tipsOn) => {
     try {
@@ -227,7 +258,7 @@ export const useUi = create<UiState>((set) => ({
   },
   setPaintSide: (paintSide) => set({ paintSide }),
   additive: false,
-  newStair: { kind: 'straight', mirror: false, width: 1 },
+  newStair: { kind: 'straight', mirror: false, width: 1, hall: true, toTop: false },
   setNewStair: (p) => set((s) => ({ newStair: { ...s.newStair, ...p } })),
   stairRotation: 0,
   rotateStair: (delta) => set((s) => ({ stairRotation: s.stairRotation + delta })),
@@ -237,16 +268,22 @@ export const useUi = create<UiState>((set) => ({
   toggleAdditive: () => set((s) => ({ additive: !s.additive })),
 }));
 
-/** The "Roof" button: put a roof on the top floor if there is none, make sure it is visible, and select it. */
+/**
+ * The "Roof" button: make sure the top floor has its roofs (automatic ones follow the rooms; a floor that cannot get any
+ * yet falls back to one roof over the whole floor), show them, and select them so the designer opens.
+ */
 export function addOrSelectRoof(): void {
   const sc = editor.getState().scene;
   const top = sc.levelOrder[sc.levelOrder.length - 1];
   if (!top) return;
-  const id = roofIdFor(top);
-  if (!sc.roofs[id]) editor.execute(setRoof(top, { style: 'gable' }));
+  const onTop = () => Object.values(editor.getState().scene.roofs).filter((r) => r.levelId === top);
+  if (onTop().length === 0) {
+    editor.execute(setAutoRoofs(top, true));
+    if (onTop().length === 0) editor.execute(setRoof(top, { style: 'gable' }));
+  }
   useUi.setState({ showRoof: true, tool: 'select' });
   editor.setActiveLevel(top);
-  editor.select([id]);
+  editor.select(onTop().map((r) => r.id));
 }
 
 export function finishDrawing(): void {

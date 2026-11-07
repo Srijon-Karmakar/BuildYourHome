@@ -7,6 +7,9 @@ import {
   carpetTexture,
   panelTexture,
   plasterNormal,
+  roofTileTexture,
+  seamTexture,
+  shingleTexture,
   stoneTexture,
   subwayTexture,
   terrazzoTexture,
@@ -52,6 +55,15 @@ export function makeSurface(id: string, tier: Tier): THREE.MeshStandardMaterial 
       break;
     case 'terrazzo':
       mat.map = terrazzoTexture(cfg.textureSize);
+      break;
+    case 'rooftile':
+      mat.map = roofTileTexture(cfg.textureSize);
+      break;
+    case 'shingle':
+      mat.map = shingleTexture(cfg.textureSize);
+      break;
+    case 'seam':
+      mat.map = seamTexture(cfg.textureSize);
       break;
     case 'carpet':
       mat.map = carpetTexture(Math.min(cfg.textureSize, 512));

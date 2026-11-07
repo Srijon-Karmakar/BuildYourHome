@@ -9,7 +9,7 @@ export const MAX_LEVEL_HEIGHT_M = 6;
 function moveRoofsUp(d: Scene, oldTop: Id | undefined, newTop: Id): void {
   if (!oldTop) return;
   for (const r of Object.values(d.roofs)) {
-    if (r.levelId !== oldTop) continue;
+    if (r.levelId !== oldTop || r.box) continue; // roofs over a part of the plan stay where they are
     delete d.roofs[r.id];
     const id = `roof_${newTop}`;
     d.roofs[id] = { ...r, id, levelId: newTop };
@@ -26,7 +26,7 @@ export function addLevel(name?: string, height: number = LEVEL_HEIGHT_M, rng?: (
       const topId = d.levelOrder[d.levelOrder.length - 1];
       const top = topId ? d.levels[topId] : undefined;
       const elevation = top ? top.elevation + top.height : 0;
-      d.levels[id] = { id, name: name ?? `Floor ${d.levelOrder.length}`, elevation, height };
+      d.levels[id] = { id, name: name ?? `Floor ${d.levelOrder.length}`, elevation, height, autoRoof: true };
       d.levelOrder.push(id);
       moveRoofsUp(d, topId, id);
     },
@@ -121,6 +121,7 @@ export function copyLevel(sourceId: Id, rng?: () => number): Command {
         name: `Floor ${d.levelOrder.length}`,
         elevation: top ? top.elevation + top.height : 0,
         height: src.height,
+        autoRoof: true,
       };
       d.levelOrder.push(base);
       moveRoofsUp(d, topId, base);

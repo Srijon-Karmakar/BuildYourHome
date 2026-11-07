@@ -6,12 +6,14 @@ import { fileNameFor, MAX_FILE_BYTES, parseSceneFile, serializeScene } from '../
 import { useUi } from '../plan/session';
 import { buildTemplate } from '../plan/templates';
 import { useCloud } from '../cloud/store';
+import { installApp, usePwa } from '../lib/pwa';
 
 /** Save to / open from a file, and start a new home (two taps, so it can't happen by accident). */
 export function FileActions({ onDone }: { onDone: () => void }) {
   const input = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [confirmNew, setConfirmNew] = useState(false);
+  const canInstall = usePwa((s) => !!s.offer);
   const [confirmFloor, setConfirmFloor] = useState(false);
   const [confirmAll, setConfirmAll] = useState(false);
 
@@ -66,6 +68,16 @@ export function FileActions({ onDone }: { onDone: () => void }) {
       </div>
       <button
         type="button"
+        className="pill small"
+        onClick={() => {
+          useUi.getState().setSamplesOpen(true);
+          onDone();
+        }}
+      >
+        Ready-made homes
+      </button>
+      <button
+        type="button"
         className={`pill small${confirmNew ? ' solid' : ''}`}
         onClick={() => {
           if (!confirmNew) return setConfirmNew(true);
@@ -106,6 +118,16 @@ export function FileActions({ onDone }: { onDone: () => void }) {
       >
         {confirmAll ? 'Tap again to delete everything' : 'Delete everything'}
       </button>
+      {canInstall && (
+        <button
+          type="button"
+          className="pill small solid"
+          title="Put PlotFramer on your device so it opens like an app, even without internet"
+          onClick={() => void installApp().then((ok) => ok && setMessage('Installed. Open it from your home screen or apps.'))}
+        >
+          Install the app
+        </button>
+      )}
       <button
         type="button"
         className="pill small"
@@ -121,7 +143,7 @@ export function FileActions({ onDone }: { onDone: () => void }) {
           {message}
         </small>
       )}
-      <small className="fine">Your home is also saved automatically in this browser.</small>
+      <small className="fine">Your home is also saved automatically on this device. After the first visit the app opens without internet (on an iPhone: Share, then Add to Home Screen).</small>
     </div>
   );
 }

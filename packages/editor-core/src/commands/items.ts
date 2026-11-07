@@ -5,6 +5,10 @@ import type { Command } from '../types';
 
 export const MIN_ITEM_SCALE = 0.5;
 export const MAX_ITEM_SCALE = 2;
+/** Trees and other plants can grow beyond ordinary furniture sizes. */
+export const MIN_GROW_SCALE = 0.2;
+export const MAX_GROW_SCALE = 3;
+const clampGrow = (s: number) => Math.min(MAX_GROW_SCALE, Math.max(MIN_GROW_SCALE, s));
 const clampScale = (s: number) => Math.min(MAX_ITEM_SCALE, Math.max(MIN_ITEM_SCALE, s));
 
 export interface AddItemParams {
@@ -140,6 +144,33 @@ export function duplicateItems(ids: readonly Id[], offset: [number, number] = [0
           scale: [it.scale[0], it.scale[1], it.scale[2]],
           locked: undefined,
         };
+      }
+    },
+  };
+}
+
+export interface ItemSize {
+  /** Same factor in width, depth and height (0.2–3 × the catalog size). */
+  uniform?: number;
+  /** Factor for the footprint (width and depth together) and for the height on its own. */
+  width?: number;
+  height?: number;
+}
+
+/** Resize items freely: all round (`uniform`), or the footprint and the height on their own (a taller or a broader tree). */
+export function setItemsSize(ids: readonly Id[], size: ItemSize): Command {
+  return {
+    type: 'SetItemsSize',
+    label: ids.length > 1 ? 'Resize items' : 'Resize item',
+    apply(d) {
+      for (const id of ids) {
+        const it = d.items[id];
+        if (!it || it.locked) continue;
+        let [sx, sy, sz] = it.scale;
+        if (size.uniform !== undefined) sx = sy = sz = clampGrow(size.uniform);
+        if (size.width !== undefined) sx = sz = clampGrow(size.width);
+        if (size.height !== undefined) sy = clampGrow(size.height);
+        it.scale = [sx, sy, sz];
       }
     },
   };

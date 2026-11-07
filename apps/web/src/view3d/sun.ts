@@ -14,6 +14,8 @@ export interface SunState {
   /** Hours as a 0..24 number, clamped. */
   hour: number;
   night: boolean;
+  /** 0 in daylight, 1 in the middle of the night, in between for the hour or so around sunset and sunrise. */
+  darkness: number;
 }
 
 const MAX_ELEVATION_DEG = 62; // roughly the noon sun in India (latitudes 8–35°)
@@ -40,7 +42,9 @@ export function sunAt(hours: number): SunState {
   const strength = day ? clamp(el / 14, 0, 1) : 0; // fades in over the first 14° of climb
   const twilight = clamp(1 - Math.abs(hour - (hour < 12 ? SUNRISE - 0.5 : SUNSET + 0.5)) / 1.2, 0, 1);
   const dayBg = mix('#e6e4e0', '#dfe9f1', 1 - low);
-  const bg = day ? mix(dayBg, '#f0c9a8', low * 0.6) : mix('#1b2433', '#6b5a63', twilight);
+  const bg = day ? mix(dayBg, '#f0c9a8', low * 0.6) : mix('#0a1020', '#6b5a63', twilight);
+  const ramp = hour >= SUNSET ? clamp((hour - SUNSET) / 1.5, 0, 1) : hour <= SUNRISE ? clamp((SUNRISE - hour) / 1.5, 0, 1) : 0;
+  const darkness = ramp * ramp * (3 - 2 * ramp);
   return {
     dir,
     elevationDeg: el,
@@ -50,6 +54,7 @@ export function sunAt(hours: number): SunState {
     background: bg,
     hour,
     night: !day,
+    darkness,
   };
 }
 
@@ -64,4 +69,13 @@ export function hourLabel(hours: number): string {
   }
   const h12 = hh % 12 === 0 ? 12 : hh % 12;
   return `${h12}:${String(m).padStart(2, '0')} ${hh % 24 < 12 ? 'am' : 'pm'}`;
+}
+
+/** Where the moon is: it crosses the sky from east to west between sunset and sunrise, highest at midnight. */
+export function moonDirection(hour: number): [number, number, number] {
+  const h = hour >= 12 ? hour - 18 : hour + 6; // 0 at 6 pm .. 12 at 6 am
+  const a = (Math.min(12, Math.max(0, h)) / 12) * Math.PI;
+  const v: [number, number, number] = [Math.cos(a), Math.sin(a) * 0.85 + 0.12, -0.5];
+  const l = Math.hypot(...v);
+  return [v[0] / l, v[1] / l, v[2] / l];
 }

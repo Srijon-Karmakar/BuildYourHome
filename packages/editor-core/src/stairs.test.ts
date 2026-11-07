@@ -130,10 +130,14 @@ describe('stairs: stairwell openings', () => {
     expect(stairNeedsRoom(scene(e), stairs(e)[0]!, (l) => polysOf(e, l))).toBeNull();
   });
 
-  it('a stair that pokes out of the room leaves the floor closed and is reported', () => {
+  it('a stair that pokes out of the room opens only the part inside it, and is reported', () => {
     const { e, g, up } = setup();
     e.execute(addStair({ fromLevel: g, origin: [3, 1], width: 1 })); // runs out through the north wall
-    expect(stairOpenings(scene(e), up, 'floor', polysOf(e, up)[0]!)).toHaveLength(0);
+    const room = polysOf(e, up)[0]!;
+    const holes = stairOpenings(scene(e), up, 'floor', room);
+    expect(holes).toHaveLength(1);
+    const zs = room.map((p) => p[1]);
+    for (const p of holes[0]!) expect(p[1]).toBeGreaterThanOrEqual(Math.min(...zs) - 1e-6); // nothing outside the floor
     expect(stairNeedsRoom(scene(e), stairs(e)[0]!, (l) => polysOf(e, l))).toBe(up);
   });
 

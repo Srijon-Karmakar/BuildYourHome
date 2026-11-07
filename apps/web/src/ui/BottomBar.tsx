@@ -102,7 +102,7 @@ export function BottomBar() {
       {showStairKind && (
         <>
           <GooGroup className="segmented" role="group" aria-label="Stair shape" data-goo-host="">
-            {(['straight', 'L', 'U'] as const).map((k) => (
+            {(['straight', 'L', 'U', 'spiral'] as const).map((k) => (
               <button
                 key={k}
                 type="button"
@@ -110,9 +110,17 @@ export function BottomBar() {
                 aria-pressed={newStair.kind === k}
                 onClick={() => setNewStair({ kind: k })}
               >
-                {k === 'straight' ? 'Straight' : k === 'L' ? 'L-shape' : 'U-shape'}
+                {k === 'straight' ? 'Straight' : k === 'L' ? 'L-shape' : k === 'U' ? 'U-shape' : 'Spiral'}
               </button>
             ))}
+          </GooGroup>
+          <GooGroup className="segmented" role="group" aria-label="Stair floors" data-goo-host="">
+            <button type="button" className="seg" title="Build the walls, landing and door round the top of the stairs on the floor above" aria-pressed={newStair.hall} onClick={() => setNewStair({ hall: !newStair.hall })}>
+              Room above
+            </button>
+            <button type="button" className="seg" title="Put a matching flight on every floor up to the top" aria-pressed={newStair.toTop} onClick={() => setNewStair({ toTop: !newStair.toTop })}>
+              All floors
+            </button>
           </GooGroup>
           {newStair.kind !== 'straight' && (
             <GooGroup className="segmented" role="group" aria-label="Stair turn" data-goo-host="">

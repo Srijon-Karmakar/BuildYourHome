@@ -59,6 +59,17 @@ const FABRICS: AssetColor[] = [
   { id: '#b5604a', name: 'Terracotta' },
   { id: '#3b3a38', name: 'Charcoal' },
 ];
+/** Foliage looks for trees: the first is the tree's own colour, the rest tint it (see view3d/furniture/trees.ts). */
+export const TREE_SEASONS: AssetColor[] = [
+  { id: '#3f7a3a', name: 'Natural' },
+  { id: '#6aa63c', name: 'Spring green' },
+  { id: '#2f6a3a', name: 'Deep green' },
+  { id: '#c98a2b', name: 'Autumn gold' },
+  { id: '#b5502c', name: 'Autumn red' },
+  { id: '#f0b4c8', name: 'Blossom pink' },
+  { id: '#b9c8bf', name: 'Winter frost' },
+];
+
 const WOODS: AssetColor[] = [
   { id: '#b98a5b', name: 'Oak' },
   { id: '#7a5238', name: 'Walnut' },
@@ -192,7 +203,7 @@ export const CATALOG: readonly Asset[] = [
   a({ id: 'cactus', name: 'Cactus', category: 'plants', size: [0.3, 0.3, 0.7], shape: 'round', solid: false, tags: ['green', 'desert'] }),
   a({ id: 'tulsi', name: 'Tulsi planter', category: 'plants', size: [0.5, 0.5, 0.95], shape: 'round', solid: false, tags: ['holy basil', 'vrindavan', 'green'] }),
   // ---- Outdoor & garden
-  a({ id: 'tree-round', name: 'Shade tree', category: 'outdoor', size: [3.0, 3.0, 4.5], shape: 'round', solid: false, tags: ['tree', 'green', 'garden'] }),
+  a({ id: 'tree-round', name: 'Shade tree', category: 'outdoor', size: [3.0, 3.0, 4.5], shape: 'round', solid: false, tags: ['tree', 'green', 'garden'], colors: TREE_SEASONS }),
   a({ id: 'tree-pine', name: 'Pine tree', category: 'outdoor', size: [2.0, 2.0, 5.0], shape: 'round', solid: false, tags: ['tree', 'green', 'conifer'] }),
   a({ id: 'tree-palm', name: 'Coconut palm', category: 'outdoor', size: [2.6, 2.6, 5.5], shape: 'round', solid: false, tier: 'premium', tags: ['tree', 'green', 'tropical'] }),
   a({ id: 'bush', name: 'Bush', category: 'outdoor', size: [1.0, 1.0, 0.8], shape: 'round', solid: false, tags: ['shrub', 'green', 'garden'] }),
@@ -261,6 +272,17 @@ export const CATALOG: readonly Asset[] = [
   a({ id: 'lantern', name: 'Floor lantern', category: 'lighting', size: [0.32, 0.32, 0.55], shape: 'round', solid: false, tags: ['light', 'diya', 'lamp'] }),
   a({ id: 'track-light', name: 'Track light', category: 'lighting', size: [1.2, 0.12, 0.15], mount: 'ceiling', solid: false, tags: ['light', 'spot'] }),
   a({ id: 'uplight', name: 'Floor uplighter', category: 'lighting', size: [0.3, 0.3, 1.7], shape: 'round', solid: false, tags: ['light', 'lamp'] }),
+  // ---- Lighting fittings (realistic lights: each one really lights the room)
+  a({ id: 'downlight', name: 'Recessed downlight', category: 'lighting', size: [0.14, 0.14, 0.04], shape: 'round', mount: 'ceiling', solid: false, tags: ['light', 'spot', 'led', 'recessed'] }),
+  a({ id: 'led-panel', name: 'LED panel', category: 'lighting', size: [0.6, 0.6, 0.04], mount: 'ceiling', solid: false, tags: ['light', 'office', 'led', 'flat'] }),
+  a({ id: 'pendant-cluster', name: 'Pendant cluster', category: 'lighting', size: [0.7, 0.7, 1.0], shape: 'round', mount: 'ceiling', tier: 'premium', solid: false, tags: ['light', 'lamp', 'hanging'] }),
+  a({ id: 'pendant-linear', name: 'Linear pendant', category: 'lighting', size: [1.4, 0.16, 0.9], mount: 'ceiling', tier: 'premium', solid: false, tags: ['light', 'dining', 'hanging', 'bar'] }),
+  a({ id: 'pendant-globe', name: 'Globe pendant', category: 'lighting', size: [0.35, 0.35, 0.8], shape: 'round', mount: 'ceiling', tier: 'rewarded', solid: false, tags: ['light', 'lamp', 'hanging', 'opal'] }),
+  a({ id: 'cove-light', name: 'Cove light strip', category: 'lighting', size: [2.0, 0.12, 0.1], mount: 'wall', mountHeight: 2.6, tier: 'premium', solid: false, tags: ['light', 'led', 'indirect', 'false ceiling'] }),
+  a({ id: 'strip-light', name: 'Under-cabinet light', category: 'lighting', size: [1.0, 0.04, 0.04], mount: 'wall', mountHeight: 1.45, solid: false, tags: ['light', 'led', 'kitchen'] }),
+  a({ id: 'picture-light', name: 'Picture light', category: 'lighting', size: [0.5, 0.14, 0.12], mount: 'wall', mountHeight: 2.0, tier: 'rewarded', solid: false, tags: ['light', 'art', 'brass'] }),
+  a({ id: 'desk-lamp', name: 'Desk lamp', category: 'lighting', size: [0.3, 0.3, 0.45], shape: 'round', solid: false, tags: ['light', 'lamp', 'study', 'office'] }),
+  a({ id: 'bollard-light', name: 'Garden bollard light', category: 'lighting', size: [0.2, 0.2, 0.7], shape: 'round', solid: false, tags: ['light', 'garden', 'outdoor', 'path'] }),
   // ---- Batch 3 · plants
   a({ id: 'snake-plant', name: 'Snake plant', category: 'plants', size: [0.4, 0.4, 0.8], shape: 'round', solid: false, tags: ['green', 'mother in law tongue'] }),
   a({ id: 'monstera', name: 'Monstera', category: 'plants', size: [0.8, 0.8, 1.1], shape: 'round', solid: false, tags: ['green', 'leaf'] }),
@@ -342,16 +364,16 @@ export const CATALOG: readonly Asset[] = [
   a({ id: 'sandbox', name: 'Sandbox', category: 'outdoor', size: [1.5, 1.5, 0.25], solid: false, tags: ['play', 'kids', 'sand'] }),
 
   // ---- Batch 5 · trees & nature
-  a({ id: 'tree-mango', name: 'Mango tree', category: 'nature', size: [3.4, 3.4, 5.0], shape: 'round', solid: false, tags: ['tree', 'fruit', 'aam', 'garden'] }),
-  a({ id: 'tree-neem', name: 'Neem tree', category: 'nature', size: [3.6, 3.6, 5.5], shape: 'round', solid: false, tags: ['tree', 'shade', 'garden'] }),
-  a({ id: 'tree-banyan', name: 'Banyan tree', category: 'nature', size: [5.5, 5.5, 6.0], shape: 'round', solid: false, tier: 'premium', tags: ['tree', 'shade', 'big'] }),
-  a({ id: 'tree-gulmohar', name: 'Gulmohar tree', category: 'nature', size: [3.8, 3.8, 5.0], shape: 'round', solid: false, tags: ['tree', 'flowers', 'red', 'garden'] }),
-  a({ id: 'tree-cherry', name: 'Cherry blossom', category: 'nature', size: [3.0, 3.0, 4.0], shape: 'round', solid: false, tier: 'premium', tags: ['tree', 'flowers', 'pink', 'sakura'] }),
-  a({ id: 'tree-oak', name: 'Oak tree', category: 'nature', size: [4.2, 4.2, 6.0], shape: 'round', solid: false, tags: ['tree', 'shade', 'big'] }),
-  a({ id: 'tree-birch', name: 'Birch tree', category: 'nature', size: [2.0, 2.0, 5.5], shape: 'round', solid: false, tags: ['tree', 'white'] }),
-  a({ id: 'tree-cypress', name: 'Cypress', category: 'nature', size: [1.0, 1.0, 4.5], shape: 'round', solid: false, tags: ['tree', 'tall', 'narrow'] }),
-  a({ id: 'tree-willow', name: 'Weeping willow', category: 'nature', size: [4.2, 4.2, 5.0], shape: 'round', solid: false, tier: 'rewarded', tags: ['tree', 'pond', 'drooping'] }),
-  a({ id: 'tree-fruit', name: 'Fruit tree', category: 'nature', size: [2.4, 2.4, 3.0], shape: 'round', solid: false, tags: ['tree', 'apple', 'orchard'] }),
+  a({ id: 'tree-mango', name: 'Mango tree', category: 'nature', size: [3.4, 3.4, 5.0], shape: 'round', solid: false, tags: ['tree', 'fruit', 'aam', 'garden'], colors: TREE_SEASONS }),
+  a({ id: 'tree-neem', name: 'Neem tree', category: 'nature', size: [3.6, 3.6, 5.5], shape: 'round', solid: false, tags: ['tree', 'shade', 'garden'], colors: TREE_SEASONS }),
+  a({ id: 'tree-banyan', name: 'Banyan tree', category: 'nature', size: [5.5, 5.5, 6.0], shape: 'round', solid: false, tier: 'premium', tags: ['tree', 'shade', 'big'], colors: TREE_SEASONS }),
+  a({ id: 'tree-gulmohar', name: 'Gulmohar tree', category: 'nature', size: [3.8, 3.8, 5.0], shape: 'round', solid: false, tags: ['tree', 'flowers', 'red', 'garden'], colors: TREE_SEASONS }),
+  a({ id: 'tree-cherry', name: 'Cherry blossom', category: 'nature', size: [3.0, 3.0, 4.0], shape: 'round', solid: false, tier: 'premium', tags: ['tree', 'flowers', 'pink', 'sakura'], colors: TREE_SEASONS }),
+  a({ id: 'tree-oak', name: 'Oak tree', category: 'nature', size: [4.2, 4.2, 6.0], shape: 'round', solid: false, tags: ['tree', 'shade', 'big'], colors: TREE_SEASONS }),
+  a({ id: 'tree-birch', name: 'Birch tree', category: 'nature', size: [2.0, 2.0, 5.5], shape: 'round', solid: false, tags: ['tree', 'white'], colors: TREE_SEASONS }),
+  a({ id: 'tree-cypress', name: 'Cypress', category: 'nature', size: [1.0, 1.0, 4.5], shape: 'round', solid: false, tags: ['tree', 'tall', 'narrow'], colors: TREE_SEASONS }),
+  a({ id: 'tree-willow', name: 'Weeping willow', category: 'nature', size: [4.2, 4.2, 5.0], shape: 'round', solid: false, tier: 'rewarded', tags: ['tree', 'pond', 'drooping'], colors: TREE_SEASONS }),
+  a({ id: 'tree-fruit', name: 'Fruit tree', category: 'nature', size: [2.4, 2.4, 3.0], shape: 'round', solid: false, tags: ['tree', 'apple', 'orchard'], colors: TREE_SEASONS }),
   a({ id: 'tree-olive', name: 'Potted olive tree', category: 'nature', size: [1.2, 1.2, 1.9], shape: 'round', solid: false, tags: ['tree', 'pot', 'terrace'] }),
   a({ id: 'bush-flower', name: 'Flowering bush', category: 'nature', size: [1.1, 1.1, 0.9], shape: 'round', solid: false, tags: ['shrub', 'flowers', 'garden'] }),
   a({ id: 'hibiscus', name: 'Hibiscus', category: 'nature', size: [1.0, 1.0, 1.4], shape: 'round', solid: false, tags: ['shrub', 'flowers', 'red', 'gudhal'] }),

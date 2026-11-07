@@ -65,6 +65,8 @@ export function moveOpening(openingId: Id, wallId: Id, offset: number): Command 
 
 export type OpeningProps = Partial<Pick<Opening, 'width' | 'height' | 'sill' | 'style' | 'frameColor' | 'leafColor'>> & {
   flip?: Partial<Opening['flip']>;
+  /** A sunshade (fields given are merged into the current one; a style is needed to create it); `null` removes it. */
+  shade?: Partial<NonNullable<Opening['shade']>> | null;
 };
 
 /** Resize / flip. A width that no longer fits next to its neighbours or the wall ends is refused. */
@@ -101,6 +103,16 @@ export function setOpeningProps(openingId: Id, props: OpeningProps): Command {
       o.sill = sill;
       o.height = height;
       if (props.flip) o.flip = { ...o.flip, ...props.flip };
+      if (props.shade === null) delete o.shade;
+      else if (props.shade) {
+        const cur = o.shade;
+        const style = props.shade.style ?? cur?.style;
+        if (style) {
+          const depth = Math.min(2, Math.max(0.15, props.shade.depth ?? cur?.depth ?? 0.5));
+          const color = props.shade.color ?? cur?.color;
+          o.shade = { style, depth, ...(color ? { color } : {}) };
+        }
+      }
     },
   };
 }

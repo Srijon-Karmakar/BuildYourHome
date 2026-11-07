@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Asset } from '@hd/assets';
 
 /** Shared building blocks for the procedural furniture models (see builders.ts / builders2.ts). */
@@ -85,3 +86,45 @@ export interface Ctx {
 }
 
 export type Builder = (x: Ctx) => THREE.Group;
+
+/**
+ * Fewer draw calls: a model made of dozens of small boxes is rebuilt as one mesh per material (same look, same
+ * shared materials). A bed goes from ~25 draw calls to ~4, which is what keeps a furnished home smooth on phones.
+ * Done once per model template; every placed copy then shares the merged geometry.
+ */
+export function mergeByMaterial(group: THREE.Group): THREE.Group {
+  group.updateMatrixWorld(true);
+  const byMaterial = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  let mergeable = true;
+  group.traverse((o) => {
+    if (o === group || !mergeable) return;
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return; // sub-groups only carry a transform, already included in matrixWorld
+    if (Array.isArray(m.material) || m.userData.noMerge) {
+      mergeable = false;
+      return;
+    }
+    const g = m.geometry.clone();
+    g.applyMatrix4(m.matrixWorld);
+    // Same attribute set everywhere or the merge fails.
+    const keepColor = (m.material as THREE.MeshStandardMaterial).vertexColors === true;
+    for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal' && name !== 'uv' && !(keepColor && name === 'color')) g.deleteAttribute(name);
+    if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position!.count * 2), 2));
+    const flat = g.index ? g.toNonIndexed() : g;
+    const list = byMaterial.get(m.material) ?? [];
+    list.push(flat);
+    byMaterial.set(m.material, list);
+  });
+  if (!mergeable || byMaterial.size === 0) return group;
+  const out: THREE.Mesh[] = [];
+  for (const [material, geos] of byMaterial) {
+    const merged = geos.length === 1 ? geos[0]! : mergeGeometries(geos, false);
+    if (!merged) return group; // anything odd: keep the original, unmerged model
+    const mesh = new THREE.Mesh(merged, material);
+    mesh.castShadow = mesh.receiveShadow = true;
+    out.push(mesh);
+  }
+  group.clear();
+  for (const m of out) group.add(m);
+  return group;
+}

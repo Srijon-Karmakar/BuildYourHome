@@ -3,7 +3,11 @@ import { useStore } from 'zustand';
 import { getAsset, CATEGORIES } from '@hd/assets';
 import type { Roof, Zone, Balcony, Item, Opening, Room, RoomType, Stair, Wall } from '@hd/scene-schema';
 import { DOOR_STYLES, FRAME_COLORS, LEAF_COLORS, WINDOW_STYLES } from '@hd/scene-schema';
-import { setRoof, batch, updateZones, updateBalconies, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
+import { SHADE_COLORS, SHADE_STYLES, defaultShadeDepth, type ShadeStyle } from '../view3d/sunshade';
+import { RoofPanel } from './RoofPanel';
+import { isTree, TreeSize } from './TreeSize';
+import { StairRailPanel } from './StairRailPanel';
+import { addRoofOverRooms, connectStairHall, continueStairUp, levelAbove, batch, updateZones, updateBalconies, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
 import { formatArea, formatLength } from '../lib/units';
 import { requireAccess } from '../cloud/store';
 import { deleteSelection } from '../plan/PlanController';
@@ -195,8 +199,6 @@ export function Inspector() {
   const editBalconies = (props: Parameters<typeof updateBalconies>[1]) => editor.execute(updateBalconies(balconyIds, props));
   const zoneIds = zones.map((z) => z.id);
   const editZones = (props: Parameters<typeof updateZones>[1]) => editor.execute(updateZones(zoneIds, props));
-  const roof = roofs.length === 1 ? roofs[0]! : null;
-  const editRoof = (props: Parameters<typeof setRoof>[1]) => roof && editor.execute(setRoof(roof.levelId, props));
   const canDelete = walls.length + openings.length + items.length + stairs.length + balconies.length + zones.length + roofs.length > 0;
 
   return (
@@ -245,6 +247,20 @@ export function Inspector() {
                 checked={rooms.every((r) => r.hasCeiling)}
                 onChange={(hasCeiling) => editRooms({ hasCeiling })}
               />
+              {rooms.every((r) => r.levelId === rooms[0]!.levelId) && (
+                <button
+                  type="button"
+                  className="pill small"
+                  title="Give this room (or these rooms) a roof of its own, with its own shape and material"
+                  onClick={() => {
+                    const cmd = addRoofOverRooms(rooms.map((r) => r.id));
+                    editor.execute(cmd);
+                    if (editor.getState().scene.roofs[cmd.roofId]) editor.select([cmd.roofId]);
+                  }}
+                >
+                  Own roof for {rooms.length > 1 ? 'these rooms' : 'this room'}
+                </button>
+              )}
               {rooms.every((r) => r.hasCeiling) && (
                 <Swatches
                   label="Ceiling paint"
@@ -326,10 +342,16 @@ export function Inspector() {
                   ↻ 90°
                 </button>
               </div>
-              <div className="f-label" style={{ margin: '6px 0 6px' }}>
-                Size
-              </div>
-              <Chips items={SCALE_PRESETS} current={common(items.map((i) => i.scale[0]), near)} onPick={(scale) => editItems({ scale })} />
+              {items.every((i) => isTree(i.assetId)) && sameAsset ? (
+                <TreeSize items={items} />
+              ) : (
+                <>
+                  <div className="f-label" style={{ margin: '6px 0 6px' }}>
+                    Size
+                  </div>
+                  <Chips items={SCALE_PRESETS} current={common(items.map((i) => i.scale[0]), near)} onPick={(scale) => editItems({ scale })} />
+                </>
+              )}
               <Toggle label="Lock in place" hint="Stops it being moved by accident" checked={items.every((i) => i.locked)} onChange={(locked) => editItems({ locked })} />
               <div className="ins-footer" style={{ paddingTop: 4 }}>
                 <button type="button" className="pill" title="Copy (Ctrl+D)" onClick={() => requireAccess(items.map((i) => i.assetId), 'copy') && editor.execute(duplicateItems(itemIds))}>
@@ -339,32 +361,7 @@ export function Inspector() {
             </Section>
           )}
 
-          {roof && (
-            <Section title="Roof">
-              <Segmented
-                label="Shape"
-                value={roof.style}
-                options={[
-                  { id: 'flat', label: 'Flat' },
-                  { id: 'shed', label: 'Shed' },
-                  { id: 'gable', label: 'Gable' },
-                  { id: 'hip', label: 'Hip' },
-                  { id: 'butterfly', label: 'Butterfly' },
-                  { id: 'mansard', label: 'Mansard' },
-                  { id: 'barrel', label: 'Barrel' },
-                ]}
-                onChange={(style) => editRoof({ style })}
-              />
-              {roof.style !== 'flat' && roof.style !== 'barrel' && <AngleField label="Slope" value={roof.pitchDeg} onCommit={(pitchDeg) => editRoof({ pitchDeg })} />}
-              <LengthField label="Overhang" value={roof.overhang} min={0} max={1.5} step={0.05} onCommit={(overhang) => editRoof({ overhang })} />
-              <Swatches label="Roof material" items={materialsFor('roof')} value={roof.material.id} onPick={(materialId) => editRoof({ materialId })} />
-              {(roof.style === 'gable' || roof.style === 'hip' || roof.style === 'butterfly' || roof.style === 'barrel') && (
-                <button type="button" className="pill small" onClick={() => editRoof({ swap: !roof.ridgeAngle })}>
-                  Turn the roof 90°
-                </button>
-              )}
-            </Section>
-          )}
+          {roofs.length > 0 && <RoofPanel roofs={roofs} />}
 
           {zones.length > 0 && (
             <Section title={zones.every((z) => z.shape === 'path') ? 'Path' : 'Garden area'}>
@@ -412,6 +409,7 @@ export function Inspector() {
                   { id: 'straight', label: 'Straight' },
                   { id: 'L', label: 'L-shape' },
                   { id: 'U', label: 'U-shape' },
+                  { id: 'spiral', label: 'Spiral' },
                 ]}
                 onChange={(kind) => editStairs({ kind })}
               />
@@ -435,6 +433,18 @@ export function Inspector() {
                   ↻ 90°
                 </button>
               </div>
+              <Segmented
+                label="Railing"
+                value={common(stairs.map((s) => s.railing ?? 'none'))}
+                options={[
+                  { id: 'none', label: 'None' },
+                  { id: 'wood', label: 'Wood' },
+                  { id: 'metal', label: 'Metal' },
+                  { id: 'glass', label: 'Glass' },
+                ]}
+                onChange={(railing) => editStairs({ railing })}
+              />
+              {stairs.some((st) => st.railing && st.railing !== 'none') && <StairRailPanel stairs={stairs} />}
               <Swatches
                 label="Steps"
                 items={materialsFor('floor')}
@@ -442,9 +452,19 @@ export function Inspector() {
                 onPick={(id) => editStairs({ material: { id } })}
               />
               {needsRoom && (
-                <p className="f-note" role="status" data-testid="stair-warning">
-                  The floor can only open where there is a room: draw walls around the top of the stairs on {scene.levels[needsRoom]?.name ?? 'the floor above'}.
-                </p>
+                <>
+                  <p className="f-note" role="status" data-testid="stair-warning">
+                    The floor can only open where there is a room: draw walls around the top of the stairs on {scene.levels[needsRoom]?.name ?? 'the floor above'}, or let me build them.
+                  </p>
+                  <button type="button" className="pill small solid" onClick={() => editor.execute(connectStairHall(stairs[0]!.id))}>
+                    Build the room above
+                  </button>
+                </>
+              )}
+              {stairs.length === 1 && !needsRoom && !Object.values(scene.stairs).some((o) => o.fromLevel === stairs[0]!.toLevel) && (
+                <button type="button" className="pill small" title="Add a matching flight from this stair's top floor to the next one (adds the floor if needed)" onClick={() => editor.execute(continueStairUp(stairs[0]!.id))}>
+                  {levelAbove(scene, stairs[0]!.toLevel) ? 'Continue stairs up' : 'Continue stairs up (adds a floor)'}
+                </button>
               )}
             </Section>
           )}
@@ -499,6 +519,33 @@ export function Inspector() {
                   value={common(openings.map((o) => o.leafColor ?? LEAF_COLORS[0].id))}
                   onPick={(leafColor) => editOpenings({ leafColor })}
                 />
+              )}
+              {oneType !== 'arch' && oneType !== null && (
+                <>
+                  <Segmented
+                    label="Sunshade"
+                    value={common(openings.map((o) => o.shade?.style ?? 'none')) ?? 'none'}
+                    options={[{ id: 'none', label: 'None' }, ...SHADE_STYLES.filter((x) => x.id !== 'canopy' || oneType === 'door').map((x) => ({ id: x.id as string, label: x.label }))]}
+                    onChange={(id) => editOpenings(id === 'none' ? { shade: null } : { shade: { style: id as ShadeStyle, depth: defaultShadeDepth(id as ShadeStyle) } })}
+                  />
+                  {openings.every((o) => o.shade) && (
+                    <>
+                      <LengthField
+                        label="Sunshade depth"
+                        value={common(openings.map((o) => o.shade!.depth), near)}
+                        min={0.15}
+                        max={2}
+                        onCommit={(depth) => editOpenings({ shade: { depth } })}
+                      />
+                      <ColorSwatches
+                        label="Sunshade colour"
+                        items={SHADE_COLORS}
+                        value={common(openings.map((o) => o.shade!.color ?? SHADE_COLORS[0]!.id))}
+                        onPick={(color) => editOpenings({ shade: { color } })}
+                      />
+                    </>
+                  )}
+                </>
               )}
               {openings.every((o) => o.type === 'door') && (
                 <>

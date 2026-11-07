@@ -129,6 +129,10 @@ export function Welcome() {
             <h3>Furnished sample</h3>
             <p>See what is possible — then make it yours</p>
           </button>
+          <button type="button" className="w-card" data-welcome="samples" onClick={() => useUi.getState().setSamplesOpen(true)}>
+            <h3>Ready-made homes</h3>
+            <p>1 / 2 / 3 BHK flats, houses, a villa, a shop and an office, with plan pictures</p>
+          </button>
           <button type="button" className="w-card" onClick={() => begin('blank')}>
             <h3>Start from scratch</h3>
             <p>An empty plan: draw every wall yourself</p>

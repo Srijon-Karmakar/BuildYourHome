@@ -7,6 +7,7 @@ import {
   rotateItems,
   rotateStairs,
   setItemsProps,
+  setItemsSize,
   setOpeningProps,
   updateStairs,
   updateZones,
@@ -14,6 +15,7 @@ import {
 import { getAsset } from '@hd/assets';
 import { deleteSelection } from '../plan/PlanController';
 import { editor, useUi } from '../plan/session';
+import { isTree } from './TreeSize';
 import { IconMinus, IconPen, IconPlus, IconRotL, IconRotR, IconTrash } from './icons';
 
 /** Screen box (page pixels) of the current selection on the plan, published by the plan canvas while it draws. */
@@ -58,7 +60,9 @@ export function ObjectBar() {
     const cmds = [
       ...items.map((id) => {
         const it = scene.items[id]!;
-        return setItemsProps([id], { scale: Math.round((it.scale[0] * (1 + dir * 0.1)) * 100) / 100 });
+        const next = Math.round(it.scale[0] * (1 + dir * 0.1) * 100) / 100;
+        // Trees can grow past the usual furniture limits (a sapling to a mature tree).
+        return isTree(it.assetId) ? setItemsSize([id], { uniform: next }) : setItemsProps([id], { scale: next });
       }),
       ...stairs.map((id) => updateStairs([id], { width: scene.stairs[id]!.width + dir * 0.1 })),
       ...openings.map((id) => setOpeningProps(id, { width: scene.openings[id]!.width + dir * 0.1 })),

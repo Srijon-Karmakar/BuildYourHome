@@ -5,6 +5,7 @@ import { facePoint, leftNormal, stairToWorld, type StairLayout, type WallFootpri
 import { formatArea, formatLength, type DisplayUnits } from '../lib/units';
 import { toScreen, toWorld, type View } from './viewport';
 import type { LevelGeometry } from './wallGeom';
+import { exteriorSide } from './wallFaces';
 
 /** Canvas colours mirror the CSS tokens in styles.css (docs/DESIGN.md §4). */
 const C = {
@@ -407,6 +408,40 @@ function drawPaintSide(ctx: CanvasRenderingContext2D, s: RenderState): void {
   }
 }
 
+/** A dashed outline of the sunshade on the outside face (a canopy also marks its two columns). */
+function drawShade(ctx: CanvasRenderingContext2D, v: View, fp: WallFootprint, o: Opening, side: 1 | -1, color: string): void {
+  const n = leftNormal(fp);
+  const sh = o.shade!;
+  const over = sh.style === 'awning' ? 0.1 : 0.15;
+  const a = o.offset - o.width / 2 - over;
+  const b = o.offset + o.width / 2 + over;
+  const p0 = facePoint(fp, a, side);
+  const p1 = facePoint(fp, b, side);
+  const out = (p: Vec2): Vec2 => [p[0] + n[0] * side * sh.depth, p[1] + n[1] * side * sh.depth];
+  const q = [p0, p1, out(p1), out(p0)].map((p) => toScreen(v, p[0], p[1]));
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = 'rgba(120,110,100,0.12)';
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath();
+  q.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.setLineDash([]);
+  if (sh.style === 'canopy') {
+    for (const p of [out(p0), out(p1)]) {
+      const [x, y] = toScreen(v, p[0] - n[0] * side * 0.1 + (p === out(p0) ? 0 : 0), p[1] - n[1] * side * 0.1);
+      ctx.beginPath();
+      ctx.arc(x, y, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function drawOpenings(ctx: CanvasRenderingContext2D, s: RenderState): void {
   const { scene, levelId, view: v } = s;
   const sel = new Set(s.selection);
@@ -417,6 +452,7 @@ function drawOpenings(ctx: CanvasRenderingContext2D, s: RenderState): void {
     if (!fp) continue;
     const selected = sel.has(o.id);
     drawOpeningSymbol(ctx, v, fp, o, selected ? C.wallSel : C.wall);
+    if (o.shade) drawShade(ctx, v, fp, o, exteriorSide(scene, w), selected ? C.wallSel : C.wall);
     if (selected) {
       // Brick outline around the whole gap.
       const q = [facePoint(fp, o.offset - o.width / 2, 1), facePoint(fp, o.offset + o.width / 2, 1), facePoint(fp, o.offset + o.width / 2, -1), facePoint(fp, o.offset - o.width / 2, -1)];
@@ -898,6 +934,13 @@ function drawStairs(ctx: CanvasRenderingContext2D, s: RenderState): void {
         ctx.closePath();
         continue;
       }
+      if (t.line) {
+        const a = sc(t.line[0]);
+        const b = sc(t.line[1]);
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(b[0], b[1]);
+        continue;
+      }
       const [dx, dz] = t.dir;
       const [a, b] = dz < 0 ? [sc([x0, z0]), sc([x1, z0])] : dz > 0 ? [sc([x0, z1]), sc([x1, z1])] : dx < 0 ? [sc([x0, z0]), sc([x0, z1])] : [sc([x1, z0]), sc([x1, z1])];
       ctx.moveTo(a[0], a[1]);
@@ -907,8 +950,8 @@ function drawStairs(ctx: CanvasRenderingContext2D, s: RenderState): void {
 
     // Walking line with an arrow: up the stairs (or down, as seen from the floor above).
     const tr = d.layout.treads;
-    const cxOf = (i: number) => (tr[i]!.rect[0] + tr[i]!.rect[2]) / 2;
-    const czOf = (i: number) => (tr[i]!.rect[1] + tr[i]!.rect[3]) / 2;
+    const cxOf = (i: number) => tr[i]!.centre?.[0] ?? (tr[i]!.rect[0] + tr[i]!.rect[2]) / 2;
+    const czOf = (i: number) => tr[i]!.centre?.[1] ?? (tr[i]!.rect[1] + tr[i]!.rect[3]) / 2;
     const centres: [number, number][] = [];
     tr.forEach((t, i) => {
       if (t.landing && i > 0 && i < tr.length - 1) {

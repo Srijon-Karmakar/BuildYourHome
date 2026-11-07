@@ -709,10 +709,14 @@ try {
     await page.keyboard.press('Control+z');
     check('Ctrl+Z brings the roof back', (await roofs()).length === 1);
 
-    // Adding a floor moves the roof to the new top floor.
+    // An empty new floor leaves the roof where it is; once the new floor has rooms the roof moves up to cover it.
     await group.getByRole('button', { name: 'Add floor' }).click();
-    const ids = await page.evaluate(() => ({ top: window.__hd.editor.getState().scene.levelOrder.at(-1), roofLevel: Object.values(window.__hd.editor.getState().scene.roofs)[0]?.levelId }));
-    check('adding a floor moves the roof to the new top', ids.top === ids.roofLevel);
+    const lv = () => page.evaluate(() => ({ order: window.__hd.editor.getState().scene.levelOrder, roofLevels: Object.values(window.__hd.editor.getState().scene.roofs).map((r) => r.levelId) }));
+    let st = await lv();
+    check('an empty new floor leaves the roof on the floor below', st.roofLevels.length === 1 && st.roofLevels[0] === st.order[0]);
+    await page.evaluate(() => { const ed = window.__hd.editor; ed.execute(window.__hd.core.copyLevel(ed.getState().scene.levelOrder[0])); });
+    st = await lv();
+    check('a floor with rooms takes the roof over', st.roofLevels.length === 1 && st.roofLevels[0] === st.order.at(-1));
     check('no page errors with roofs', errors.length === 0, errors.slice(0, 2).join(' | '));
     await page.screenshot({ path: `${SP}/e2e-roof.png` });
     await page.close();
@@ -1227,6 +1231,8 @@ try {
     await room();
     await page.keyboard.press('s');
     check('the Stairs tool is on (key S) and shows its options', (await page.evaluate(() => window.__hd.useUi.getState().tool)) === 'stair' && (await page.getByRole('group', { name: 'Stair shape' }).isVisible()));
+    check('the Stairs tool offers Room above and All floors (Room above is on)', (await page.getByRole('button', { name: 'Room above' }).getAttribute('aria-pressed')) === 'true' && (await page.getByRole('button', { name: 'All floors' }).getAttribute('aria-pressed')) === 'false');
+    await page.getByRole('button', { name: 'Room above' }).click(); // this part of the test checks the plain stair and its warning
     await page.mouse.move(cx, cy + 150);
     await page.mouse.click(cx, cy + 150);
     let s = await S();
@@ -1299,6 +1305,35 @@ try {
     await page.keyboard.press('Delete');
     check('Delete removes the stairs', (await S()).stairs.length === 0);
     check('no page errors in the stairs flows', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2m2. stairs that connect floors by themselves
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?view=2d');
+    await page.waitForSelector('canvas.plan-canvas');
+    const box = await page.locator('canvas.plan-canvas').boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    const S = () => page.evaluate(() => { const st = window.__hd.editor.getState().scene; return { stairs: Object.keys(st.stairs).length, levels: st.levelOrder.length, walls: Object.values(st.walls).filter((w) => w.levelId === st.levelOrder[1]).length, doors: Object.keys(st.openings).length, rooms: Object.values(st.rooms).filter((r) => r.levelId === st.levelOrder[1]).length }; });
+    await page.keyboard.press('s');
+    await page.mouse.move(cx, cy);
+    await page.mouse.click(cx, cy);
+    const a = await S();
+    check('placing stairs builds the floor above, a room round the top and a door', a.stairs === 1 && a.levels === 2 && a.walls === 4 && a.doors === 1 && a.rooms === 1, JSON.stringify(a));
+    const ins = page.getByRole('complementary', { name: 'Properties' });
+    check('so the stairs have no warning', (await ins.getByTestId('stair-warning').count()) === 0);
+    await ins.getByRole('button', { name: /Continue stairs up/ }).click();
+    const b = await S();
+    check('Continue stairs up adds the next floor and a second flight', b.stairs === 2 && b.levels === 3, JSON.stringify(b));
+    await page.keyboard.press('Control+z');
+    check('one undo takes the extra floor away again', (await S()).levels === 2);
+    check('no page errors with connected stairs', errors.length === 0, errors.slice(0, 2).join(' | '));
     await page.close();
   }
 
@@ -1525,8 +1560,8 @@ try {
     check('Enter closes the balcony', b.length === 1 && b[0].outline.length === 4 && b[0].railing === 'glass');
     check('it is selected and the tool is back to Select', (await page.evaluate(() => window.__hd.editor.getState().selection[0])) === b[0]?.id);
     const ins = page.getByRole('complementary', { name: 'Properties' });
-    check('the inspector offers Railing and Floor', (await ins.getByRole('group', { name: 'Railing' }).isVisible()) && (await ins.getByText('Floor').first().isVisible()));
-    await ins.getByRole('group', { name: 'Railing' }).getByRole('button', { name: 'Metal' }).click();
+    check('the inspector offers Railing and Floor', (await ins.getByRole('group', { name: 'Railing', exact: true }).isVisible()) && (await ins.getByText('Floor').first().isVisible()));
+    await ins.getByRole('group', { name: 'Railing', exact: true }).getByRole('button', { name: 'Metal' }).click();
     check('Railing › Metal applies', (await B())[0].railing === 'metal');
     await ins.getByRole('radio', { name: 'Teak' }).click();
     check('the floor can be changed', (await B())[0].floorMaterial.id === 'floor-wood-teak');
@@ -1887,6 +1922,305 @@ try {
     await page.close();
   }
 
+  // ---------------------------------------------------------------- 2z. roof designer, sunshades, walk view settings
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?demo=1&view=split');
+    await page.waitForFunction(() => window.__hd && window.__hd.core);
+    await page.waitForTimeout(1200);
+    const sc = () => page.evaluate(() => window.__hd.editor.getState().scene);
+    // Roof designer
+    await page.getByRole('navigation', { name: 'Tools' }).getByRole('button', { name: 'Roof' }).click();
+    const ins = page.getByRole('complementary', { name: 'Properties' });
+    check('the roof designer shows automatic roofs with trim, gutters and chimney options', (await ins.getByText(/Automatic: this floor/).isVisible()) && (await ins.getByText('Trim colour').isVisible()) && (await ins.getByText('Gutters').isVisible()) && (await ins.getByText('Chimney').isVisible()));
+    await ins.getByRole('switch', { name: 'Chimney' }).click().catch(async () => ins.getByText('Chimney').click());
+    await ins.getByText('Gutters').click();
+    const r1 = Object.values((await sc()).roofs)[0];
+    check('Chimney and Gutters are saved on the roof', r1.chimney === true && r1.gutter === true, JSON.stringify([r1.chimney, r1.gutter]));
+    const edge = ins.locator('.f-row', { hasText: 'Edge thickness' }).locator('input');
+    await edge.fill('20cm');
+    await edge.press('Enter');
+    check('edge thickness is editable', Math.abs(Object.values((await sc()).roofs)[0].thickness - 0.2) < 1e-9);
+    // a room of its own
+    await page.evaluate(() => { const s = window.__hd.editor.getState().scene; window.__hd.editor.select([Object.values(s.rooms)[0].id]); });
+    await ins.getByRole('button', { name: /Own roof for this room/ }).click();
+    const roofsNow = Object.values((await sc()).roofs);
+    check('Own roof gives the room a hand-made roof and the automatic one carries on', roofsNow.length >= 2 && roofsNow.some((r) => r.auto) && roofsNow.some((r) => !r.auto), JSON.stringify(roofsNow.map((r) => !!r.auto)));
+    // Sunshade on a window
+    await page.evaluate(() => { const s = window.__hd.editor.getState().scene; window.__hd.editor.select([Object.values(s.openings).find((o) => o.type === 'window').id]); });
+    await ins.getByRole('group', { name: 'Sunshade' }).getByRole('button', { name: 'Chajja' }).click();
+    const win = Object.values((await sc()).openings).find((o) => o.shade);
+    check('a window can get a chajja sunshade', win && win.shade.style === 'slab' && win.shade.depth > 0.3, JSON.stringify(win?.shade));
+    await ins.getByRole('group', { name: 'Sunshade' }).getByRole('button', { name: 'None' }).click();
+    check('and None takes it off again', !Object.values((await sc()).openings).some((o) => o.shade));
+    // Walk view settings
+    await page.evaluate(() => window.__hd.useUi.getState().setWalk(true));
+    await page.waitForTimeout(800);
+    await page.getByRole('button', { name: 'Walk view settings' }).click();
+    const fov = page.getByRole('slider', { name: 'Field of view' });
+    await fov.fill('100');
+    check('the walk field of view is a slider (default 80) and is remembered', (await page.evaluate(() => window.__hd.useUi.getState().walkFov)) === 100 && (await page.evaluate(() => localStorage.getItem('hd.walkFov'))) === '100');
+    await page.getByRole('button', { name: 'Child', exact: true }).click();
+    check('eye height presets', Math.abs((await page.evaluate(() => window.__hd.useUi.getState().walkEye)) - 1.1) < 1e-9);
+    check('no page errors with roof designer, sunshades and walk settings', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2z2. stair railings, spiral stairs, roof dormers
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?view=2d');
+    await page.waitForSelector('canvas.plan-canvas');
+    const box = await page.locator('canvas.plan-canvas').boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    const scene = () => page.evaluate(() => window.__hd.editor.getState().scene);
+    await page.keyboard.press('s');
+    await page.getByRole('group', { name: 'Stair shape' }).getByRole('button', { name: 'Spiral' }).click();
+    await page.mouse.move(cx, cy);
+    await page.mouse.click(cx, cy);
+    let sc = await scene();
+    const st = Object.values(sc.stairs)[0];
+    check('a spiral stair is placed with a wood railing and its room above', st.kind === 'spiral' && st.railing === 'wood' && sc.levelOrder.length === 2 && Object.values(sc.rooms).length === 1, JSON.stringify([st.kind, st.railing]));
+    const ins = page.getByRole('complementary', { name: 'Properties' });
+    check('no warning: the floor above opens round the spiral', (await ins.getByTestId('stair-warning').count()) === 0);
+    await ins.getByRole('group', { name: 'Railing', exact: true }).getByRole('button', { name: 'Glass' }).click();
+    check('the railing can be changed to glass', Object.values((await scene()).stairs)[0].railing === 'glass');
+    await ins.getByRole('group', { name: 'Railing', exact: true }).getByRole('button', { name: 'None' }).click();
+    check('…or taken off', Object.values((await scene()).stairs)[0].railing === 'none');
+    // Walk up a spiral: the eye rises while walking round
+    await page.evaluate(() => { const ed = window.__hd.editor; ed.execute(window.__hd.core.clearHome(null)); });
+    await page.evaluate(() => {
+      const { editor: ed, core } = window.__hd;
+      const L0 = ed.getState().scene.levelOrder[0];
+      ed.execute(core.batch('loop', [[0, 0], [8, 0], [8, 6], [0, 6]].map((p, i, a) => core.addWall({ levelId: L0, from: p, to: a[(i + 1) % 4], kind: 'exterior' }))));
+    });
+    const roofId = await page.evaluate(() => Object.values(window.__hd.editor.getState().scene.roofs)[0].id);
+    await page.evaluate((id) => window.__hd.editor.select([id]), roofId);
+    await ins.getByRole('button', { name: '+ Add a dormer' }).click();
+    check('a roof can get a dormer window', (await scene()).roofs[roofId].dormers?.length === 1);
+    await ins.getByRole('button', { name: 'Remove dormer 1' }).click();
+    check('and lose it again', !(await scene()).roofs[roofId].dormers);
+    check('no page errors with railings, spiral stairs and dormers', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2z3. ready-made homes gallery
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    // From the welcome screen (a first visit)
+    await page.goto(BASE + '?view=2d');
+    await page.waitForSelector('canvas.plan-canvas');
+    await page.waitForFunction(() => window.__hd && window.__hd.samples);
+    await page.evaluate(() => { window.__hd.useUi.getState().setWelcomeOpen(true); });
+    await page.locator('[data-welcome="samples"]').click();
+    const gal = page.getByRole('dialog', { name: 'Ready-made homes' });
+    check('the gallery opens from the welcome screen with a card per home', (await gal.locator('.sample-card').count()) === 9);
+    await gal.getByRole('button', { name: 'Flats', exact: true }).click();
+    check('filters narrow it down (flats: 4)', (await gal.locator('.sample-card').count()) === 4);
+    await gal.getByRole('button', { name: 'All', exact: true }).click();
+    await gal.locator('[data-sample="flat2"]').click();
+    const sc = () => page.evaluate(() => { const s = window.__hd.editor.getState().scene; return { name: s.meta.name, rooms: Object.keys(s.rooms).length, items: Object.keys(s.items).length, roofs: Object.keys(s.roofs).length }; });
+    let st = await sc();
+    check('picking a home loads it furnished, with its roof', st.name === '2 BHK flat' && st.rooms >= 6 && st.items > 20 && st.roofs >= 1, JSON.stringify(st));
+    check('and closes the gallery and the welcome screen', (await gal.count()) === 0 && (await page.evaluate(() => window.__hd.useUi.getState().welcomeOpen)) === false);
+    // From the Home menu, replacing a home takes two taps
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByRole('button', { name: 'Ready-made homes' }).click();
+    await gal.locator('[data-sample="shop"]').click();
+    check('with a home open the first tap only asks', (await sc()).name === '2 BHK flat' && (await gal.locator('.sample-card.armed').count()) === 1);
+    await gal.locator('[data-sample="shop"]').click();
+    st = await sc();
+    check('the second tap replaces it', st.name === 'Shop');
+    // Every sample has a roof after a two-floor build, and loading is one fresh home (undo cannot undo the load)
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByRole('button', { name: 'Ready-made homes' }).click();
+    await gal.locator('[data-sample="house3"]').click();
+    await gal.locator('[data-sample="house3"]').click();
+    st = await page.evaluate(() => { const s = window.__hd.editor.getState().scene; return { floors: s.levelOrder.length, stairs: Object.keys(s.stairs).length, zones: Object.keys(s.zones).length, plot: !!s.plot }; });
+    check('the two-floor house has stairs, a garden and a plot', st.floors === 2 && st.stairs === 1 && st.zones >= 2 && st.plot, JSON.stringify(st));
+    check('no page errors with the gallery', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2z4. more railing choices
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?view=2d');
+    await page.waitForFunction(() => window.__hd && window.__hd.core);
+    await page.evaluate(() => {
+      const { editor: ed, core } = window.__hd;
+      const L0 = ed.getState().scene.levelOrder[0];
+      ed.execute(core.addStairAssembly({ fromLevel: L0, origin: [2, 4], kind: 'straight' }));
+      ed.select([Object.keys(ed.getState().scene.stairs)[0]]);
+    });
+    const ins = page.getByRole('complementary', { name: 'Properties' });
+    const opts = () => page.evaluate(() => Object.values(window.__hd.editor.getState().scene.stairs)[0].railingOpts ?? null);
+    check('the railing has style, colour, handrail, height, posts and side choices', (await ins.getByText('Railing style').isVisible()) && (await ins.getByText('Railing colour').isVisible()) && (await ins.getByText('Railing height').isVisible()) && (await ins.getByText('Rail on').isVisible()));
+    await ins.getByRole('group', { name: 'Railing style' }).getByRole('button', { name: 'Cables' }).click();
+    await ins.getByRole('radio', { name: 'Brass' }).click();
+    await ins.getByRole('group', { name: 'Handrail' }).getByRole('button', { name: 'Round' }).click();
+    await ins.getByRole('group', { name: 'Rail on' }).getByRole('button', { name: 'Left only' }).click();
+    const o = await opts();
+    check('the choices are saved on the stairs', o && o.infill === 'cables' && o.color === '#c9a47a' && o.handrail === 'round' && o.sides === 'left', JSON.stringify(o));
+    await ins.getByRole('group', { name: 'Railing', exact: true }).getByRole('button', { name: 'Glass' }).click();
+    await ins.getByRole('group', { name: 'Railing style' }).getByRole('button', { name: 'Glass' }).click();
+    check('glass shows its tint choices', await ins.getByRole('group', { name: 'Glass' }).isVisible());
+    await ins.getByRole('group', { name: 'Glass' }).getByRole('button', { name: 'Smoked' }).click();
+    check('the glass tint is saved', (await opts()).tint === 'smoked');
+    await ins.getByRole('button', { name: 'Reset railing options' }).click();
+    check('Reset goes back to the plain look', (await opts()) === null);
+    check('no page errors with the railing options', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2z5. trees, night scene, walking the stairs
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?demo=1&view=split');
+    await page.waitForFunction(() => window.__hd && window.__hd.core);
+    await page.waitForTimeout(800);
+    // Trees: growth stages, height, crown width, season
+    await page.evaluate(() => {
+      const { editor: ed, core } = window.__hd;
+      const L0 = ed.getState().scene.levelOrder[0];
+      ed.execute(core.addItem({ levelId: L0, assetId: 'tree-mango', position: [-4, 0, 3] }));
+      const id = Object.values(ed.getState().scene.items).find((i) => i.assetId === 'tree-mango').id;
+      ed.select([id]);
+    });
+    const ins = page.getByRole('complementary', { name: 'Properties' });
+    const tree = () => page.evaluate(() => Object.values(window.__hd.editor.getState().scene.items).find((i) => i.assetId === 'tree-mango'));
+    check('a tree has Growth, Height and Crown width instead of the furniture sizes', (await ins.getByText('Growth').isVisible()) && (await ins.getByText('Crown width').isVisible()));
+    await ins.getByRole('button', { name: 'Young' }).click();
+    let t = await tree();
+    check('Young is a smaller tree (55 %)', Math.abs(t.scale[0] - 0.55) < 1e-9 && Math.abs(t.scale[1] - 0.55) < 1e-9);
+    const height = ins.locator('.f-row', { hasText: 'Height' }).locator('input');
+    await height.fill('8m');
+    await height.press('Enter');
+    t = await tree();
+    check('Height sets the height on its own (a tall tree keeps its crown width)', Math.abs(t.scale[1] - 8 / 5) < 0.01 && Math.abs(t.scale[0] - 0.55) < 1e-9, JSON.stringify(t.scale));
+    await ins.getByRole('radio', { name: 'Autumn gold' }).click();
+    check('a season colour tints the foliage', (await tree()).variant === '#c98a2b');
+    await page.getByRole('toolbar', { name: 'Selected object' }).getByRole('button', { name: 'Smaller' }).click();
+    check('Smaller can take a tree below the furniture limit', (await tree()).scale[0] < 0.55);
+
+    // Night scene
+    const hour = () => page.evaluate(() => window.__hd.editor.getState().scene.lighting.timeOfDay);
+    const before = await hour();
+    await page.locator('button.pill.small[aria-label="Night"]').click();
+    check('the Night button sets a night hour and the app knows it is night', (await hour()) > 20 && (await page.locator('.app[data-night]').count()) === 1);
+    check('the button now says Day', (await page.locator('button.pill.small[aria-label="Day"]').getAttribute('aria-pressed')) === 'true');
+    await page.locator('button.pill.small[aria-label="Day"]').click();
+    check('Day goes back to the hour you had', Math.abs((await hour()) - before) < 1e-9);
+    check('no page errors with trees and the night scene', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
+  // Walking up and down every kind of stair (the walker follows the steps and ends on the right floor).
+  {
+    const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?view=3d');
+    await page.waitForFunction(() => window.__hd && window.__hd.core);
+    const walk = async (kind, mirror, down) =>
+      page.evaluate(
+        async ({ kind, mirror, down }) => {
+          const { editor: ed, core, useUi, walkPose, walkInput, rememberPose } = window.__hd;
+          useUi.getState().setWalk(false);
+          await new Promise((r) => setTimeout(r, 500)); // let the walker finish leaving (it remembers where it stood)
+          ed.execute(core.clearHome(null));
+          const L0 = ed.getState().scene.levelOrder[0];
+          ed.execute(core.batch('shell', [[0, 0], [12, 0], [12, 10], [0, 10]].map((p, i, a) => core.addWall({ levelId: L0, from: p, to: a[(i + 1) % 4], kind: 'exterior' }))));
+          ed.execute(core.addStairAssembly({ fromLevel: L0, origin: [4, 6], kind, mirror, rotationY: 0 }));
+          const sc = ed.getState().scene;
+          const st = Object.values(sc.stairs)[0];
+          const layout = core.layoutOf(sc, st);
+          const o = st.origin;
+          const pts = layout.treads.map((t) => {
+            const c = t.centre ?? [(t.rect[0] + t.rect[2]) / 2, (t.rect[1] + t.rect[3]) / 2];
+            return [o[0] + c[0], o[2] + c[1]];
+          });
+          const last = layout.treads.at(-1);
+          const after = [pts.at(-1)[0] + last.dir[0] * 0.9, pts.at(-1)[1] + last.dir[1] * 0.9];
+          let start;
+          if (layout.spiral) {
+            const gap = 2 * Math.PI - Math.abs(layout.treads.length * layout.spiral.delta);
+            const th = (-Math.sign(layout.spiral.delta) * gap) / 2;
+            start = [o[0] + 0.9 * Math.sin(th), o[2] + 0.9 * Math.cos(th)];
+          } else {
+            const d = [pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]];
+            const l = Math.hypot(...d);
+            start = [pts[0][0] - (d[0] / l) * 0.9, pts[0][1] - (d[1] / l) * 0.9];
+          }
+          const level1 = sc.levelOrder[1];
+          const path = down ? [after, ...pts.slice().reverse(), start] : [...pts, after];
+          ed.setActiveLevel(down ? level1 : L0);
+          const from = down ? after : start;
+          rememberPose({ x: from[0], z: from[1], yaw: 0 });
+          useUi.getState().setWalk(true);
+          await new Promise((r) => setTimeout(r, 600));
+          let idx = 0;
+          let stuck = 0;
+          let lastPos = [walkPose.getState().x, walkPose.getState().z];
+          const t0 = performance.now();
+          while (performance.now() - t0 < 40000 && idx < path.length) {
+            const p = walkPose.getState();
+            const tx = path[idx][0] - p.x;
+            const tz = path[idx][1] - p.z;
+            if (Math.hypot(tx, tz) < 0.25) {
+              idx++;
+              continue;
+            }
+            let diff = Math.atan2(-tx, -tz) - p.yaw;
+            while (diff > Math.PI) diff -= 2 * Math.PI;
+            while (diff < -Math.PI) diff += 2 * Math.PI;
+            if (walkInput.lookYaw === 0) walkInput.lookYaw = diff * 0.6;
+            walkInput.joyY = Math.abs(diff) > 0.8 ? 0 : 1;
+            await new Promise((r) => setTimeout(r, 40));
+            if (Math.hypot(p.x - lastPos[0], p.z - lastPos[1]) < 0.002) stuck++;
+            else stuck = 0;
+            lastPos = [p.x, p.z];
+            if (stuck > 80) break;
+          }
+          walkInput.joyY = 0;
+          await new Promise((r) => setTimeout(r, 800));
+          const p = walkPose.getState();
+          return { done: idx >= path.length - 1, idx, of: path.length, y: p.y, onUpper: ed.getState().activeLevelId === level1, upperEye: sc.levels[level1].elevation + 1.65 };
+        },
+        { kind, mirror, down },
+      );
+    for (const [kind, mirror] of [['straight', false], ['U', true], ['spiral', false]]) {
+      const up = await walk(kind, mirror, false);
+      check(`walking up ${kind} stairs${mirror ? ' (turning right)' : ''} reaches the upper floor`, up.done && up.onUpper && Math.abs(up.y - up.upperEye) < 0.05, JSON.stringify(up));
+    }
+    const dn = await walk('L', false, true);
+    check('walking down L stairs ends on the ground floor', dn.done && !dn.onUpper && Math.abs(dn.y - 1.65) < 0.05, JSON.stringify(dn));
+    check('no page errors while walking the stairs', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
   // ---------------------------------------------------------------- 2u. lamps and night
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
@@ -1899,7 +2233,7 @@ try {
     await page.getByRole('button', { name: 'Display' }).click();
     const lamps = page.getByRole('group', { name: 'Lamps' });
     check('Display has a Lamps setting (auto by default)', (await lamps.getByRole('button', { name: 'Lamps: auto' }).getAttribute('aria-pressed')) === 'true');
-    await page.getByRole('button', { name: 'Night' }).click();
+    await page.getByRole('group', { name: 'Display' }).getByRole('button', { name: 'Night' }).click();
     await page.waitForTimeout(2500);
     const lights = () => page.evaluate(() => window.__hd.useUi.getState().lights);
     await lamps.getByRole('button', { name: 'Off' }).click();

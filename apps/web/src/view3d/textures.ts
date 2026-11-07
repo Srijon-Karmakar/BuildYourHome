@@ -443,3 +443,107 @@ export function rippleNormal(size = 128): THREE.CanvasTexture {
   cache.set(key, tex);
   return tex;
 }
+
+// ------------------------------------------------------------------------------------------------
+// Roofing: laid out in metres along the roof face (u along the eave, v up the slope), tinted by the material colour.
+// ------------------------------------------------------------------------------------------------
+
+export const ROOF_TILE_M = 1.0;
+
+/** Rows of overlapping clay tiles: each tile has a lit top edge and a shadow where the next row overlaps it. */
+export function roofTileTexture(size: number): THREE.CanvasTexture {
+  const key = `rooftile:${size}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d')!;
+  const rnd = mulberry32(31);
+  const rows = 5;
+  const cols = 5;
+  const rh = size / rows;
+  const cw = size / cols;
+  g.fillStyle = '#9a9a9a';
+  g.fillRect(0, 0, size, size);
+  for (let r = 0; r < rows; r++) {
+    for (let k = -1; k <= cols; k++) {
+      const x = k * cw + (r % 2 ? cw / 2 : 0);
+      const v = 205 + Math.round((rnd() - 0.5) * 36);
+      g.fillStyle = `rgb(${v},${v},${v})`;
+      g.fillRect(x + 1, r * rh, cw - 2, rh);
+      const grad = g.createLinearGradient(0, r * rh, 0, (r + 1) * rh);
+      grad.addColorStop(0, 'rgba(0,0,0,0)');
+      grad.addColorStop(0.7, 'rgba(0,0,0,0.05)');
+      grad.addColorStop(1, 'rgba(0,0,0,0.42)');
+      g.fillStyle = grad;
+      g.fillRect(x + 1, r * rh, cw - 2, rh);
+      g.fillStyle = 'rgba(0,0,0,0.25)'; // the rib between two tiles
+      g.fillRect(x + cw / 2 - 1, r * rh, 2, rh * 0.9);
+    }
+  }
+  const tex = finish(c, true);
+  tex.repeat.set(1 / ROOF_TILE_M, 1 / ROOF_TILE_M);
+  cache.set(key, tex);
+  return tex;
+}
+
+/** Asphalt / slate shingles: staggered rows of rectangular tabs with notches. */
+export function shingleTexture(size: number): THREE.CanvasTexture {
+  const key = `shingle:${size}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d')!;
+  const rnd = mulberry32(37);
+  const rows = 6;
+  const cols = 4;
+  const rh = size / rows;
+  const cw = size / cols;
+  g.fillStyle = '#8c8c8c';
+  g.fillRect(0, 0, size, size);
+  for (let r = 0; r < rows; r++) {
+    for (let k = -1; k <= cols; k++) {
+      const x = k * cw + (r % 2 ? cw / 2 : 0);
+      const v = 200 + Math.round((rnd() - 0.5) * 44);
+      g.fillStyle = `rgb(${v},${v},${v})`;
+      g.fillRect(x + 1.5, r * rh + 1, cw - 3, rh - 1);
+      g.fillStyle = 'rgba(0,0,0,0.3)';
+      g.fillRect(x + 1.5, (r + 1) * rh - 3, cw - 3, 3);
+    }
+  }
+  const tex = finish(c, true);
+  tex.repeat.set(1 / ROOF_TILE_M, 1 / ROOF_TILE_M);
+  cache.set(key, tex);
+  return tex;
+}
+
+/** Standing-seam metal: raised ribs running up the slope every 40 cm. */
+export function seamTexture(size: number): THREE.CanvasTexture {
+  const key = `seam:${size}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#e4e4e4';
+  g.fillRect(0, 0, size, size);
+  const ribs = 3;
+  const pitch = size / ribs;
+  for (let k = 0; k < ribs; k++) {
+    const x = k * pitch;
+    g.fillStyle = 'rgba(255,255,255,0.8)';
+    g.fillRect(x, 0, size * 0.012, size);
+    g.fillStyle = 'rgba(0,0,0,0.38)';
+    g.fillRect(x + size * 0.012, 0, size * 0.014, size);
+    const grad = g.createLinearGradient(x + size * 0.03, 0, x + pitch, 0);
+    grad.addColorStop(0, 'rgba(0,0,0,0.0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.07)');
+    g.fillStyle = grad;
+    g.fillRect(x + size * 0.03, 0, pitch - size * 0.03, size);
+  }
+  const tex = finish(c, true);
+  tex.repeat.set(1 / 1.2, 1 / ROOF_TILE_M);
+  cache.set(key, tex);
+  return tex;
+}

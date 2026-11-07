@@ -6,6 +6,7 @@ import { downloadBlob } from '../export/files';
 import { ExportError, makeDxf, makePicture, makePdf, makeProject, needsPremium, shareFile, type ExportKind, type MadeFile } from '../export/make';
 import type { Paper } from '../export/pdfPlan';
 import { Segmented } from './fields';
+import { usePwa } from '../lib/pwa';
 
 const ROWS: { id: ExportKind; title: string; hint: string }[] = [
   { id: 'project', title: 'Home file', hint: 'Everything, to keep or send. Opens again in this app.' },
@@ -28,6 +29,7 @@ export function ShareDialog() {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const premium = !!(ent.subscribed || ent.gifted);
+  const online = usePwa((s) => s.online);
 
   useEffect(() => {
     if (!open) return;
@@ -122,7 +124,7 @@ export function ShareDialog() {
           <strong>Link</strong>
           {!session ? (
             <>
-              <small className="fine">Sign in to get a link anyone can open to look around your home.</small>
+              <small className="fine">{online ? 'Sign in to get a link anyone can open to look around your home.' : 'You are offline. Signing in and links need the internet; the files above work without it.'}</small>
               <button
                 type="button"
                 className="pill small"
@@ -157,8 +159,8 @@ export function ShareDialog() {
             </>
           ) : (
             <>
-              <small className="fine">Saves your home online and makes a link that shows it, view only.</small>
-              <button type="button" className="pill small solid" data-share="make-link" onClick={() => void useCloud.getState().share()}>
+              <small className="fine">{online ? 'Saves your home online and makes a link that shows it, view only.' : 'You are offline. A link needs the internet; the files above work without it.'}</small>
+              <button type="button" className="pill small solid" data-share="make-link" disabled={!online} onClick={() => void useCloud.getState().share()}>
                 Create link
               </button>
             </>

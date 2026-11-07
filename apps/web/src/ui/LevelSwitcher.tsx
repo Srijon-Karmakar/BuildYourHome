@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
-import { addLevel, copyLevel, removeLevel, setLevelProps, setRoof } from '@hd/editor-core';
+import { addLevel, copyLevel, removeLevel, setAutoRoofs, setLevelProps, setRoof, updateRoofs, type RoofInput } from '@hd/editor-core';
 import { materialsFor } from '../view3d/placeholderMaterials';
 import { editor, useUi } from '../plan/session';
 import { AngleField, LengthField, Segmented, Swatches, TextField } from './fields';
 import { GooGroup } from './Goo';
 import { ViewsMenu } from './ViewsMenu';
+import { NightButton } from './NightButton';
 
 /** One-glyph label for the narrow floor selector on phones: Ground floor → G, Floor 2 → 2, otherwise the initial. */
 function shortName(name: string): string {
@@ -60,7 +61,19 @@ export function LevelSwitcher() {
 
   const current = levels[active];
   if (!current) return null;
-  const roof = Object.values(roofs).find((r) => r.levelId === active);
+  const floorRoofs = Object.values(roofs).filter((r) => r.levelId === active);
+  const roof = floorRoofs[0];
+  const sameStyle = floorRoofs.length > 0 && floorRoofs.every((r) => r.style === roof!.style);
+  /** Quick roof edit for the whole floor (the full roof designer is in the properties card). */
+  const setFloorRoof = (props: RoofInput) => {
+    if (props.style === 'none') return editor.execute(setRoof(active, props));
+    const idsNow = () => Object.values(editor.getState().scene.roofs).filter((r) => r.levelId === active).map((r) => r.id);
+    if (idsNow().length === 0) {
+      editor.execute(setAutoRoofs(active, true));
+      if (idsNow().length === 0) return editor.execute(setRoof(active, props)); // nothing to follow yet: one roof over the floor
+    }
+    return editor.execute(updateRoofs(idsNow(), props));
+  };
 
   /** Run a command that creates a floor, then switch to it. */
   const addAndGo = (cmd: Parameters<typeof editor.execute>[0]) => {
@@ -131,6 +144,7 @@ export function LevelSwitcher() {
         </button>
       )}
 
+      {view !== '2d' && <NightButton />}
       {view !== '2d' && <ViewsMenu />}
       {open && (
         <div className="popover above" role="group" aria-label="Floor settings">
@@ -151,7 +165,7 @@ export function LevelSwitcher() {
             <>
               <Segmented
                 label="Roof"
-                value={roof?.style ?? 'none'}
+                value={roof ? (sameStyle ? roof.style : '') : 'none'}
                 options={[
                   { id: 'none', label: 'None' },
                   { id: 'flat', label: 'Flat' },
@@ -162,7 +176,7 @@ export function LevelSwitcher() {
                   { id: 'mansard', label: 'Mansard' },
                   { id: 'barrel', label: 'Barrel' },
                 ]}
-                onChange={(style) => editor.execute(setRoof(active, { style }))}
+                onChange={(style) => setFloorRoof({ style: style as RoofInput['style'] })}
               />
               {roof && (
                 <>
@@ -170,7 +184,7 @@ export function LevelSwitcher() {
                     <AngleField
                       label="Slope"
                       value={roof.pitchDeg}
-                      onCommit={(pitchDeg) => editor.execute(setRoof(active, { pitchDeg }))}
+                      onCommit={(pitchDeg) => setFloorRoof({ pitchDeg })}
                     />
                   )}
                   <LengthField
@@ -179,19 +193,19 @@ export function LevelSwitcher() {
                     min={0}
                     max={1.5}
                     step={0.05}
-                    onCommit={(overhang) => editor.execute(setRoof(active, { overhang }))}
+                    onCommit={(overhang) => setFloorRoof({ overhang })}
                   />
                   <Swatches
                     label="Roof material"
                     items={materialsFor('roof')}
                     value={roof.material.id}
-                    onPick={(materialId) => editor.execute(setRoof(active, { materialId }))}
+                    onPick={(materialId) => setFloorRoof({ materialId })}
                   />
                   {(roof.style === 'gable' || roof.style === 'hip') && (
                     <button
                       type="button"
                       className="pill small"
-                      onClick={() => editor.execute(setRoof(active, { swap: !roof.ridgeAngle }))}
+                      onClick={() => setFloorRoof({ swap: !roof.ridgeAngle })}
                     >
                       Turn the ridge 90°
                     </button>

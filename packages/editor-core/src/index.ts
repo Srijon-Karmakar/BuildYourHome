@@ -9,3 +9,5 @@ export * from './placement';
 export * from './itemColliders';
 export * from './snapping';
 export * from './tools/wallTool';
+export { syncRoofs, roofParts } from './roofSync';
+export { syncStairs, snapStairToWalls } from './stairSync';

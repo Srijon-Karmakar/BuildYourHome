@@ -6,6 +6,7 @@ import { DisplayMenu } from './DisplayMenu';
 import { useSaveStatus } from '../lib/persistence';
 import { HomeMenu } from './HomeMenu';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { usePwa } from '../lib/pwa';
 import { BrandLogo } from './BrandLogo';
 import iconUrl from '../assets/plotframer-icon.png?inline';
 import { GooGroup } from './Goo';
@@ -25,9 +26,12 @@ const SAVE_TEXT = {
 
 function SaveState() {
   const status = useSaveStatus((s) => s.status);
+  const online = usePwa((s) => s.online);
+  // Offline the home is still saved on this device; sign-in, sync and sharing wait for the connection.
+  const text = !online && status !== 'error' ? 'Offline · saved on this device' : SAVE_TEXT[status];
   return (
-    <small className={`save-state ${status}`} role="status">
-      {SAVE_TEXT[status]}
+    <small className={`save-state ${status}${online ? '' : ' offline'}`} role="status">
+      {text}
     </small>
   );
 }

@@ -29,6 +29,50 @@ Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-
 
 ## Log
 
+### [2026-11-07] Trees, accurate stairs, night scene
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified (430/430 browser checks; unit tests geometry 94, editor-core 183, web 151; typecheck, lint clean). Looked at screenshots of the trees (eleven kinds, young / mature / autumn), the night scene and the moon. Design in ADR-026.
+- **Trees.** New models for the trees (mango, neem, gulmohar, cherry blossom, oak, fruit tree, shade tree, birch, cypress, willow, banyan, potted olive): lumpy shaded foliage, tapered trunks with limbs, fruit and flowers; banyan with hanging roots, willow with curtains. **Seasons** in the colour picker (spring, deep green, autumn gold / red, blossom pink, winter frost). The edit card for a tree has **Growth** (sapling / young / grown / mature), **Height** and **Crown width**; the Smaller / Bigger bar works below the furniture limit for trees.
+- **Stairs, made accurate.** (1) The hole in the upper floor now matches the stairs even when they only partly overlap a room. (2) Stairs always join their floor to the floor directly above; the "needs a room" warning is about the place you step off. (3) Walking: all stair kinds were walked up and down in a browser test; the only fault found was the spiral, whose entrance was blocked by its own top steps: it now turns 300° at most. (4) Placing and dragging snaps stairs flush to nearby walls.
+- **Night scene.** **Night** button in the bottom row (3D and walk): dark sky with stars, a moon with a soft glow that crosses from east to west, cool moonlight, haze, lamps on and windows glowing; **Day** brings back the hour you had. The logo gets a light backing over the dark sky. (Display › Night and the time slider still work.)
+- **Files:** `view3d/furniture/trees.ts`, `view3d/NightSky.tsx`, `view3d/sun.ts`, `ui/{NightButton,TreeSize}.tsx`, `editor-core/src/{stairSync,commands/stairs,commands/items}.ts`, `plan/PlanController.ts`, `packages/assets` (`TREE_SEASONS`).
+- **Next step:** Phase 4 (phone app) when the developer accounts are ready; owner items unchanged.
+
+### [2026-11-07] More railing choices
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified (416/416 browser checks; geometry unit tests 94; typecheck, lint clean). Looked at a screenshot of four styles side by side.
+- **What:** stairs with a railing now have a **Railing** card with: **style** (balusters, horizontal cables, glass, solid panel, open = handrail and posts only), **colour** (10: oak, walnut, teak, black, white, brass, chrome, bronze, green, navy), **handrail** (round, flat, wide), **height** (60 cm to 1.3 m), **spacing** (close / normal / wide), **posts** (slim / standard / chunky), **rail on** (both sides, left only, right only; spiral stairs always keep the outer rail), **glass tint** (clear, blue, green, smoked, frosted) and **Reset railing options**. Works for several selected stairs at once. Stored in `Stair.railingOpts` (all optional, so older homes look the same); built by `buildStairRailing(layout, options)`.
+- **Redeem code (owner question):** the only built-in code is `HOME-DEMO`, and it works only in the demo / offline backend. Real codes are stored as hashes in Supabase, so they can't be read back: create one with the SQL template at the bottom of `services/supabase/migrations/0003_redeem_codes.sql`.
+
+### [2026-11-07] Ready-made homes gallery and the offline app (P2-05, P2-06)
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified (410/410 browser checks; unit tests geometry 92, editor-core 180, web 149, assets 10, schema 8; typecheck, lint, build clean; `pnpm e2e:offline` 12/12 against the built app). Design in ADR-025.
+- **Ready-made homes.** A gallery with a plan picture on every card, filters (All, Flats, Houses, Villas, Shops & offices), bed / bath / area facts and a "2 floors" badge. Opens from the welcome screen (**Ready-made homes** card) and from **Home › Ready-made homes**; with a home open the first tap asks, the second replaces it. Nine homes, all furnished, roofed and lit: 1 BHK, 2 BHK and 3 BHK flats (balconies), duplex apartment (two floors, staircase), 2 BHK house with garden, 4 BHK two-floor house (stairs, garden, car porch, compound wall, gate), villa with pool (gazebo, lawn, trees, carport, two floors), shop (counter, shelves, store, toilet), office (two cabins, meeting room, open office, reception, pantry, washrooms). Also fixed a furniture overlap in the Kitchen ready-made room.
+- **Offline app.** Installable (manifest, icons, **Install the app** in the Home menu) and opens with no internet after the first visit; the editor, plan, 3D, gallery, save to file and export all work offline; the top bar says "Offline · saved on this device"; cloud sync pauses and catches up when the connection returns; sign-in and share links explain they need the internet. A missing optional 3D effects file no longer blanks the app.
+- **Files:** `plan/samples.ts` (+ test), `ui/SamplesGallery.tsx`, `lib/pwa.ts`, `public/manifest.webmanifest` + icons, `sw.template.js`, `vite.config.ts`, `e2e/offline.mjs`, `ui/{TopBar,FileActions,ShareDialog,Welcome}`, `cloud/store.ts`.
+- **Next step:** Phase 4: the phone app (Capacitor), real ads and billing, store listings. Needs the owner's Apple / Google developer accounts. Owner items unchanged: phone benchmark, Supabase migrations + redeem code + live test, Google sign-in client, privacy / terms pages.
+
+### [2026-11-07] Stair railings, spiral stairs, roof dormers
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified (402/402 browser checks; unit tests geometry 91, editor-core 180, web 95; typecheck, lint, build clean). Looked at screenshots of every shape.
+- **Railings.** Every stair can have a rail on all open sides: handrail that follows the steps up to the upper floor, posts, balusters (or glass panels), round the landing and the stairwell, open only where you step on and off. Choose None / Wood / Metal / Glass in the stairs card; new stairs get wood; homes saved before keep no rail until you pick one (`Stair.railing`, `buildStairRailing`).
+- **Spiral stairs.** New shape **Spiral** (also in the Stairs tool bar): wedge steps round a centre pole, at most one turn, turn left or right, step length = the Width field; helical rail, centre pole, round opening in the floor above; the ready-made room above, the walker, the plan drawing and the DXF/PDF all work with it. The stair's origin is the centre of the spiral.
+- **Dormers.** Gable and hip roofs can get up to 6 dormer windows (roof card: + Add a dormer; front / back slope, position along the ridge, wider / narrower, remove): a small gabled front in the wall colour, a window with frame, sill and glass, two small roof slopes. They need a roof of about 30° or more; flatter roofs skip them (a hint is shown).
+- **Files:** `packages/geometry/src/stairs/stairs.ts` (spiral, `buildStairRailing`), `roof/roof.ts` (dormers, `glass` slot), `scene-schema` (`Stair.railing`, kind `spiral`, `Roof.dormers`), `editor-core` (`stairHall`, `roof`), `apps/web` `view3d/{StairMesh,RoofMesh}`, `ui/{Inspector,RoofPanel,BottomBar}`, `plan/render`, `export/drawing`.
+- **Next step (owner chose these earlier):** ready-made sample houses (1/2/3 BHK flats, independent houses, villa with garden and pool, shop / office / duplex) in a gallery with pictures (P2-05), then the offline app (P2-06; everything except sign-in and sharing).
+
+### [2026-11-07] Owner feedback — roofs, sunshades, stairs, walk view, lights, mobile speed
+- **Model/Author:** Claude Sonnet 5.5
+- **Status:** Done and verified (395/395 browser checks; unit tests geometry 83, editor-core 180, web 95, assets 10, schema 8; typecheck, lint clean). Architecture in ADR-024. Phone speed was measured by draw calls and triangles only; **a run on a real phone is still needed** (Display > benchmark).
+- **1 Roofs.** Every floor now gets its roofs by itself and keeps them in step with the rooms (L-shaped house = two parts; a lower floor is roofed only where the floor above does not cover it). The Roof button opens a **roof designer**: shape (7), slope, overhang, separate gable-end overhang, edge thickness, parapet (flat), material (28), trim colour, gable-wall colour, ridge cap, gutters, chimney, turn 90°, "Same on this whole floor", Automatic / Make automatic, Rebuild roofs; and **Own roof for this room** in the room card (hand-made, the automatic roof carries on over the rest). Look: roof plates with a real edge, painted fascia, wall-coloured gable ends, rows of tiles / shingles / standing seams that follow the slope. Old homes keep their roof unchanged.
+- **2 Sunshades.** (Read "sunset" as sunshade, confirmed in the question round.) Doors and windows get a **Sunshade**: chajja slab, awning, louvre or canopy on columns (doors), with depth and colour; on the outside face, dashed on the plan.
+- **3 Stairs.** Placing stairs now builds the floor above if missing, a **room with a door round the top** (so the floor opens and you can step off) and, with **All floors**, a flight on every floor; "Room above" can be switched off. Selected stairs: **Build the room above** and **Continue stairs up**.
+- **4 Walk.** View panel: **field of view** (50-110°, default 80° instead of 50°) and **eye height** (child / adult / tall or any), remembered.
+- **5 Lights.** 10 new fittings (Lighting category, now 20+): recessed downlight, LED panel, pendant cluster, linear pendant, globe pendant, cove strip, under-cabinet strip, picture light, desk lamp, garden bollard. Downlights, panels, picture lights, uplighters and track lights are **spot lights** that throw a cone; each has its own colour (warm / neutral / cool). Medium keeps 3 point + 2 spot real lights (phones 2 + 2), High 6 + 3.
+- **6 Mobile speed.** Furniture merged per material (sample home 291 → 30 draw calls), shadow map redrawn only on change (walk and orbit no longer draw the whole scene twice every frame), phones: pixel ratio capped at 1.25 on Medium, basic (not soft) shadows, fewer real lights.
+- **Also:** top bar and rail layout fixes from the last round; `window.__hd.core` (dev only) for browser tests.
+- **Next step:** owner: run the phone benchmark and say if it is smooth. Then P2-05 templates, P2-06 offline app, Phase 4. Ideas left: stair railings, roof dormers, true spiral stairs.
+
 ### [2026-11-06] More materials, realism pass, saved views and layers
 - **Model/Author:** Claude Sonnet 5.5
 - **Status:** Done and verified (379/379 browser checks; editor-core 165, web 94 unit tests; typecheck, lint clean). Looked at day and night screenshots at High quality.
@@ -516,3 +560,8 @@ Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-
 - Owner decision: the app is named **PlotFramer** (replaces the "HomeDesigner" placeholder, Q8). User-facing strings updated: page title, logo alt/aria-labels, tour welcome, PDF footer/producer, perf report, file-error text; docs renamed.
 - Deliberately unchanged: IndexedDB name `home-designer`, package names `@hd/*` / `home-designer` (renaming would orphan saved projects / churn the lockfile), folder name.
 - Favicon + apple-touch icon now the PlotFramer icon (light ink).
+
+## Tool bar: Edit / Hand toggle tidied (desktop)
+- The Edit/Hand pair on the left tool bar was two 29px buttons with 8px labels, off-centre against the tools below. It is now one icon-only toggle (58px wide = same column as the tools, 3px inset track, 34px segments, white goo blob on the active one). Names stay as tooltips/aria-labels. Phone bottom bar unchanged. CSS only (end of `styles.css`).
+- Smoke test: 395/395 after the change (one earlier run crashed on `window.__hd` right after a hot reload; the re-run was clean).
+- Open: on windows shorter than ~900px the tool strip scrolls and the last tool shows cut off with no hint.

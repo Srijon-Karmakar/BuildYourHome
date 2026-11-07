@@ -3,6 +3,8 @@ import { OPENING_END_MARGIN_M } from '@hd/geometry';
 import { OPENING_GAP_M, OPENING_HEAD_CLEARANCE_M, wallLength } from './openings';
 import { restackLevels } from './commands/levels';
 import { syncRooms } from './rooms';
+import { syncRoofs } from './roofSync';
+import { syncStairs } from './stairSync';
 
 /**
  * Run after every command to restore invariants, so commands stay simple.
@@ -79,4 +81,6 @@ export function postProcess(d: Scene): void {
 
   // 5. Rooms are derived from closed wall loops (identity carried across edits).
   syncRooms(d);
+  syncRoofs(d); // roof parts follow the rooms (floors with automatic roofs only)
+  syncStairs(d); // every stair joins its floor to the floor directly above it
 }

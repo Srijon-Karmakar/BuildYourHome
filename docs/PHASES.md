@@ -44,8 +44,8 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 - [x] P2-02 (email/password; Google OAuth + reset still to do) Auth (email + Google), profile
 - [x] P2-03 (autosave sync + project list; thumbnails and conflict dialog still to do) Cloud save/sync + conflict handling + project dashboard w/ thumbnails
 - [x] P2-04 Share links + read-only viewer
-- [ ] P2-05 Templates / sample houses
-- [ ] P2-06 PWA (offline shell, install prompt)
+- [x] P2-05 Templates / sample houses: gallery of 9 ready-made homes with plan pictures (ADR-025)
+- [x] P2-06 PWA: installable, opens offline after the first visit, offline notice, sync catches up (ADR-025)
 - [ ] P2-07 Error tracking + analytics
 - [x] P2-08 (client rules + badges + upsell; server tables in SQL) Entitlement service + DB tables (`subscriptions`, `unlocks`), lock badges, upsell sheet (ADR-011)
 - [x] P2-09 (demo ads; real network later) `AdProvider` abstraction + mock provider; ad placements rules (free tier only, never mid-edit)
@@ -60,6 +60,9 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 - [x] P3-04 Realism pass: photo textures, sky, AO, contact shadows, glossy clear-coat floors, glass, ripple water, lamp bloom at night (planar reflections and baked AO lightmaps deliberately left out for phone speed; ADR-021)
 - [x] P3-05 Export PNG + scaled PDF plan + DXF; saved viewpoints; layer visibility panel (FR-905)
 - [x] P3-06 Catalog growth: 254 items in 13 categories (incl. Appliances, Kids, Trees & nature, Scenery), about 190 materials, 7 door + 5 window styles, 12 ready-made rooms, 5 environments (target was ≈ 250 items; materials target met)
+- [x] P3-07 Owner feedback round 4: automatic roofs per floor + roof designer, sunshades, stairs that build their own room, walk field of view / eye height, spot-light fittings, phone speed (ADR-024)
+- [x] P3-08 Stair railings (wood / metal / glass), spiral stairs, roof dormer windows
+- [x] P3-09 Trees with real crowns, seasons and sizes; exact stair linking and snapping; night scene (ADR-026)
 **Exit:** an exterior "hero view" looks good on high tier and runs on low tier.
 
 ## Phase 4 — Mobile app & polish (≈ 3–4 weeks)

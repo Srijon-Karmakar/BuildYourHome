@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildStairMesh,
+  buildStairRailing,
+  RAIL_HEIGHT_M,
   isSimplePolygon,
   RISER_M,
   stairHeightAt,
@@ -152,5 +154,142 @@ describe('stairs: mesh', () => {
       const dot = n[0]! * m.normals[a * 3]! + n[1]! * m.normals[a * 3 + 1]! + n[2]! * m.normals[a * 3 + 2]!;
       expect(dot).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('spiral stairs', () => {
+  const L = stairLayout({ kind: 'spiral', width: 0.9, rise: 3, mirror: false });
+
+  it('turns less than a full circle on wedge steps that climb one riser each', () => {
+    expect(L.kind).toBe('spiral');
+    expect(L.treads.length).toBe(L.risers - 1);
+    expect(Math.abs(L.spiral!.delta * L.treads.length)).toBeLessThan(2 * Math.PI);
+    L.treads.forEach((t, i) => {
+      expect(t.height).toBeCloseTo((i + 1) * L.riserHeight, 6);
+      expect(t.poly!.length).toBe(6);
+    });
+    // the outline is the circle the steps turn on
+    const r = L.spiral!.radius;
+    for (const p of L.outline) expect(Math.hypot(p[0], p[1])).toBeCloseTo(r, 6);
+  });
+
+  it('the height under a point follows the wedge it is on, and nothing is under the pole gap or outside', () => {
+    for (const t of L.treads) {
+      const c = t.centre!;
+      expect(stairHeightAt(L, c)).toBeCloseTo(t.height, 6);
+    }
+    expect(stairHeightAt(L, [L.spiral!.radius + 0.5, 0])).toBeNull();
+    expect(stairHeightAt(L, [0, 0])).toBeNull(); // the pole
+  });
+
+  it('mirrored stairs turn the other way', () => {
+    const M = stairLayout({ kind: 'spiral', width: 0.9, rise: 3, mirror: true });
+    expect(Math.sign(M.spiral!.delta)).toBe(-Math.sign(L.spiral!.delta));
+  });
+
+  it('builds a solid with wedge steps', () => {
+    const m = buildStairMesh(L);
+    expect(m.indices.length).toBeGreaterThan(L.treads.length * 3 * 6);
+  });
+});
+
+describe('railings', () => {
+  const sum = (m: ReturnType<typeof buildStairRailing>) => m!.groups.reduce((n, g) => n + g.count, 0);
+
+  it('every kind gets a rail; the entrance and the exit stay open', () => {
+    for (const kind of ['straight', 'L', 'U', 'spiral'] as const) {
+      const lay = stairLayout({ kind, width: 1, rise: 3 });
+      const m = buildStairRailing(lay)!;
+      expect(m, kind).toBeTruthy();
+      expect(sum(m), kind).toBe(m.indices.length);
+      expect(m.groups[0]!.slot).toBe('frame');
+    }
+  });
+
+  it('a straight stair has a rail on both sides, rising with the steps up to the upper floor and no rail across the ends', () => {
+    const lay = stairLayout({ kind: 'straight', width: 1, rise: 3 });
+    const m = buildStairRailing(lay)!;
+    let top = -Infinity;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (let i = 0; i < m.positions.length; i += 3) {
+      top = Math.max(top, m.positions[i + 1]!);
+      minX = Math.min(minX, m.positions[i]!);
+      maxX = Math.max(maxX, m.positions[i]!);
+    }
+    expect(top).toBeCloseTo(lay.rise + RAIL_HEIGHT_M + 0.02, 1);
+    expect(minX).toBeLessThan(-0.45);
+    expect(maxX).toBeGreaterThan(0.45);
+    // no geometry across the bottom of the stair (z > 0.05) and none past the top edge
+    const len = (lay.treads.length) * 0.28;
+    for (let i = 0; i < m.positions.length; i += 3) {
+      expect(m.positions[i + 2]!).toBeLessThan(0.06);
+      expect(m.positions[i + 2]!).toBeGreaterThan(-len - 0.06);
+    }
+  });
+
+  it('glass railings use panels instead of balusters', () => {
+    const lay = stairLayout({ kind: 'L', width: 1, rise: 3 });
+    const wood = buildStairRailing(lay, false)!;
+    const glass = buildStairRailing(lay, true)!;
+    expect(wood.groups.some((g) => g.slot === 'glass')).toBe(false);
+    expect(glass.groups.some((g) => g.slot === 'glass')).toBe(true);
+    expect(glass.indices.length).toBeLessThan(wood.indices.length);
+  });
+
+  it('normals face away from the solid', () => {
+    const m = buildStairRailing(stairLayout({ kind: 'U', width: 1, rise: 3 }))!;
+    for (let i = 0; i < m.indices.length; i += 3) {
+      const a = m.indices[i]!, b = m.indices[i + 1]!, c = m.indices[i + 2]!;
+      const P = m.positions;
+      const e1 = [0, 1, 2].map((k) => P[b * 3 + k]! - P[a * 3 + k]!);
+      const e2 = [0, 1, 2].map((k) => P[c * 3 + k]! - P[a * 3 + k]!);
+      const cr = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+      expect(cr[0]! * m.normals[a * 3]! + cr[1]! * m.normals[a * 3 + 1]! + cr[2]! * m.normals[a * 3 + 2]!).toBeGreaterThan(0);
+    }
+  });
+
+  it('options: infill, height, spacing, handrail and sides change the railing', () => {
+    const lay = stairLayout({ kind: 'U', width: 1, rise: 3 });
+    const count = (o: Parameters<typeof buildStairRailing>[1]) => buildStairRailing(lay, o)!.indices.length;
+    const top = (o: Parameters<typeof buildStairRailing>[1]) => {
+      const m = buildStairRailing(lay, o)!;
+      let t = -Infinity;
+      for (let i = 1; i < m.positions.length; i += 3) t = Math.max(t, m.positions[i]!);
+      return t;
+    };
+    // tighter balusters means more geometry; wider means less
+    expect(count({ gap: 0.08 })).toBeGreaterThan(count({ gap: 0.12 }));
+    expect(count({ gap: 0.25 })).toBeLessThan(count({ gap: 0.12 }));
+    // height moves the handrail
+    expect(top({ height: 1.1 })).toBeCloseTo(top({ height: 0.9 }) + 0.2, 2);
+    // an open railing has only the handrail and posts
+    expect(count({ infill: 'none' })).toBeLessThan(count({ infill: 'balusters' }));
+    // cables, glass and solid panels use their own groups
+    expect(buildStairRailing(lay, { infill: 'glass' })!.groups.map((g) => g.slot)).toContain('glass');
+    expect(buildStairRailing(lay, { infill: 'solid' })!.groups.map((g) => g.slot)).toContain('panel');
+    expect(count({ infill: 'cables' })).toBeGreaterThan(count({ infill: 'none' }));
+    // a round handrail is a prism with more faces than the flat one
+    expect(count({ handrail: 'round' })).toBeGreaterThan(count({ handrail: 'flat' }));
+    // one side only: about half the geometry, and the other side is empty of posts
+    const both = count({ sides: 'both' });
+    const left = count({ sides: 'left' });
+    const right = count({ sides: 'right' });
+    expect(left).toBeLessThan(both);
+    expect(right).toBeLessThan(both);
+    expect(left + right).toBeGreaterThanOrEqual(both - 200);
+    // a spiral always keeps its outer rail
+    const sp = stairLayout({ kind: 'spiral', width: 1, rise: 3 });
+    expect(buildStairRailing(sp, { sides: 'left' })).toBeTruthy();
+  });
+
+  it('on a straight stair left is left of the climber', () => {
+    const lay = stairLayout({ kind: 'straight', width: 1, rise: 3 });
+    // The climber goes toward -z (up the screen): their left is -x.
+    const xs = (m: NonNullable<ReturnType<typeof buildStairRailing>>) => Array.from({ length: m.positions.length / 3 }, (_, i) => m.positions[i * 3]!);
+    const left = xs(buildStairRailing(lay, { sides: 'left' })!);
+    const right = xs(buildStairRailing(lay, { sides: 'right' })!);
+    expect(Math.max(...left)).toBeLessThan(0);
+    expect(Math.min(...right)).toBeGreaterThan(0);
   });
 });

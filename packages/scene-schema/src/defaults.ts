@@ -21,7 +21,7 @@ export function createEmptyScene(opts: CreateSceneOptions = {}): Scene {
     id: newId('scene', opts.rng),
     meta: { name: opts.name ?? 'Untitled home', createdAt: now, updatedAt: now, units: 'm' },
     levels: {
-      [levelId]: { id: levelId, name: 'Ground floor', elevation: 0, height: LEVEL_HEIGHT_M },
+      [levelId]: { id: levelId, name: 'Ground floor', elevation: 0, height: LEVEL_HEIGHT_M, autoRoof: true },
     },
     levelOrder: [levelId],
     nodes: {},

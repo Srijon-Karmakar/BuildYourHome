@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useUi } from '../plan/session';
 import { resetWalkInput, walkInput } from './walkState';
 
 const STICK_RADIUS_PX = 56;
@@ -91,4 +92,51 @@ export function WalkOverlay() {
       showStick(false);
     }
   }
+}
+
+const EYES: { label: string; value: number }[] = [
+  { label: 'Child', value: 1.1 },
+  { label: 'Adult', value: 1.65 },
+  { label: 'Tall', value: 1.85 },
+];
+
+/** Walk mode view settings: how wide you see (field of view) and how tall you are (eye height). */
+export function WalkSettings() {
+  const [open, setOpen] = useState(false);
+  const fov = useUi((s) => s.walkFov);
+  const eye = useUi((s) => s.walkEye);
+  return (
+    <div className="walk-settings" onPointerDown={(e) => e.stopPropagation()}>
+      <button type="button" className="pill small" aria-expanded={open} aria-label="Walk view settings" onClick={() => setOpen((o) => !o)}>
+        View
+      </button>
+      {open && (
+        <div className="popover above" role="group" aria-label="Walk view">
+          <label className="ws-range">
+            <span>
+              Field of view <b>{Math.round(fov)}°</b>
+            </span>
+            <input type="range" min={50} max={110} step={1} value={fov} aria-label="Field of view" onChange={(e) => useUi.getState().setWalkFov(Number(e.target.value))} />
+            <small className="fine">Wider shows more of the room.</small>
+          </label>
+          <label className="ws-range">
+            <span>
+              Eye height <b>{Math.round(eye * 100)} cm</b>
+            </span>
+            <input type="range" min={0.8} max={2.1} step={0.05} value={eye} aria-label="Eye height" onChange={(e) => useUi.getState().setWalkEye(Number(e.target.value))} />
+          </label>
+          <div className="fa-row">
+            {EYES.map((e) => (
+              <button key={e.label} type="button" className="pill small" aria-pressed={Math.abs(eye - e.value) < 0.03} onClick={() => useUi.getState().setWalkEye(e.value)}>
+                {e.label}
+              </button>
+            ))}
+            <button type="button" className="pill small" onClick={() => { useUi.getState().setWalkFov(80); useUi.getState().setWalkEye(1.65); }}>
+              Reset
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

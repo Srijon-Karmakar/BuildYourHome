@@ -94,6 +94,9 @@ const BY_PATTERN: Record<string, string> = {
   terrazzo: 'terrazzo',
   carpet: 'carpet',
   paint: 'plaster',
+  rooftile: 'roofing',
+  shingle: 'roofing',
+  seam: 'metal',
 };
 
 /** The photo set that belongs to a catalog material (none = keep the procedural look). */

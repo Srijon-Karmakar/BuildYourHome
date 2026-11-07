@@ -8,14 +8,20 @@ import { editor, useUi, type ViewMode } from './plan/session';
 import { loadLocal, startAutosave } from './lib/persistence';
 import { Viewer, ViewerGone } from './ui/Viewer';
 import { startBenchmark } from './view3d/benchmark';
-import { rememberPose, walkPose } from './walk/walkState';
+import { rememberPose, walkInput, walkPose } from './walk/walkState';
+import { frameInfo, usePerf } from './view3d/qualityStore';
+import * as core from '@hd/editor-core';
+import { SAMPLES } from './plan/samples';
 import '@fontsource-variable/outfit';
 import './styles.css';
+import { startPwa } from './lib/pwa';
+
+startPwa();
 
 const params = new URLSearchParams(window.location.search);
 
 // Dev-only handle for automated browser tests (never shipped in production builds).
-if (import.meta.env.DEV) (window as unknown as { __hd: unknown }).__hd = { editor, useUi, walkPose, rememberPose, useCloud };
+if (import.meta.env.DEV) (window as unknown as { __hd: unknown }).__hd = { editor, useUi, walkPose, rememberPose, useCloud, frameInfo, usePerf, core, samples: SAMPLES, walkInput };
 
 function render(node: ReactNode): void {
   createRoot(document.getElementById('root')!).render(<StrictMode>{node}</StrictMode>);

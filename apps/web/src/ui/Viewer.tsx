@@ -1,6 +1,6 @@
 import { useUi } from '../plan/session';
 import { Scene3D } from '../view3d/Scene3D';
-import { WalkOverlay } from '../walk/WalkOverlay';
+import { WalkOverlay, WalkSettings } from '../walk/WalkOverlay';
 import { useStore } from 'zustand';
 import { editor } from '../plan/session';
 
@@ -18,6 +18,7 @@ export function Viewer() {
       <div className="pane">
         <Scene3D />
         {walk && <WalkOverlay />}
+            {walk && <WalkSettings />}
       </div>
       <header className="topbar">
         <div className="brand">

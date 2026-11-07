@@ -12,3 +12,4 @@ export * from './balconies';
 export * from './batch';
 export * from './clear';
 export * from './viewpoints';
+export * from './stairHall';

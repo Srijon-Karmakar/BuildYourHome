@@ -3,6 +3,10 @@ import * as THREE from 'three';
 import { FRAME_COLORS, LEAF_COLORS, type Opening } from '@hd/scene-schema';
 import type { WallFootprint } from '@hd/geometry';
 import { pickProps, SelectionBox, useIsSelected } from './pick';
+import { useStore } from 'zustand';
+import { editor } from '../plan/session';
+import { exteriorSide } from '../plan/wallFaces';
+import { buildSunshade } from './sunshade';
 
 /**
  * Placeholder fixtures (ADR-013): boxes with believable materials; real catalog models replace them later.
@@ -24,7 +28,14 @@ const GLASS = new THREE.MeshPhysicalMaterial({
   ior: 1.5,
   envMapIntensity: 2.2,
   depthWrite: false,
+  emissive: new THREE.Color('#ffcf8a'),
+  emissiveIntensity: 0,
 });
+
+/** Windows glow warm when the lamps are on (0 = off .. 1 = fully lit). */
+export function setWindowGlow(level: number): void {
+  GLASS.emissiveIntensity = 1.15 * level;
+}
 const HANDLE = new THREE.MeshStandardMaterial({
   color: '#8d8a83',
   roughness: 0.3,
@@ -425,6 +436,7 @@ export function OpeningMesh({ opening: o, fp, elevation, levelId }: Props) {
       {...pickProps(o.id, levelId)}
     >
       {content}
+      {o.shade && <Shade opening={o} thickness={t} y1={y1} />}
       {selected && (
         <SelectionBox
           center={[o.offset, y0 + o.height / 2, 0]}
@@ -433,4 +445,18 @@ export function OpeningMesh({ opening: o, fp, elevation, levelId }: Props) {
       )}
     </group>
   );
+}
+
+/** The sunshade over an opening, on the outside face of its wall. */
+function Shade({ opening: o, thickness, y1 }: { opening: Opening; thickness: number; y1: number }) {
+  const wall = useStore(editor.store, (s) => s.scene.walls[o.wallId]);
+  const rooms = useStore(editor.store, (s) => s.scene.rooms);
+  const nodes = useStore(editor.store, (s) => s.scene.nodes);
+  const shade = o.shade!;
+  const side = useMemo(() => (wall ? exteriorSide(editor.getState().scene, wall) : 1), [wall, rooms, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
+  const color = shade.color ?? '#e8e3d8';
+  // A door's canopy columns reach the ground; on a window the canopy is just a deep slab.
+  const style = shade.style === 'canopy' && o.type !== 'door' ? 'slab' : shade.style;
+  const model = useMemo(() => buildSunshade(style, o.width, shade.depth, color, y1), [style, o.width, shade.depth, color, y1]);
+  return <primitive object={model} position={[o.offset, y1 + 0.04, side * (thickness / 2)]} rotation={[0, side === 1 ? 0 : Math.PI, 0]} scale={side === 1 ? [1, 1, 1] : [-1, 1, 1]} />;
 }

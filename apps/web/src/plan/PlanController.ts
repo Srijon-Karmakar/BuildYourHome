@@ -2,9 +2,7 @@ import type { Id, Vec2 } from '@hd/scene-schema';
 import { getAsset, itemFootprint, pointInItem } from '@hd/assets';
 import {
   addItem,
-  addLevel,
   addOpening,
-  addStair,
   balconyRailings,
   getRoomPreset,
   layoutItems,
@@ -14,7 +12,7 @@ import {
   batch,
   removeBalconies,
   removeZones,
-  setRoof,
+  removeRoofs,
   translateBalconies,
   translateZones,
   zonePolygon,
@@ -46,7 +44,8 @@ import {
   type SnapResult,
 } from '@hd/editor-core';
 import { cancelPlot, editor, finishDrawing, finishPlot, useUi, wallTool } from './session';
-import { stairLayout } from '@hd/geometry';
+import { stairLayout, stairOutlineWorld, type StairLayout } from '@hd/geometry';
+import { addStairAssembly, snapStairToWalls } from '@hd/editor-core';
 import { drawPlan, pointInPolygon, type ItemGhost, type OpeningPreview, type StairDraw } from './render';
 import { levelRooms } from './rooms';
 import { highlightSides } from './wallFaces';
@@ -546,6 +545,14 @@ export class PlanController {
     return g ? [Math.round(w[0] / g) * g, Math.round(w[1] / g) * g] : w;
   }
 
+  /** Pull stairs flush against nearby walls (when "Join onto walls" snapping is on). */
+  private snapStairToWalls(origin: Vec2, layout: StairLayout, rotationY: number): Vec2 {
+    if (!useUi.getState().snap.walls) return origin;
+    const st = editor.getState();
+    const [dx, dz] = snapStairToWalls(st.scene, st.activeLevelId, stairOutlineWorld(layout, origin, rotationY));
+    return [origin[0] + dx, origin[1] + dz];
+  }
+
   /** Where the ready-made room would go: centred on the pointer, on a 10 cm grid, edges pulled onto nearby walls. */
   private roomGhostAt(sx: number, sy: number): { center: Vec2 } | null {
     const ui = useUi.getState();
@@ -602,9 +609,10 @@ export class PlanController {
     if (!lv) return null;
     const above = levelAbove(st.scene, st.activeLevelId);
     const rise = (above && stairRise(st.scene, { fromLevel: st.activeLevelId, toLevel: above })) || lv.height;
+    const layout = stairLayout({ kind: ui.newStair.kind, width: ui.newStair.width, rise, mirror: ui.newStair.mirror });
     return {
-      layout: stairLayout({ kind: ui.newStair.kind, width: ui.newStair.width, rise, mirror: ui.newStair.mirror }),
-      origin: this.snapStairOrigin(sx, sy),
+      layout,
+      origin: this.snapStairToWalls(this.snapStairOrigin(sx, sy), layout, ui.stairRotation),
       rotationY: ui.stairRotation,
       role: 'ghost',
     };
@@ -684,8 +692,19 @@ export class PlanController {
     const st = editor.getState();
     const ui = useUi.getState();
     const before = new Set(Object.keys(st.scene.stairs));
-    const add = addStair({ fromLevel: st.activeLevelId, origin: g.origin, rotationY: g.rotationY, kind: ui.newStair.kind, width: ui.newStair.width, mirror: ui.newStair.mirror });
-    editor.execute(levelAbove(st.scene, st.activeLevelId) ? add : batch('Add stairs and floor', [addLevel(), add]));
+    // Ready-made assembly: the floor above (if missing), the flight, the room round its top with a door, and optionally every floor up.
+    editor.execute(
+      addStairAssembly({
+        fromLevel: st.activeLevelId,
+        origin: g.origin,
+        rotationY: g.rotationY,
+        kind: ui.newStair.kind,
+        width: ui.newStair.width,
+        mirror: ui.newStair.mirror,
+        hall: ui.newStair.hall,
+        toTop: ui.newStair.toTop,
+      }),
+    );
     const added = Object.keys(editor.getState().scene.stairs).filter((id) => !before.has(id));
     if (added.length) {
       editor.select(added);
@@ -883,7 +902,11 @@ export class PlanController {
           const w = toWorld(this.view, p.x, p.y);
           const g = useUi.getState().snap.grid ? 0.05 : 0;
           const o: Vec2 = [w[0] - this.dragGrab[0], w[1] - this.dragGrab[1]];
-          editor.preview(updateStairs([this.dragStairId], { origin: g ? [Math.round(o[0] / g) * g, Math.round(o[1] / g) * g] : o }));
+          let origin: Vec2 = g ? [Math.round(o[0] / g) * g, Math.round(o[1] / g) * g] : o;
+          const moving = editor.getState().scene.stairs[this.dragStairId];
+          const layout = moving ? layoutOf(editor.getState().scene, moving) : null;
+          if (moving && layout) origin = this.snapStairToWalls(origin, layout, moving.rotationY);
+          editor.preview(updateStairs([this.dragStairId], { origin }));
         }
         break;
       case 'dragItem':
@@ -1227,7 +1250,7 @@ export function deleteSelection(): void {
     ...(sel.some((id) => sc.stairs[id]) ? [removeStairs(sel.filter((id) => sc.stairs[id]))] : []),
     ...(sel.some((id) => sc.balconies[id]) ? [removeBalconies(sel.filter((id) => sc.balconies[id]))] : []),
     ...(sel.some((id) => sc.zones[id]) ? [removeZones(sel.filter((id) => sc.zones[id]))] : []),
-    ...sel.filter((id) => sc.roofs[id]).map((id) => setRoof(sc.roofs[id]!.levelId, { style: 'none' })),
+    ...(sel.some((id) => sc.roofs[id]) ? [removeRoofs(sel.filter((id) => sc.roofs[id]))] : []),
   ];
   if (cmds.length) editor.execute(batch(cmds.length > 1 ? 'Delete' : cmds[0]!.label ?? 'Delete', cmds));
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Vec2 } from '@hd/scene-schema';
-import { buildRoofMesh, orientedBox, type RoofParams } from '../index';
+import { buildRoofMesh, buildRoofPart, orientedBox, type RoofParams } from '../index';
 
 const rect = (w: number, d: number, ox = 0, oz = 0, rot = 0): Vec2[] =>
   ([[0, 0], [w, 0], [w, d], [0, d]] as Vec2[]).map(([x, z]) => {
@@ -8,7 +8,8 @@ const rect = (w: number, d: number, ox = 0, oz = 0, rot = 0): Vec2[] =>
     const s = Math.sin(rot);
     return [ox + x * c - z * s, oz + x * s + z * c] as Vec2;
   });
-const params = (style: RoofParams['style'], extra: Partial<RoofParams> = {}): RoofParams => ({ style, pitchDeg: 30, overhang: 0.4, ...extra });
+const T = 0.12; // default edge thickness: the roof rests on the wall tops, its eaves sit one thickness higher
+const params = (style: RoofParams['style'], extra: Partial<RoofParams> = {}): RoofParams => ({ style, pitchDeg: 30, overhang: 0.4, ridgeCap: false, ...extra });
 const bounds = (m: NonNullable<ReturnType<typeof buildRoofMesh>>) => {
   const P = m.positions;
   const lo = [Infinity, Infinity, Infinity];
@@ -65,7 +66,7 @@ describe('buildRoofMesh', () => {
   it('gable: ridge rises b*tan(pitch) above the walls, footprint includes the overhang', () => {
     const m = buildRoofMesh(pts, 3, params('gable'))!;
     const { lo, hi } = bounds(m);
-    expect(hi[1]).toBeCloseTo(3 + (3 + ext) * Math.tan(Math.PI / 6), 4);
+    expect(hi[1]).toBeCloseTo(3 + T + (3 + ext) * Math.tan(Math.PI / 6), 4);
     expect(lo[1]).toBeCloseTo(3);
     expect(hi[0]! - lo[0]!).toBeCloseTo(8 + 2 * ext, 4);
     expect(hi[2]! - lo[2]!).toBeCloseTo(6 + 2 * ext, 4);
@@ -85,7 +86,7 @@ describe('buildRoofMesh', () => {
         const cr = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
         expect(cr[0]! * N[a * 3]! + cr[1]! * N[a * 3 + 1]! + cr[2]! * N[a * 3 + 2]!, style).toBeGreaterThan(0);
         if (N[a * 3 + 1]! > 0.2) up++;
-        if (N[a * 3 + 1]! < -0.99) down++;
+        if (N[a * 3 + 1]! < -0.5) down++;
       }
       expect(up, style).toBeGreaterThan(0);
       expect(down, style).toBeGreaterThan(0);
@@ -100,7 +101,7 @@ describe('buildRoofMesh', () => {
   it('flat is a slab; shed is high on one side only', () => {
     const f = bounds(buildRoofMesh(pts, 2, params('flat'))!);
     expect(f.hi[1]! - f.lo[1]!).toBeCloseTo(0.18);
-    expect(bounds(buildRoofMesh(pts, 0, params('shed'))!).hi[1]).toBeCloseTo(2 * (3 + ext) * Math.tan(Math.PI / 6), 4);
+    expect(bounds(buildRoofMesh(pts, 0, params('shed'))!).hi[1]).toBeCloseTo(T + 2 * (3 + ext) * Math.tan(Math.PI / 6), 4);
   });
 
   it('pitch is clamped, steeper is taller, swap turns the ridge 90 degrees', () => {
@@ -110,14 +111,14 @@ describe('buildRoofMesh', () => {
     expect(bounds(buildRoofMesh(pts, 0, params('gable', { pitchDeg: 45 }))!).hi[1]!).toBeGreaterThan(ref);
     const normal = bounds(buildRoofMesh(pts, 0, params('gable'))!).hi[1]!;
     const swapped = bounds(buildRoofMesh(pts, 0, params('gable', { swap: true }))!).hi[1]!;
-    expect(swapped).toBeCloseTo((4 + ext) * Math.tan(Math.PI / 6), 4);
+    expect(swapped).toBeCloseTo(T + (4 + ext) * Math.tan(Math.PI / 6), 4);
     expect(swapped).toBeGreaterThan(normal);
   });
 
   it('follows a rotated house and returns null for degenerate plans', () => {
     const m = buildRoofMesh(rect(8, 6, 2, 2, 0.5), 3, params('gable'))!;
     expect(m.indices.length % 3).toBe(0);
-    expect(bounds(m).hi[1]).toBeCloseTo(3 + (3 + ext) * Math.tan(Math.PI / 6), 4);
+    expect(bounds(m).hi[1]).toBeCloseTo(3 + T + (3 + ext) * Math.tan(Math.PI / 6), 4);
     expect(buildRoofMesh([[0, 0], [1, 0]], 3, params('gable'))).toBeNull();
   });
 });
@@ -160,5 +161,92 @@ describe('more roof styles', () => {
       expect(s.indices.length % 3).toBe(0);
       expect(bounds(s).lo[1]).toBeGreaterThanOrEqual(-1e-9);
     }
+  });
+});
+
+describe('roof detail', () => {
+  const pts = rect(8, 6);
+  const slots = (m: NonNullable<ReturnType<typeof buildRoofMesh>>) => m.groups.map((g) => g.slot);
+  const total = (m: NonNullable<ReturnType<typeof buildRoofMesh>>) => m.groups.reduce((n, g) => n + g.count, 0);
+
+  it('a gable roof has a recessed wall-colour gable and painted fascia, and no stray groups', () => {
+    const m = buildRoofMesh(pts, 3, params('gable'))!;
+    expect(slots(m)).toEqual(['roof', 'gable', 'trim']);
+    expect(total(m)).toBe(m.indices.length);
+    // groups are contiguous and in order
+    let at = 0;
+    for (const g of m.groups) {
+      expect(g.start).toBe(at);
+      at += g.count;
+    }
+  });
+
+  it('ridge cap, gutters and chimney are extra geometry that can be switched on and off', () => {
+    const base = total(buildRoofMesh(pts, 3, params('gable'))!);
+    expect(total(buildRoofMesh(pts, 3, params('gable', { ridgeCap: true }))!)).toBeGreaterThan(base);
+    const g = buildRoofMesh(pts, 3, params('gable', { gutter: true }))!;
+    expect(slots(g)).toContain('gutter');
+    const ch = buildRoofMesh(pts, 3, params('gable', { chimney: true }))!;
+    expect(slots(ch)).toContain('chimney');
+    // the chimney stands above the ridge
+    expect(bounds(ch).hi[1]!).toBeGreaterThan(bounds(buildRoofMesh(pts, 3, params('gable'))!).hi[1]! + 0.5);
+  });
+
+  it('thickness is clamped and changes the edge', () => {
+    const thin = bounds(buildRoofMesh(pts, 0, params('flat', { thickness: 0.01 }))!);
+    expect(thin.hi[1]! - thin.lo[1]!).toBeCloseTo(0.05, 5);
+    const thick = bounds(buildRoofMesh(pts, 0, params('flat', { thickness: 2 }))!);
+    expect(thick.hi[1]! - thick.lo[1]!).toBeCloseTo(0.4, 5);
+  });
+
+  it('a flat roof can have a parapet round the edge', () => {
+    const plain = bounds(buildRoofMesh(pts, 0, params('flat'))!);
+    const m = buildRoofMesh(pts, 0, params('flat', { parapet: 0.5 }))!;
+    expect(bounds(m).hi[1]!).toBeGreaterThan(plain.hi[1]! + 0.45);
+    expect(slots(m)).toContain('gable');
+  });
+
+  it('rake and overhang are separate: the gable ends can stick out less than the eaves', () => {
+    const wide = bounds(buildRoofMesh(pts, 0, params('gable', { overhang: 0.6, rake: 0.1 }))!);
+    expect(wide.hi[0]! - wide.lo[0]!).toBeCloseTo(8 + 2 * (0.115 + 0.1), 4); // along the ridge
+    expect(wide.hi[2]! - wide.lo[2]!).toBeCloseTo(6 + 2 * (0.115 + 0.6), 4); // across it
+  });
+
+  it('texture coordinates follow the face (a slope is not stretched)', () => {
+    const m = buildRoofMesh(pts, 0, params('gable', { pitchDeg: 45 }))!;
+    // find the first top-slope triangle and compare its uv edge lengths with its 3D edge lengths
+    const P = m.positions;
+    const U = m.uvs;
+    const g = m.groups[0]!;
+    const i = g.start;
+    const d3 = Math.hypot(P[(i + 1) * 3]! - P[i * 3]!, P[(i + 1) * 3 + 1]! - P[i * 3 + 1]!, P[(i + 1) * 3 + 2]! - P[i * 3 + 2]!);
+    const d2 = Math.hypot(U[(i + 1) * 2]! - U[i * 2]!, U[(i + 1) * 2 + 1]! - U[i * 2 + 1]!);
+    expect(d2).toBeCloseTo(d3, 4);
+  });
+
+  it('builds over an explicit rectangle (a roof part) and follows its rotation', () => {
+    const m = buildRoofPart({ cx: 10, cz: 5, angle: 0, length: 4, width: 3 }, 2.8, params('hip'))!;
+    const b = bounds(m);
+    expect((b.lo[0]! + b.hi[0]!) / 2).toBeCloseTo(10, 4);
+    expect((b.lo[2]! + b.hi[2]!) / 2).toBeCloseTo(5, 4);
+  });
+
+  it('dormers add a window, a wall-colour front and two small slopes, and stay under the ridge', () => {
+    const plain = buildRoofMesh(pts, 0, params('gable'))!;
+    const m = buildRoofMesh(pts, 0, params('gable', { dormers: [{ pos: 0, side: 1, width: 1.2 }, { pos: 0.5, side: -1, width: 1.6 }] }))!;
+    expect(slots(m)).toContain('glass');
+    expect(total(m)).toBeGreaterThan(total(plain));
+    // lower than the ridge so it never pokes out of the top
+    expect(bounds(m).hi[1]!).toBeCloseTo(bounds(plain).hi[1]!, 4);
+    // the glass sits on the chosen slope
+    const g = m.groups.find((x) => x.slot === 'glass')!;
+    const zs = new Set<number>();
+    for (let i = g.start; i < g.start + g.count; i++) zs.add(Math.sign(m.positions[i * 3 + 2]! - 3));
+    expect(zs.size).toBe(2); // one pane on each slope
+    // a roof too flat for a dormer, or too narrow for the ridge, quietly skips it
+    expect(slots(buildRoofMesh(pts, 0, params('gable', { pitchDeg: 5, dormers: [{ pos: 0, side: 1, width: 1.2 }] }))!)).not.toContain('glass');
+    expect(slots(buildRoofMesh(rect(1.5, 6), 0, params('gable', { dormers: [{ pos: 0, side: 1, width: 3 }] }))!)).not.toContain('glass');
+    // flat roofs have none
+    expect(slots(buildRoofMesh(pts, 0, params('flat', { dormers: [{ pos: 0, side: 1, width: 1.2 }] }))!)).not.toContain('glass');
   });
 });

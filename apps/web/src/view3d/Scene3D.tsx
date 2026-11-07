@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, type ComponentType } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { AdaptiveDpr, Environment, Lightformer, OrbitControls, Sky } from '@react-three/drei';
@@ -21,9 +21,11 @@ import { registerCapture } from '../export/capture3d';
 import { setTextureRedraw } from './photoTextures';
 import { lampLevel, lampsOf, nearestLamps } from './lights';
 import { setLampGlow } from './furniture/kit';
-import { sunAt } from './sun';
+import { moonDirection, sunAt } from './sun';
 import { itemLayer } from './layers';
 import { registerCamera } from './cameraBridge';
+import NightSky from './NightSky';
+import { setWindowGlow } from './OpeningMesh';
 import { canPick, CLICK_SLOP_PX, pickObject } from './pick';
 import { RoofMesh } from './RoofMesh';
 import { BalconyMesh } from './BalconyMesh';
@@ -34,7 +36,9 @@ import { useTier } from './qualityStore';
 import { WallMesh } from './WallMesh';
 
 // Post-processing (AO) is only downloaded on devices that reach the high tier.
-const Effects = lazy(() => import('./Effects'));
+// If the effects code cannot be fetched (no connection and not stored yet) the scene simply draws without them.
+type EffectsProps = { msaa: number; quality: 'performance' | 'medium'; bloom: boolean };
+const Effects = lazy<ComponentType<EffectsProps>>(() => import('./Effects').catch(() => ({ default: () => null })));
 
 /** Lets Home › Export take a high-resolution picture of this canvas. */
 function CaptureBridge() {
@@ -65,36 +69,62 @@ function CaptureBridge() {
  * is moved onto the lamps nearest the camera. The pool never changes size, so no shaders are rebuilt while you edit.
  */
 function InteriorLights({ tier }: { tier: Tier }) {
-  const n = TIERS[tier].lamps;
+  // Phones keep the number of real lights low: every light is paid for on every pixel of every frame.
+  const nPoint = COARSE_POINTER ? Math.min(TIERS[tier].lamps, 2) : TIERS[tier].lamps;
+  const nSpot = COARSE_POINTER ? Math.min(TIERS[tier].spots, 2) : TIERS[tier].spots;
   const hour = useStore(editor.store, (s) => s.scene.lighting.timeOfDay);
   const items = useStore(editor.store, (s) => s.scene.items);
   const mode = useUi((s) => s.lights);
   const invalidate = useThree((s) => s.invalidate);
   const level = lampLevel(mode, sunAt(hour));
   const lamps = useMemo(() => lampsOf(editor.getState().scene), [items]); // eslint-disable-line react-hooks/exhaustive-deps
-  const refs = useRef<Array<THREE.PointLight | null>>([]);
+  const points = useRef<Array<THREE.PointLight | null>>([]);
+  const spots = useRef<Array<THREE.SpotLight | null>>([]);
+  const targets = useRef<Array<THREE.Object3D | null>>([]);
 
   useEffect(() => {
     setLampGlow(level);
+    setWindowGlow(level);
     invalidate();
   }, [level, invalidate]);
 
   useFrame(({ camera }) => {
-    const near = level > 0.02 ? nearestLamps(lamps, [camera.position.x, camera.position.y, camera.position.z], n) : [];
-    refs.current.forEach((light, i) => {
+    const p: [number, number, number] = [camera.position.x, camera.position.y, camera.position.z];
+    const on = level > 0.02;
+    const nearPoint = on ? nearestLamps(lamps, p, nPoint, 'point') : [];
+    points.current.forEach((light, i) => {
       if (!light) return;
-      const lamp = near[i];
+      const lamp = nearPoint[i];
       if (lamp) {
         light.position.set(...lamp.pos);
+        light.color.set(lamp.color);
         light.intensity = lamp.power * 0.75 * level;
+      } else light.intensity = 0;
+    });
+    const nearSpot = on ? nearestLamps(lamps, p, nSpot, 'spot') : [];
+    spots.current.forEach((light, i) => {
+      if (!light) return;
+      const lamp = nearSpot[i];
+      if (lamp) {
+        light.position.set(...lamp.pos);
+        light.color.set(lamp.color);
+        light.angle = lamp.angle;
+        light.penumbra = lamp.penumbra;
+        light.intensity = lamp.power * 1.1 * level;
+        targets.current[i]?.position.set(...lamp.dir); // the target is a child of the light: a direction is enough
       } else light.intensity = 0;
     });
   });
 
   return (
     <>
-      {Array.from({ length: n }, (_, i) => (
-        <pointLight key={i} ref={(l) => { refs.current[i] = l; }} color="#ffd9a0" intensity={0} distance={9} decay={2} />
+      {Array.from({ length: nPoint }, (_, i) => (
+        <pointLight key={`p${i}`} ref={(l) => { points.current[i] = l; }} color="#ffd9a0" intensity={0} distance={9} decay={2} />
+      ))}
+      {Array.from({ length: nSpot }, (_, i) => (
+        <spotLight key={`s${i}`} ref={(l) => { spots.current[i] = l; }} color="#ffe8c8" intensity={0} distance={10} decay={2} angle={0.7} penumbra={0.6}>
+          <object3D ref={(o) => { targets.current[i] = o; }} attach="target" position={[0, -1, 0]} />
+        </spotLight>
       ))}
     </>
   );
@@ -386,11 +416,14 @@ function Lighting({ tier }: { tier: Tier }) {
   useEffect(() => {
     // Flat background (Low tier, and behind the sky); the sky shader draws over it on Medium / High.
     scene.background = new THREE.Color(sun.background);
+    // A little night haze: far things sink into the dark blue instead of ending in a hard edge.
+    scene.fog = sun.darkness > 0.05 ? new THREE.FogExp2(new THREE.Color('#0c1426'), 0.011 * sun.darkness) : null;
     invalidate();
   }, [sun, scene, invalidate]);
+  const moon = useMemo(() => moonDirection(sun.hour), [sun.hour]);
   return (
     <>
-      {cfg.sky && (
+      {cfg.sky && sun.darkness < 1 && (
         <Sky
           distance={450}
           sunPosition={sun.dir.map((v) => v * 100) as [number, number, number]}
@@ -407,7 +440,9 @@ function Lighting({ tier }: { tier: Tier }) {
         <Lightformer form="rect" intensity={1.0} position={[9, 3, 5]} rotation-y={-Math.PI / 2} scale={[12, 6, 1]} />
         <Lightformer form="rect" intensity={0.7} position={[0, 3, -9]} scale={[14, 6, 1]} />
       </Environment>
-      {sun.night && <directionalLight position={[-6, 14, -8]} intensity={0.28} color="#9fb4ff" />}
+      {cfg.sky && <NightSky sun={sun} />}
+      {/* Moonlight: a cool, soft light from where the moon is (stronger the darker it is). */}
+      {sun.night && <directionalLight position={moon.map((v) => v * 20) as [number, number, number]} intensity={0.08 + 0.22 * sun.darkness} color="#a9bcff" />}
       {/* Keyed by shadow-map size: three can't resize an existing shadow map in place. */}
       <directionalLight
         key={`${cfg.shadows}-${cfg.shadowMapSize}`}
@@ -462,6 +497,33 @@ if (typeof window !== 'undefined') {
   }, true);
 }
 
+/**
+ * The sun's shadow map is only redrawn when something that casts a shadow changes (an edit, the time of day, a layer,
+ * the active floor), not on every frame. While walking or orbiting the shadows are then free, which is the biggest
+ * single saving on phones (the whole scene used to be drawn a second time every frame just for the shadow map).
+ */
+function ShadowGate({ tier }: { tier: Tier }) {
+  const gl = useThree((s) => s.gl);
+  const invalidate = useThree((s) => s.invalidate);
+  const scene = useStore(editor.store, (s) => s.scene);
+  const active = useStore(editor.store, (s) => s.activeLevelId);
+  const hidden = useUi((s) => s.hiddenLayers);
+  const showRoof = useUi((s) => s.showRoof);
+  const floorView = useUi((s) => s.floorView);
+  const cutaway = useUi((s) => s.cutaway);
+  useEffect(() => {
+    gl.shadowMap.autoUpdate = false;
+    return () => {
+      gl.shadowMap.autoUpdate = true;
+    };
+  }, [gl]);
+  useEffect(() => {
+    gl.shadowMap.needsUpdate = true;
+    invalidate();
+  }, [gl, invalidate, scene, active, hidden, showRoof, floorView, cutaway, tier]);
+  return null;
+}
+
 export function Scene3D() {
   const walk = useUi((s) => s.walk);
   const tier = useTier();
@@ -470,9 +532,9 @@ export function Scene3D() {
   const dim = hour < 7.5 || hour > 16.5; // lamps only read as glowing when the daylight is low
   return (
     <Canvas
-      shadows="soft"
+      shadows={COARSE_POINTER ? true : 'soft'}
       frameloop="demand"
-      dpr={cfg.dpr}
+      dpr={COARSE_POINTER && tier !== 'high' ? [1, Math.min(cfg.dpr[1], 1.25)] : cfg.dpr}
       // Progressive rendering: while the user orbits, R3F "regresses" performance (DPR drops via AdaptiveDpr)
       // and restores full quality ~180 ms after the last movement.
       performance={{ min: 0.6, max: 1, debounce: 180 }}
@@ -485,6 +547,7 @@ export function Scene3D() {
       }}
     >
       <Lighting tier={tier} />
+      <ShadowGate tier={tier} />
       <TextureRedraw />
       <InteriorLights tier={tier} />
       <CaptureBridge />

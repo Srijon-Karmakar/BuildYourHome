@@ -99,6 +99,11 @@ export const useCloud = create<CloudState>((set, get) => ({
       void get().refresh();
     });
     backend.onRecovery(() => set({ recovery: true, accountOpen: false, message: null }));
+    // Back online: catch up with what was edited while offline.
+    window.addEventListener('online', () => {
+      if (get().projectId && get().session) void get().saveNow();
+      void get().refresh();
+    });
     set({ mode: backend.mode, session: await backend.getSession(), ready: true });
     await get().refresh();
   },
@@ -176,8 +181,12 @@ export const useCloud = create<CloudState>((set, get) => ({
 
   async refresh() {
     const b = be();
-    const [projects, ent] = await Promise.all([b.listProjects(), b.getEntitlements()]);
-    set({ projects, ent });
+    try {
+      const [projects, ent] = await Promise.all([b.listProjects(), b.getEntitlements()]);
+      set({ projects, ent });
+    } catch {
+      /* offline: keep what we have, try again when the connection is back */
+    }
   },
 
   async saveNow() {
@@ -308,6 +317,7 @@ export const useCloud = create<CloudState>((set, get) => ({
   async syncScene(scene) {
     const { projectId, session, conflict, projectUpdatedAt } = get();
     if (!projectId || !session || conflict) return; // paused while a conflict is unresolved
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return; // offline: saved on this device, synced when back
     const r = await be().saveProject(scene, projectId, projectUpdatedAt ?? undefined);
     if (r.ok) set({ syncedAt: Date.now(), projectUpdatedAt: r.value.updatedAt });
     else if (r.conflict) set({ conflict: true });

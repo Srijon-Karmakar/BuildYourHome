@@ -15,7 +15,8 @@
     "coverage": "pnpm -r exec vitest run --coverage --coverage.reporter=text-summary",
     "lint": "eslint .",
     "e2e": "node e2e/smoke.mjs",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "e2e:offline": "node e2e/offline.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

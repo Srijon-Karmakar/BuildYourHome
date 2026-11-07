@@ -300,3 +300,27 @@ describe('property: openings stay valid under random edits; undo/redo round-trip
     );
   });
 });
+
+describe('sunshades', () => {
+  it('can be added, adjusted, merged and removed', async () => {
+    const { createEmptyScene } = await import('@hd/scene-schema');
+    const { createEditor, addWall, addOpening, setOpeningProps } = await import('./index');
+    const e = createEditor(createEmptyScene());
+    const L = e.getState().activeLevelId;
+    e.execute(addWall({ levelId: L, from: [0, 0], to: [6, 0] }));
+    const wallId = Object.keys(e.getState().scene.walls)[0]!;
+    const cmd = addOpening({ wallId, type: 'window', offset: 3 });
+    e.execute(cmd);
+    const id = Object.keys(e.getState().scene.openings)[0]!;
+    e.execute(setOpeningProps(id, { shade: { style: 'slab', depth: 0.5 } }));
+    expect(e.getState().scene.openings[id]!.shade).toEqual({ style: 'slab', depth: 0.5 });
+    e.execute(setOpeningProps(id, { shade: { depth: 9, color: '#c0392b' } })); // merged and clamped
+    expect(e.getState().scene.openings[id]!.shade).toEqual({ style: 'slab', depth: 2, color: '#c0392b' });
+    e.execute(setOpeningProps(id, { shade: { depth: 0.6 } }));
+    expect(e.getState().scene.openings[id]!.shade!.depth).toBe(0.6);
+    e.execute(setOpeningProps(id, { shade: null }));
+    expect(e.getState().scene.openings[id]!.shade).toBeUndefined();
+    e.undo();
+    expect(e.getState().scene.openings[id]!.shade).toBeDefined();
+  });
+});

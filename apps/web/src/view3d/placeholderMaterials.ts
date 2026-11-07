@@ -13,7 +13,10 @@ export type MaterialPattern =
   | 'panel'
   | 'subway'
   | 'terrazzo'
-  | 'carpet';
+  | 'carpet'
+  | 'rooftile'
+  | 'shingle'
+  | 'seam';
 
 export interface CatalogMaterial {
   id: string;
@@ -197,35 +200,35 @@ export const MATERIAL_CATALOG: readonly CatalogMaterial[] = [
   { id: 'ground-white-gravel', name: 'White gravel', group: 'ground', color: '#d8d4cb', roughness: 1, pattern: 'plain' },
   { id: 'ground-black-slate', name: 'Black slate', group: 'ground', color: '#4c4e51', roughness: 1, pattern: 'plain' },
   // Roofs
-  { id: 'roof-tile-terracotta', name: 'Terracotta', group: 'roof', color: '#b5593a', roughness: 0.8, pattern: 'plain' },
-  { id: 'roof-tile-grey', name: 'Grey tile', group: 'roof', color: '#7d7f84', roughness: 0.75, pattern: 'plain' },
-  { id: 'roof-slate', name: 'Slate', group: 'roof', color: '#3f4348', roughness: 0.7, pattern: 'plain' },
-  { id: 'roof-metal', name: 'Metal sheet', group: 'roof', color: '#9aa3a8', roughness: 0.35, metalness: 0.5, pattern: 'plain' },
-  { id: 'roof-sand', name: 'Sand tile', group: 'roof', color: '#c9a77e', roughness: 0.8, pattern: 'plain' },
-  { id: 'roof-tile-brown', name: 'Brown tile', group: 'roof', color: '#7a4a35', roughness: 0.8, pattern: 'plain' },
-  { id: 'roof-tile-black', name: 'Black tile', group: 'roof', color: '#2b2b2d', roughness: 0.7, pattern: 'plain' },
+  { id: 'roof-tile-terracotta', name: 'Terracotta', group: 'roof', color: '#b5593a', roughness: 0.8, pattern: 'rooftile' },
+  { id: 'roof-tile-grey', name: 'Grey tile', group: 'roof', color: '#7d7f84', roughness: 0.75, pattern: 'rooftile' },
+  { id: 'roof-slate', name: 'Slate', group: 'roof', color: '#3f4348', roughness: 0.7, pattern: 'shingle' },
+  { id: 'roof-metal', name: 'Metal sheet', group: 'roof', color: '#9aa3a8', roughness: 0.35, metalness: 0.5, pattern: 'seam' },
+  { id: 'roof-sand', name: 'Sand tile', group: 'roof', color: '#c9a77e', roughness: 0.8, pattern: 'rooftile' },
+  { id: 'roof-tile-brown', name: 'Brown tile', group: 'roof', color: '#7a4a35', roughness: 0.8, pattern: 'rooftile' },
+  { id: 'roof-tile-black', name: 'Black tile', group: 'roof', color: '#2b2b2d', roughness: 0.7, pattern: 'rooftile' },
   { id: 'roof-thatch', name: 'Thatch', group: 'roof', color: '#b79b60', roughness: 1, pattern: 'plain' },
   { id: 'roof-concrete', name: 'Concrete slab', group: 'roof', color: '#9b9993', roughness: 0.9, pattern: 'plain' },
-  { id: 'roof-seam', name: 'Standing seam', group: 'roof', color: '#5b6168', roughness: 0.35, metalness: 0.6, pattern: 'plain' },
-  { id: 'roof-copper', name: 'Copper', group: 'roof', color: '#6aa08c', roughness: 0.4, metalness: 0.5, pattern: 'plain' },
-  { id: 'roof-tile-red', name: 'Red clay tile', group: 'roof', color: '#a8442f', roughness: 0.8, pattern: 'plain' },
-  { id: 'roof-tile-green', name: 'Green tile', group: 'roof', color: '#4f7a5b', roughness: 0.7, pattern: 'plain' },
-  { id: 'roof-shingle-grey', name: 'Grey shingle', group: 'roof', color: '#6d7074', roughness: 0.85, pattern: 'plain' },
-  { id: 'roof-shingle-brown', name: 'Brown shingle', group: 'roof', color: '#6b5444', roughness: 0.85, pattern: 'plain' },
-  { id: 'roof-zinc', name: 'Zinc', group: 'roof', color: '#8d949a', roughness: 0.4, metalness: 0.6, pattern: 'plain' },
+  { id: 'roof-seam', name: 'Standing seam', group: 'roof', color: '#5b6168', roughness: 0.35, metalness: 0.6, pattern: 'seam' },
+  { id: 'roof-copper', name: 'Copper', group: 'roof', color: '#6aa08c', roughness: 0.4, metalness: 0.5, pattern: 'seam' },
+  { id: 'roof-tile-red', name: 'Red clay tile', group: 'roof', color: '#a8442f', roughness: 0.8, pattern: 'rooftile' },
+  { id: 'roof-tile-green', name: 'Green tile', group: 'roof', color: '#4f7a5b', roughness: 0.7, pattern: 'rooftile' },
+  { id: 'roof-shingle-grey', name: 'Grey shingle', group: 'roof', color: '#6d7074', roughness: 0.85, pattern: 'shingle' },
+  { id: 'roof-shingle-brown', name: 'Brown shingle', group: 'roof', color: '#6b5444', roughness: 0.85, pattern: 'shingle' },
+  { id: 'roof-zinc', name: 'Zinc', group: 'roof', color: '#8d949a', roughness: 0.4, metalness: 0.6, pattern: 'seam' },
   { id: 'roof-asphalt', name: 'Flat asphalt', group: 'roof', color: '#4a4a4c', roughness: 0.95, pattern: 'plain' },
   { id: 'roof-white', name: 'White membrane', group: 'roof', color: '#e6e4de', roughness: 0.7, pattern: 'plain' },
   { id: 'roof-turf', name: 'Green roof', group: 'roof', color: '#7f9a62', roughness: 1, pattern: 'plain' },
-  { id: 'roof-green', name: 'Green sheet', group: 'roof', color: '#5d7a5a', roughness: 0.5, metalness: 0.3, pattern: 'plain' },
-  { id: 'roof-tile-blue', name: 'Blue tile', group: 'roof', color: '#47627f', roughness: 0.75, pattern: 'plain' },
-  { id: 'roof-tile-sand-light', name: 'Pale tile', group: 'roof', color: '#dcc7a1', roughness: 0.8, pattern: 'plain' },
-  { id: 'roof-shingle-black', name: 'Black shingle', group: 'roof', color: '#333538', roughness: 0.85, pattern: 'plain' },
-  { id: 'roof-shingle-red', name: 'Red shingle', group: 'roof', color: '#8f4a3d', roughness: 0.85, pattern: 'plain' },
-  { id: 'roof-metal-red', name: 'Red metal', group: 'roof', color: '#9a3a32', roughness: 0.4, metalness: 0.4, pattern: 'plain' },
-  { id: 'roof-metal-blue', name: 'Blue metal', group: 'roof', color: '#3f5f80', roughness: 0.4, metalness: 0.4, pattern: 'plain' },
-  { id: 'roof-metal-black', name: 'Black metal', group: 'roof', color: '#2f3235', roughness: 0.4, metalness: 0.5, pattern: 'plain' },
-  { id: 'roof-wood-shake', name: 'Wood shake', group: 'roof', color: '#8a6a4a', roughness: 0.9, pattern: 'plain' },
-  { id: 'roof-stone-slate', name: 'Stone slate', group: 'roof', color: '#5a5f63', roughness: 0.75, pattern: 'plain' },
+  { id: 'roof-green', name: 'Green sheet', group: 'roof', color: '#5d7a5a', roughness: 0.5, metalness: 0.3, pattern: 'seam' },
+  { id: 'roof-tile-blue', name: 'Blue tile', group: 'roof', color: '#47627f', roughness: 0.75, pattern: 'rooftile' },
+  { id: 'roof-tile-sand-light', name: 'Pale tile', group: 'roof', color: '#dcc7a1', roughness: 0.8, pattern: 'rooftile' },
+  { id: 'roof-shingle-black', name: 'Black shingle', group: 'roof', color: '#333538', roughness: 0.85, pattern: 'shingle' },
+  { id: 'roof-shingle-red', name: 'Red shingle', group: 'roof', color: '#8f4a3d', roughness: 0.85, pattern: 'shingle' },
+  { id: 'roof-metal-red', name: 'Red metal', group: 'roof', color: '#9a3a32', roughness: 0.4, metalness: 0.4, pattern: 'seam' },
+  { id: 'roof-metal-blue', name: 'Blue metal', group: 'roof', color: '#3f5f80', roughness: 0.4, metalness: 0.4, pattern: 'seam' },
+  { id: 'roof-metal-black', name: 'Black metal', group: 'roof', color: '#2f3235', roughness: 0.4, metalness: 0.5, pattern: 'seam' },
+  { id: 'roof-wood-shake', name: 'Wood shake', group: 'roof', color: '#8a6a4a', roughness: 0.9, pattern: 'shingle' },
+  { id: 'roof-stone-slate', name: 'Stone slate', group: 'roof', color: '#5a5f63', roughness: 0.75, pattern: 'shingle' },
 ];
 
 const BY_ID = new Map(MATERIAL_CATALOG.map((m) => [m.id, m]));

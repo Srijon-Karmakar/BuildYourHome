@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+import type * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useStore } from 'zustand';
 import { buildColliders, moveWithCollision, stairHeightAt, stairToLocal } from '@hd/geometry';
@@ -6,7 +7,8 @@ import { balconyColliders, itemColliders, layoutOf } from '@hd/editor-core';
 import { editor, useUi } from '../plan/session';
 import { rememberPose, resetWalkInput, spawnPose, walkInput, walkPose } from './walkState';
 
-const EYE_HEIGHT_M = 1.6;
+/** The orbit view's field of view, restored when the walk ends. */
+const ORBIT_FOV = 50;
 const WALK_SPEED = 1.7; // m/s
 const RUN_SPEED = 3.4;
 const MAX_PITCH = (80 * Math.PI) / 180;
@@ -79,7 +81,7 @@ export function WalkControls() {
     const sp = spawnPose(s.scene, s.activeLevelId);
     const feet = floorAt(sp.x, sp.z);
     if (feet.level !== s.activeLevelId) editor.setActiveLevel(feet.level);
-    st.current = { x: sp.x, z: sp.z, yaw: sp.yaw, pitch: 0, y: feet.y + EYE_HEIGHT_M, feet: feet.y };
+    st.current = { x: sp.x, z: sp.z, yaw: sp.yaw, pitch: 0, y: feet.y + useUi.getState().walkEye, feet: feet.y };
     camera.rotation.order = 'YXZ';
     resetWalkInput();
     walkPose.setState({ active: true, x: sp.x, z: sp.z, yaw: sp.yaw, y: st.current.y });
@@ -108,6 +110,9 @@ export function WalkControls() {
       rememberPose(st.current);
       walkPose.setState({ active: false });
       camera.rotation.order = 'XYZ';
+      const cam = camera as THREE.PerspectiveCamera;
+      cam.fov = ORBIT_FOV;
+      cam.updateProjectionMatrix();
       resetWalkInput();
     };
   }, [camera, invalidate]);
@@ -154,7 +159,13 @@ export function WalkControls() {
     // The steps while on a stair (the active floor switches half-way up), else the floor itself; the eye settles onto it.
     s.feet = at.y;
     if (at.level !== editor.getState().activeLevelId) editor.setActiveLevel(at.level);
-    s.y += (s.feet + EYE_HEIGHT_M - s.y) * (1 - Math.exp(-EYE_SMOOTHING * dt));
+    const ui = useUi.getState();
+    const cam = camera as THREE.PerspectiveCamera;
+    if (Math.abs(cam.fov - ui.walkFov) > 0.01) {
+      cam.fov = ui.walkFov; // a wider view makes rooms feel bigger (a narrow one feels like looking down a tube)
+      cam.updateProjectionMatrix();
+    }
+    s.y += (s.feet + ui.walkEye - s.y) * (1 - Math.exp(-EYE_SMOOTHING * dt));
     camera.position.set(s.x, s.y, s.z);
     camera.rotation.set(s.pitch, s.yaw, 0);
 
