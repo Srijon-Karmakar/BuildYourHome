@@ -180,3 +180,19 @@ describe('item text', () => {
     expect(scene(e).items[id]!.text).toBeUndefined();
   });
 });
+
+describe('full glass wall', () => {
+  it('turns on with defaults, merges options, turns off, and keeps glass and solid walls from merging', async () => {
+    const { setWallsProps } = await import('./index');
+    const e = createEditor(createEmptyScene());
+    const L0 = e.getState().scene.levelOrder[0]!;
+    e.execute(addWall({ levelId: L0, from: [0, 0], to: [4, 0] }));
+    const id = Object.keys(e.getState().scene.walls)[0]!;
+    e.execute(setWallsProps([id], { glazed: {} }));
+    expect(e.getState().scene.walls[id]!.glazed).toEqual({});
+    e.execute(setWallsProps([id], { glazed: { tint: 'blue', sill: 0.5, transom: 0 } }));
+    expect(e.getState().scene.walls[id]!.glazed).toEqual({ tint: 'blue', sill: 0.5 });
+    e.execute(setWallsProps([id], { glazed: null }));
+    expect(e.getState().scene.walls[id]!.glazed).toBeUndefined();
+  });
+});

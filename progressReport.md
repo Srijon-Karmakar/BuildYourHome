@@ -679,3 +679,10 @@ Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-
 - **Use:** select the top flight > Exit at the top: Open / Roof room / Glass box / Hatch, then height, wall / kerb colour and door / frame colour. New stairs: Stair options > Exit at the top (goes on the last flight).
 - **Code:** `geometry/stairs/exit.ts` (`stairExitPlan`, `stairExitWalls`, `buildStairExit`), schema `Stair.exit`, editor-core `updateStairs({ exit })`, `addStairAssembly({ exit })`, `stairExitBase`, `stairExitColliders`; web `StairExit` in `StairMesh.tsx`, `ui/StairExitPanel.tsx`, plan wall lines in `render.ts`, walker colliders.
 - **Tests:** geometry +4 (126), editor-core +2 (all pass except the parallel `facade.test.ts`), browser 505/505 (new: exit from the options card on the top flight only, inspector switch to glass box). Checked all three kinds in 3D on a flat roof and the room on the plan.
+
+## P3-15 — Full glass wall (ADR-033)
+- Owner request: an option to make a whole wall a window pane.
+- **Use:** select a wall > **Full glass wall**; then pane width, frame (slim / standard / bold), frame colour, glass (clear / blue / green / smoked / frosted), low wall under (0 = glass to the floor), cross bar height. Doors and windows in the wall still work; glass fills above a door.
+- **Code:** `geometry/wall/glazing.ts` (`glazingRun`, `glazingCuts`, `buildGlazing`), schema `Wall.glazed`, editor-core `setWallsProps({ glazed })` + merge rule; web `Glazing` in `WallMesh.tsx`, `ui/GlassWallPanel.tsx`, plan colour.
+- **Bug met on the way:** the first glass run started exactly at the footprint's corner zone, so `validCuts` dropped the cut and the glass was hidden inside a solid wall; the run now starts past the corner zone (test added).
+- **Tests:** geometry +3 (129), editor-core +1 (234; the old `facade.test.ts` T-junction panel test still fails, not from this work), browser 510/510 (new block 2m4). Checked in 3D from outside and inside: clear full-height glass with a door, and blue glass with bold frame, 60 cm upstand, cross bar and a door.

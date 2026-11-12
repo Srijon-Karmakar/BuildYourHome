@@ -1381,6 +1381,32 @@ try {
     await page.close();
   }
 
+  // ---------------------------------------------------------------- 2m4. full glass wall
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?demo=1&view=split');
+    await page.waitForFunction(() => window.__hd && window.__hd.core);
+    const id = await page.evaluate(() => { const ed = window.__hd.editor; const w = Object.values(ed.getState().scene.walls).find((x) => x.kind === 'exterior'); ed.select([w.id]); return w.id; });
+    const ins = page.getByRole('complementary', { name: 'Properties' });
+    const glass = ins.getByRole('switch', { name: /Full glass wall/ });
+    check('a wall offers Full glass wall (off)', (await glass.getAttribute('aria-checked')) === 'false');
+    await glass.click();
+    const g = () => page.evaluate((wid) => window.__hd.editor.getState().scene.walls[wid].glazed ?? null, id);
+    check('Full glass wall turns the wall to glass', JSON.stringify(await g()) === '{}');
+    await ins.getByRole('group', { name: 'Glass' }).getByRole('button', { name: 'Smoked' }).click();
+    await ins.getByRole('group', { name: 'Frame' }).getByRole('button', { name: 'Slim' }).click();
+    check('glass tint and frame are saved', JSON.stringify(await g()) === JSON.stringify({ tint: 'smoked', frame: 'slim' }), JSON.stringify(await g()));
+    await page.waitForTimeout(300);
+    await glass.click();
+    check('switching it off makes the wall solid again', (await g()) === null);
+    check('no page errors with glass walls', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
   // ---------------------------------------------------------------- 2n. selecting and editing in 3D, edit card layout
   {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });

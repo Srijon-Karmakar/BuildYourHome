@@ -20,7 +20,7 @@ const flipPanel = (p: WallPanel, len: number): WallPanel => ({ ...copy(p), offse
 /** Two walls can merge only when their dressing matches (faces swapped when one of them is reversed). */
 function sameDressing(w1: Wall, rev1: boolean, w2: Wall, rev2: boolean): boolean {
   const lowers = (w: Wall, rev: boolean) => JSON.stringify(rev ? [w.lowerB, w.lowerA] : [w.lowerA, w.lowerB]);
-  return lowers(w1, rev1) === lowers(w2, rev2) && JSON.stringify(w1.trim) === JSON.stringify(w2.trim);
+  return lowers(w1, rev1) === lowers(w2, rev2) && JSON.stringify(w1.trim) === JSON.stringify(w2.trim) && JSON.stringify(w1.glazed) === JSON.stringify(w2.glazed);
 }
 
 /** Points closer than this (metres) on the same level are treated as the same node. */
@@ -350,6 +350,8 @@ export type WallProps = Partial<Pick<Wall, 'thickness' | 'height' | 'kind' | 'ma
   lowerB?: Partial<NonNullable<Wall['lowerB']>> | null;
   /** Mouldings on the outside face (merged); `null` removes them. */
   trim?: Partial<NonNullable<Wall['trim']>> | null;
+  /** Full glass wall: fields given are merged (`{}` turns it on with the defaults); `null` makes the wall solid again. */
+  glazed?: Partial<NonNullable<Wall['glazed']>> | null;
 };
 
 /** Default height of a new two-tone lower finish (m). */
@@ -365,7 +367,7 @@ export function setWallsProps(wallIds: readonly Id[], props: WallProps): Command
     type: 'SetWallProps',
     label: wallIds.length > 1 ? 'Edit walls' : 'Edit wall',
     apply(d) {
-      const { lowerA, lowerB, trim, ...p } = props;
+      const { lowerA, lowerB, trim, glazed, ...p } = props;
       if (p.thickness !== undefined) p.thickness = Math.min(1, Math.max(0.05, p.thickness));
       if (p.height !== undefined) p.height = Math.min(10, Math.max(1, p.height));
       for (const id of wallIds) {
@@ -394,6 +396,13 @@ export function setWallsProps(wallIds: readonly Id[], props: WallProps): Command
           if (next.size !== undefined) next.size = Math.min(2, Math.max(0.5, next.size));
           if (!next.cornice && !next.plinth && !next.pilasters && !next.bands?.length) delete w.trim;
           else w.trim = next;
+        }
+        if (glazed === null) delete w.glazed;
+        else if (glazed) {
+          const next = { ...(w.glazed ?? {}), ...glazed };
+          for (const k of Object.keys(next) as Array<keyof typeof next>) if (next[k] === undefined) delete next[k];
+          if (next.transom === 0) delete next.transom;
+          w.glazed = next;
         }
       }
     },

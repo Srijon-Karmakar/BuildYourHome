@@ -94,6 +94,24 @@ export const Wall = z.object({
   lowerB: WallLower.optional(),
   panels: z.array(WallPanel).max(24).optional(),
   trim: WallTrim.optional(),
+  /**
+   * Full glass wall (floor-to-ceiling glazing). The wall stays a wall (rooms, corners, collisions); in 3D everything but a thin
+   * top band (and an optional upstand) is glass panes in a frame. Unset = a solid wall.
+   */
+  glazed: z
+    .object({
+      /** Target pane width (m). */
+      pane: z.number().min(0.4).max(3).optional(),
+      frame: z.enum(['slim', 'standard', 'bold']).optional(),
+      /** Frame colour (hex). */
+      color: z.string().optional(),
+      tint: z.enum(['clear', 'blue', 'green', 'smoked', 'frosted']).optional(),
+      /** Solid wall under the glass (m). */
+      sill: z.number().min(0).max(1.2).optional(),
+      /** A horizontal bar across the panes at this height (m); unset / 0 = none. */
+      transom: z.number().min(0).max(3).optional(),
+    })
+    .optional(),
 });
 
 /** A sunshade over a door or window: a chajja slab, awning, louvre fins or a canopy on columns, on the outside face. */

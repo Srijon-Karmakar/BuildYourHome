@@ -202,7 +202,8 @@ function drawWalls(ctx: CanvasRenderingContext2D, s: RenderState): void {
   // Solid wall pieces (mitered corners, gaps at doors/windows). A hairline stroke in the same colour hides
   // anti-aliasing seams between touching pieces and keeps very thin walls visible when zoomed out.
   for (const w of walls) {
-    const color = sel.has(w.id) ? C.wallSel : C.wall;
+    // A full glass wall reads as glass on the plan.
+    const color = sel.has(w.id) ? C.wallSel : w.glazed ? '#7fa9c6' : C.wall;
     ctx.fillStyle = color;
     ctx.strokeStyle = color;
     ctx.lineWidth = Math.max(1, 3 - w.thickness * v.scale);

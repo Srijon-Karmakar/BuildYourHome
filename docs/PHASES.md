@@ -68,6 +68,7 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 - [x] P3-12 Owner feedback: open stair builds (side beams / centre spine / floating, tread and beam options), exact floor-to-floor linking (headroom opening, floor-level guard, walls and furniture checks), balcony designer (railing, slab, supports, cover), roof terrace railing, leaf-card trees (ADR-029)
 - [x] P3-13 One-click staircase through several floors (floors stepper + Stair options card), standalone stairs (no room / walls / roof unless asked), flat roof by default (ADR-031)
 - [x] P3-14 Stair exit on the roof: roof room (chilekotha / mumty), glass box, hatch; stair opening cut through flat roofs (ADR-032)
+- [x] P3-15 Full glass wall (floor-to-ceiling glazing): pane width, frame, colour, tint, low wall under, cross bar; doors in it keep working (ADR-033)
 **Exit:** an exterior "hero view" looks good on high tier and runs on low tier.
 
 ## Phase 4 — Mobile app & polish (≈ 3–4 weeks)

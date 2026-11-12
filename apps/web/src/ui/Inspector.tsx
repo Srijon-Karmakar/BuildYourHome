@@ -19,6 +19,7 @@ import { deleteSelection } from '../plan/PlanController';
 import { facesFor } from '../plan/wallFaces';
 import { levelRooms } from '../plan/rooms';
 import { editor, useUi } from '../plan/session';
+import { GlassWallPanel } from './GlassWallPanel';
 import { catalogMaterial, finishMaterials, materialsFor, paintMaterials } from '../view3d/placeholderMaterials';
 import { AngleField, Chips, ColorSwatches, LengthField, Section, SelectField, Segmented, Swatches, TextField, Toggle } from './fields';
 
@@ -323,6 +324,7 @@ export function Inspector() {
               {paintSide !== 'both' && <p className="f-note">The brick line on the plan shows the face you are painting: the side that looks into a room (interior) or outside (exterior).</p>}
               <Swatches label="Paint" items={paintMaterials()} value={faceValue} onPick={paintWalls} />
               <Swatches label="Finish" items={finishMaterials()} value={faceValue} onPick={paintWalls} />
+              {walls.every((w) => w.kind !== 'fence' && w.kind !== 'boundary') && <GlassWallPanel walls={walls} />}
             </Section>
           )}
 
