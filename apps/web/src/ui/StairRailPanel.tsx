@@ -11,6 +11,7 @@ export function StairRailPanel({ stairs }: { stairs: Stair[] }) {
     <RailingPanel
       rails={stairs.map((s) => ({ railing: s.railing, opts: s.railingOpts }))}
       sides={!spiral}
+      guard={!spiral}
       onEdit={(railingOpts) => editor.execute(updateStairs(ids, { railingOpts }))}
       onReset={() => editor.execute(updateStairs(ids, { railingOpts: null }))}
     />

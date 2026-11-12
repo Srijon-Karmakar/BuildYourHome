@@ -2097,6 +2097,10 @@ try {
     check('glass shows its tint choices', await ins.getByRole('group', { name: 'Glass' }).isVisible());
     await ins.getByRole('group', { name: 'Glass' }).getByRole('button', { name: 'Smoked' }).click();
     check('the glass tint is saved', (await opts()).tint === 'smoked');
+    await ins.getByRole('switch', { name: /Rail round the opening upstairs/ }).click();
+    check('the rail round the opening upstairs can be switched off', (await opts()).guard === false);
+    await ins.getByRole('switch', { name: /Rail round the opening upstairs/ }).click();
+    check('and on again', (await opts()).guard === true);
     await ins.getByRole('button', { name: 'Reset railing options' }).click();
     check('Reset goes back to the plain look', (await opts()) === null);
     check('no page errors with the railing options', errors.length === 0, errors.slice(0, 2).join(' | '));

@@ -122,6 +122,8 @@ export const RailingOpts = z.object({
   post: z.number().min(0.02).max(0.15).optional(),
   /** Stairs only: which side of the flight gets a rail. */
   sides: z.enum(['both', 'left', 'right']).optional(),
+  /** Stairs only: a railing round the opening on the floor above (default on). */
+  guard: z.boolean().optional(),
   /** Glass colour. */
   tint: z.enum(['clear', 'blue', 'green', 'smoked', 'frosted']).optional(),
   /** Balconies and roofs: distance between posts along a straight run (m). */

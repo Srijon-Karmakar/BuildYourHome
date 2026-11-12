@@ -427,14 +427,18 @@ export function stairPushOut(scene: Scene, levelId: Id, layout: StairLayout, ori
  * Which runs of a stair's rail to leave out because they stand flush against a house wall (on the floor it starts on or the one
  * it reaches): a rail inside a wall only clutters it. Answers in the stair's own frame.
  */
-export function stairRailSkip(scene: Scene, s: Stair): (a: Vec2, b: Vec2) => boolean {
+export function stairRailSkip(scene: Scene, s: Stair): (a: Vec2, b: Vec2, kind?: 'flight' | 'guard') => boolean {
   const origin: Vec2 = [s.origin[0], s.origin[2]];
-  const boxes = [...wallBoxes(scene, s.fromLevel), ...wallBoxes(scene, s.toLevel)];
-  return (a, b) => {
+  const flightBoxes = [...wallBoxes(scene, s.fromLevel), ...wallBoxes(scene, s.toLevel)];
+  const upperBoxes = wallBoxes(scene, s.toLevel);
+  return (a, b, kind = 'flight') => {
     const wa = stairToWorld(origin, s.rotationY, a);
     const wb = stairToWorld(origin, s.rotationY, b);
     const wm: Vec2 = [(wa[0] + wb[0]) / 2, (wa[1] + wb[1]) / 2];
-    return boxes.some((w) => [wa, wm, wb].every((p) => distToSeg(p, w.a, w.b) <= w.half + 0.06));
+    // A flight rail goes when its side stands flush against a wall. The guard on the floor above also goes when a wall is
+    // closer than a person can stand between it and the opening (the room built round the stairs keeps 30 cm).
+    const gap = kind === 'guard' ? 0.42 : 0.06;
+    return (kind === 'guard' ? upperBoxes : flightBoxes).some((w) => [wa, wm, wb].every((p) => distToSeg(p, w.a, w.b) <= w.half + gap));
   };
 }
 

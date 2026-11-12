@@ -65,6 +65,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.119.0
         version: 2.119.0
+      ogl:
+        specifier: ^1.0.11
+        version: 1.0.11
       postprocessing:
         specifier: ^6.39.6
         version: 6.39.6(three@0.180.0)
@@ -1442,6 +1445,9 @@ packages:
   node-releases@2.0.63:
     resolution: {integrity: sha512-6li2QanLsAXpIH2R6j77MzRyvOyrvdTqlKtO4CgBdHGNvN99ZZfyxszHc5o5+IZBWD5u6Hzwg83JoGXmqZNG9Q==}
     engines: {node: '>=18'}
+
+  ogl@1.0.11:
+    resolution: {integrity: sha512-kUpC154AFfxi16pmZUK4jk3J+8zxwTWGPo03EoYA8QPbzikHoaC82n6pNTbd+oEaJonaE8aPWBlX7ad9zrqLsA==}
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -3097,6 +3103,8 @@ snapshots:
   natural-compare@1.4.0: {}
 
   node-releases@2.0.63: {}
+
+  ogl@1.0.11: {}
 
   optionator@0.9.4:
     dependencies:

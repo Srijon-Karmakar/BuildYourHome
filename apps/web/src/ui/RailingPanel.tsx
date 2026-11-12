@@ -28,6 +28,8 @@ export interface RailingPanelProps {
   onReset: () => void;
   /** Stairs: which side of the flight gets a rail. */
   sides?: boolean;
+  /** Stairs: the railing round the opening on the floor above can be switched off. */
+  guard?: boolean;
   /** Balconies and roofs: how far apart the posts stand. */
   spacing?: boolean;
   /** Roofs: how far the railing stands in from the edge, and which sides are left open (labels in order of the sides). */
@@ -38,7 +40,7 @@ export interface RailingPanelProps {
 }
 
 /** Railing choices shared by stairs, balconies and roof terraces: filling, colour, handrail, height, spacing, posts, glass tint. */
-export function RailingPanel({ rails, onEdit, onReset, sides, spacing, inset, edges, wall }: RailingPanelProps) {
+export function RailingPanel({ rails, onEdit, onReset, sides, guard, spacing, inset, edges, wall }: RailingPanelProps) {
   const opts = rails.map((r) => railOptionsFor(r.railing, r.opts));
   const infill = common(opts.map((o) => o.infill));
   const fills = infill === 'balusters' || infill === 'cables';
@@ -109,6 +111,7 @@ export function RailingPanel({ rails, onEdit, onReset, sides, spacing, inset, ed
           onChange={(v) => onEdit({ sides: v as 'both' | 'left' | 'right' })}
         />
       )}
+      {guard && <Toggle label="Rail round the opening upstairs" hint="Keeps people from stepping into the stairwell" checked={rails.every((r) => r.opts?.guard !== false)} onChange={(on) => onEdit({ guard: on })} />}
       {inset && <LengthField label="Set in from edge" value={common(rails.map((r) => r.opts?.inset ?? 0.1)) ?? 0.1} min={0} max={1} step={0.05} onCommit={(v) => onEdit({ inset: v })} />}
       {edges && skip !== null && (
         <div className="f-group" role="group" aria-label="Railing sides">

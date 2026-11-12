@@ -45,7 +45,7 @@ function geometryOf(m: { positions: Float32Array; normals: Float32Array; uvs: Fl
 }
 
 /** One stair: steps (solid blocks, or open treads on beams / a spine / floating) from the lower floor up to the last step below the upper floor. Rebuilt only when it changes. */
-export function StairMesh({ stair, scene, tier }: { stair: Stair; scene: Scene; tier: Tier }) {
+export function StairMesh({ stair, scene, tier, upperVisible = true }: { stair: Stair; scene: Scene; tier: Tier; /** The floor the stair arrives on is drawn (the guard rail round the opening belongs to it). */ upperVisible?: boolean }) {
   const selected = useIsSelected(stair.id);
   const layout = layoutOf(scene, stair);
   const from = scene.levels[stair.fromLevel];
@@ -75,19 +75,28 @@ export function StairMesh({ stair, scene, tier }: { stair: Stair; scene: Scene; 
   // Handrail, posts and balusters (or glass) on the open sides; left out where a side stands against a wall.
   const railing = stair.railing && stair.railing !== 'none' ? stair.railing : null;
   const railKey = JSON.stringify([stair.railing, stair.railingOpts, build]) + '|' + (railing ? wallSignature(scene, stair) : '');
+  const guardOn = stair.railingOpts?.guard !== false && upperVisible;
   const rail = useMemo(() => {
     if (!layout || !railing) return null;
     const skip = stairRailSkip(scene, stair);
-    const m = buildStairRailing(layout, { ...railOptions(stair), pole: build === 'solid' }, { skip: (a, b) => skip(a, b) });
+    const m = buildStairRailing(layout, { ...railOptions(stair), pole: build === 'solid' }, { skip: (a, b, k) => skip(a, b, k), parts: 'flight' });
     return m ? railGeometry(m) : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, railKey]);
+  const guard = useMemo(() => {
+    if (!layout || !railing || !guardOn) return null;
+    const skip = stairRailSkip(scene, stair);
+    const m = buildStairRailing(layout, { ...railOptions(stair), pole: false }, { skip: (a, b, k) => skip(a, b, k), parts: 'guard' });
+    return m ? railGeometry(m) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, railKey, guardOn]);
   const railMaterials = useMemo(
     () => railMaterialsFor(stair.railing, stair.railingOpts),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [stair.railing, JSON.stringify(stair.railingOpts)],
   );
   useEffect(() => () => rail?.dispose(), [rail]);
+  useEffect(() => () => guard?.dispose(), [guard]);
   useEffect(() => () => railMaterials.forEach((m) => m.dispose()), [railMaterials]);
 
   if (!geometry || !from) return null;
@@ -95,6 +104,7 @@ export function StairMesh({ stair, scene, tier }: { stair: Stair; scene: Scene; 
     <mesh geometry={geometry} material={materials} position={[stair.origin[0], from.elevation, stair.origin[2]]} rotation={[0, stair.rotationY, 0]} castShadow receiveShadow {...pickProps(stair.id, stair.fromLevel)}>
       {selected && <Outlines thickness={0.03} color={SELECT_COLOR} />}
       {rail && <mesh geometry={rail} material={railMaterials} castShadow receiveShadow raycast={() => null} />}
+      {guard && <mesh geometry={guard} material={railMaterials} castShadow receiveShadow raycast={() => null} />}
     </mesh>
   );
 }

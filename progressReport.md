@@ -602,3 +602,42 @@ Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-
 
 ## Fix: two "View" buttons while walking
 - In Walk mode on a phone the right column's **Views** (saved views and layers) and the walk card's **View** (field of view, eye height) looked like the same button. The walk one is now labelled **Walk settings** (tooltip: Field of view and eye height); Views keeps its name.
+
+## Fix: extra railing round the stair opening
+- Owner: a second, higher rail appeared round the U stair. It was the guard I added round the stairwell opening on the floor above (ADR-029): it hung in the air when that floor was hidden (cutaway) and stacked on the stair's own rail along the sides.
+- Now: (1) the guard is only drawn when the floor it belongs to is drawn; (2) it is left out on any side where a wall of that floor is within 40 cm of the opening (the room built round the stairs keeps 30 cm), so it stays only where someone could step into the opening (the cut edge across the lower flight and open sides); (3) a toggle in the stair's railing options, **Rail round the opening upstairs**, switches it off (`railingOpts.guard`). The flight rail is unchanged (rails against a wall are still removed at 6 cm). Spiral stairs have no separate guard.
+- Tests: geometry 115, editor-core 216; browser checks extended for the toggle.
+
+## Splash: animated background (dot waves, then glowing threads)
+- Owner request: animated background behind the splash (curtain). First tried PatternWaves (orange dot waves, `ui/PatternWaves.tsx`, `ogl`); the owner then switched to **WebThreads** (`ui/WebThreads.tsx`, plain WebGL2, no package), which is what the splash uses now. PatternWaves + `ogl` are kept (unused) at the owner's request so it is easy to switch back.
+- WebThreads settings are in `Curtain.tsx` (red to orange, 7 threads, hub just behind the button). The owner's preview was made for a dark page; on the light paper splash its dark mode turned into a grey haze, so the owner chose **light mode, bolder** (glow 0.016, thickness 1.5 instead of 0.011 / 1.3).
+- Fixed a component bug: in light mode the colour was divided by the edge-faded amount, so threads turned pale yellow/white as they faded at the sides; now the colour is taken before the fade.
+- The layer (`.curtain-waves`) sits above the reveal frame, pauses and fades out in 0.35 s on "Start designing"; clicks on the button do not trigger thread surges; reduced motion = still threads. Test links never show the curtain, so the e2e harness is unaffected.
+- Checked with Playwright at 1248x900 and 390x800 (no console errors; reveal still completes); typecheck, lint clean. On a phone the threads cross the tagline a little; owner to judge on a real device.
+
+## Splash: light / dark switch
+- Owner request: a round switch in the splash's top-right corner (moon = go dark, sun = go light) flips the splash between the light paper look and a dark look (#131116) with glowing threads like the owner's WebThreads preview. The choice is remembered on the device (`localStorage hd.splashTheme`); default is light.
+- Only the splash is themed (the app itself has no dark theme yet): `.curtain.theme-dark` redefines the colour tokens on the curtain, so house art, text, credits, grid and the reveal ring follow; the logo switches to a white-ink version (`assets/plotframer-logo-light.png`, trimmed from `public/logo/logo-loght.png`, `BrandLogo light`). Threads: dark = glow mode (glow 0.011, thickness 1.3), light = ink mode (0.016 / 1.5).
+- Enter on the focused switch toggles the theme and does not start the app; the switch fades out with the rest on "Start designing"; shown only on the full splash (not the brief returning-visit loader).
+- Checked with Playwright at 1248x900 and 390x800: toggle, label, persistence after reload, Enter key, reveal completes from dark; no console errors. Typecheck, lint clean.
+
+## Splash: dark by default, button lower
+- Owner request: the splash now opens in **dark** unless the viewer picked light (`hd.splashTheme = 'light'`); the switch still flips it and remembers the choice.
+- "Start designing" sits lower: 44px gap under the tagline (was 12px). The threads still meet behind it (button centre at 37-39% from the bottom on desktop / phone, thread hub at 38%); on a short 1366x650 window it is at 34%, slightly below the hub.
+- Checked with Playwright at 1248x900, 390x800 and 1366x650 in a fresh browser (dark by default, no overlap with the credits).
+
+## Splash: "Start designing" is a keycap
+- Owner request (Uiverse keycap reference): the button is now a 3D key: orange key tilted back (`perspective(320px) rotateX(13deg)`), a solid darker side under it, sitting in a black well (`.cta-cover`) with a thin light rim; it sinks into the well while pressed. Kept orange (reference is grey) so it still hands over to the orange reveal frame. Markup: `.cta-key` > `.cta-cover` + `button.curtain-cta` (same class and ref, so the reveal and tests are unchanged).
+- Gotcha: the reference uses a shared `transform-style: preserve-3d` scene; in Chromium that made clicks land on the wrapper instead of the button (Enter worked, the mouse did not). Each layer now carries its own perspective, and the well has `pointer-events: none`.
+- Checked with Playwright: click and Enter both start the reveal and the curtain closes; key, pressed state and light theme captured; typecheck, lint clean.
+
+## Splash: square arrow key at the bottom
+- Owner request: the keycap is now a 60x60 square with only a bold arrow (aria-label / tooltip "Start designing"), and it sits at the bottom in the credits footer, 28px above "Designed & developed by". On reveal the credits fade but the key stays put (the frame still grows from it): `.curtain-credits > :not(.cta-key)`.
+- `.curtain-inner` bottom padding 72 -> 150px so the centred content clears the taller footer. Short screens (max-height 500px, phone landscape): smaller house, 48px key, only the first two credit lines.
+- Measured with Playwright at 1248x900, 1366x650, 390x800, 360x640, 800x380: no overlap (tagline-to-key gap 47-246px); click and Enter both start the reveal. Lint clean.
+- Note: the threads still meet in the middle (behind the tagline), no longer behind the key.
+
+## Fix: phone Menu, workspace name overlapped by "+"
+- Owner: in the phone Menu sheet the workspace row read like "Home+4▾". The sheet's big 36px words also hit the workspace switcher, whose name button is capped at 96px on phones, so the name overflowed and the "+" (new workspace) button sat on top of it.
+- Now (sheet only, `styles.css` end of the "Menu sheet: big orange words" block): the name takes the free width and ends in "…" when long, the ▾ is smaller, and "+" is its own round 44px outlined button 14px to the right. CSS only.
+- Checked at 390x800, 360x640 and 800x380 with "Sample home", "Home" and a long name: no overlap, "+" inside the sheet, long names truncated. Lint clean.

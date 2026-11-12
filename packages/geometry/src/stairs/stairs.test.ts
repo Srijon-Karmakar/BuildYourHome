@@ -402,3 +402,37 @@ describe('open stair builds', () => {
     expect(Math.max(...spine.map(Math.abs))).toBeLessThan(0.1);
   });
 });
+
+describe('the guard round the opening upstairs', () => {
+  const top = (m: NonNullable<ReturnType<typeof buildStairRailing>>) => {
+    let t = -Infinity;
+    for (let i = 1; i < m.positions.length; i += 3) t = Math.max(t, m.positions[i]!);
+    return t;
+  };
+  const lowest = (m: NonNullable<ReturnType<typeof buildStairRailing>>) => {
+    let t = Infinity;
+    for (let i = 1; i < m.positions.length; i += 3) t = Math.min(t, m.positions[i]!);
+    return t;
+  };
+  it('parts split the railing into the flight rail and the guard, which together are the whole', () => {
+    for (const kind of ['straight', 'L', 'U'] as const) {
+      const lay = stairLayout({ kind, width: 1, rise: 3 });
+      const all = buildStairRailing(lay, {}, {})!;
+      const flight = buildStairRailing(lay, {}, { parts: 'flight' })!;
+      const guard = buildStairRailing(lay, {}, { parts: 'guard' })!;
+      expect(flight.indices.length + guard.indices.length).toBe(all.indices.length);
+      // the guard stands on the floor above: nothing of it is lower than the upper floor
+      expect(lowest(guard)).toBeGreaterThanOrEqual(lay.rise - 1e-6);
+      expect(top(guard)).toBeCloseTo(lay.rise + RAIL_HEIGHT_M + 0.02, 1);
+    }
+  });
+  it('a wall close to the opening takes the guard away on that side, and a spiral has no separate guard', () => {
+    const lay = stairLayout({ kind: 'U', width: 1, rise: 3 });
+    const all = buildStairRailing(lay, {}, { parts: 'guard' })!;
+    const none = buildStairRailing(lay, {}, { parts: 'guard', skip: (_a, _b, k) => k === 'guard' });
+    expect(none).toBeNull();
+    const some = buildStairRailing(lay, {}, { parts: 'guard', skip: (a, b) => Math.abs(a[0] - b[0]) < 1e-6 })!;
+    expect(some.indices.length).toBeLessThan(all.indices.length);
+    expect(buildStairRailing(stairLayout({ kind: 'spiral', width: 1, rise: 3 }), {}, { parts: 'guard' })).toBeNull();
+  });
+});

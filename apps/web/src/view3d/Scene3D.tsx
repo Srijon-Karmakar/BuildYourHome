@@ -315,7 +315,7 @@ function Stairs({ tier }: { tier: Tier }) {
   if (useUi((st) => st.hiddenLayers.stairs)) return null;
   return (
     <>
-      {Object.values(scene.stairs).map((s) => (vis[s.fromLevel]?.visible ? <StairMesh key={s.id} stair={s} scene={scene} tier={tier} /> : null))}
+      {Object.values(scene.stairs).map((s) => (vis[s.fromLevel]?.visible ? <StairMesh key={s.id} stair={s} scene={scene} tier={tier} upperVisible={!!vis[s.toLevel]?.visible} /> : null))}
     </>
   );
 }

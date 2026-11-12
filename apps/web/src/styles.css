@@ -1857,6 +1857,90 @@ a.pill.solid {
   }
 }
 
+/* Animated dot waves (PatternWaves) behind the splash content; fades out as the reveal starts. */
+.curtain-waves {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.curtain.lifting .curtain-waves {
+  animation: curtain-fade 0.35s ease forwards;
+}
+
+/* Dark splash (switch in the top-right corner; Curtain.tsx remembers it in localStorage). Only the splash is
+   themed: the tokens are redefined on the curtain, so everything inside it (and the reveal ring) follows. */
+.curtain.theme-dark {
+  --paper: #131116;
+  --ink: #f1efea;
+  --ink-2: #b9b4ab;
+  --ink-3: #7d7870;
+  --line: rgba(255, 255, 255, 0.16);
+  --brick: #d9917c;
+  color-scheme: dark;
+}
+
+.curtain.theme-dark::before {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+}
+
+.curtain {
+  transition: background-color 0.45s ease;
+}
+
+.curtain-sub,
+.curtain-credits,
+.credit-main,
+.credit-people,
+.credit-site {
+  transition: color 0.45s ease;
+}
+
+.curtain-house path {
+  transition: stroke 0.45s ease;
+}
+
+.curtain-theme {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--paper) 70%, transparent);
+  color: var(--ink-2);
+  cursor: pointer;
+  opacity: 0;
+  animation: curtain-rise 0.7s 0.9s ease forwards;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.45s ease;
+}
+
+.curtain-theme:hover {
+  color: var(--orange);
+  border-color: var(--orange);
+}
+
+.curtain-theme:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.curtain-theme svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 /* The frame (shown only during the reveal): an empty window onto the workspace, ringed by a huge paper-coloured
    shadow (that becomes the splash's background). --ft/--fr/--fb/--fl = its distance from each screen edge; Curtain.tsx
    sets them to the button's box when the button is pressed. */
@@ -1896,7 +1980,7 @@ a.pill.solid {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 16px 20px 72px;
+  padding: 16px 20px 150px;
   text-align: center;
 }
 
@@ -2031,34 +2115,71 @@ a.pill.solid {
   }
 }
 
-/* ----- Call to action ----- */
+/* ----- Call to action: a keycap ----- */
+/* .cta-cover is the dark well the key sits in; the key (.curtain-cta) is tilted back, has a solid side under it
+   (box-shadow) and drops into the well while pressed. Each layer carries its own perspective instead of sharing a
+   preserve-3d scene: Chromium mis-hit-tests clicks inside preserve-3d (they landed on the wrapper, not the key). */
+.cta-key {
+  --key-tilt: perspective(320px) rotateX(13deg);
+  --key-side: #a83c00;
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin-bottom: 26px;
+  opacity: 0.4;
+  transform: translateY(6px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.curtain.ready .cta-key,
+.curtain.lifting .cta-key {
+  opacity: 1;
+  transform: none;
+}
+
+.cta-cover {
+  position: absolute;
+  inset: -3px -4px -10px;
+  border-radius: 11px;
+  background: #000;
+  transform: var(--key-tilt);
+  pointer-events: none;
+  box-shadow: 0 1px 1px 1px rgba(255, 255, 255, 0.55);
+}
+
+.curtain.theme-dark .cta-cover {
+  box-shadow: 0 1px 1px 1px rgba(255, 255, 255, 0.16);
+}
+
 .curtain-cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-  min-height: 44px;
-  padding: 0 22px 0 26px;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  padding: 0;
   border: 0;
-  border-radius: 0;
+  border-bottom: 2px solid #ff9d5c;
+  border-radius: 8px;
   background: var(--orange);
   color: #fff;
   font-size: 14.5px;
   font-weight: 500;
   letter-spacing: 0.01em;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(253, 101, 4, 0.3);
-  opacity: 0.4;
-  transform: translateY(6px);
-  transition: opacity 0.5s ease, transform 0.5s ease, background 0.2s ease, box-shadow 0.2s ease;
-}
-
-/* one light sweep across the button the moment it becomes available */
-.curtain-cta {
-  position: relative;
   overflow: hidden;
+  transform: var(--key-tilt) translateY(-3px);
+  box-shadow: 0 4px 0 0.2px var(--key-side), 0 8px 18px rgba(253, 101, 4, 0.28);
+  transition: transform 80ms ease, box-shadow 80ms ease, background 0.2s ease;
 }
 
+.curtain-cta:active:not(:disabled) {
+  transform: var(--key-tilt) translateY(1.5px);
+  box-shadow: 0 0 0 0.2px var(--key-side), 0 3px 8px rgba(253, 101, 4, 0.2);
+}
+
+/* one light sweep across the key the moment it becomes available */
 .curtain-cta::after {
   content: '';
   position: absolute;
@@ -2082,25 +2203,19 @@ a.pill.solid {
 }
 
 .curtain-cta svg {
-  width: 20px;
-  height: 20px;
+  width: 30px;
+  height: 30px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.8;
+  stroke-width: 2.6;
   stroke-linecap: round;
   stroke-linejoin: round;
   transition: transform 0.2s ease;
 }
 
-.curtain.ready .curtain-cta,
-.curtain.lifting .curtain-cta {
-  opacity: 1;
-  transform: none;
-}
-
 .curtain-cta:hover:not(:disabled) {
   background: var(--orange-deep);
-  box-shadow: 0 10px 28px rgba(253, 101, 4, 0.42);
+  box-shadow: 0 4px 0 0.2px var(--key-side), 0 10px 28px rgba(253, 101, 4, 0.42);
 }
 
 .curtain-cta:hover:not(:disabled) svg {
@@ -2235,6 +2350,32 @@ a.pill.solid {
   color: var(--orange);
 }
 
+/* Short screens (phone landscape): smaller house and key, only the first two credit lines, so the key in the footer
+   never runs into the tagline. */
+@media (max-height: 500px) {
+  .curtain-house {
+    width: min(190px, 50vw);
+  }
+  .curtain-inner {
+    padding-bottom: 110px;
+  }
+  .cta-key {
+    margin-bottom: 14px;
+  }
+  .curtain-cta {
+    width: 48px;
+    height: 48px;
+  }
+  .curtain-cta svg {
+    width: 24px;
+    height: 24px;
+  }
+  .credit-meta,
+  .credit-legal {
+    display: none;
+  }
+}
+
 /* ----- Reveal: the button becomes a frame, hollows out into a window and grows past the screen edges; the bars pop in as it passes ----- */
 .curtain.lifting {
   pointer-events: none;
@@ -2257,14 +2398,20 @@ a.pill.solid {
   animation: frame-line-out 0.3s ease 1.45s forwards;
 }
 
-.curtain.lifting .curtain-inner > :not(.curtain-cta),
-.curtain.lifting .curtain-credits {
+.curtain.lifting .curtain-inner > *,
+.curtain.lifting .curtain-credits > :not(.cta-key),
+.curtain.lifting .curtain-theme {
   animation: curtain-out 0.45s cubic-bezier(0.5, 0, 0.75, 0) forwards;
 }
 
 /* the button stays put (the orange frame sits exactly behind it) and just melts into it */
 .curtain.lifting .curtain-cta {
   animation: cta-melt 0.25s ease 0.12s forwards;
+}
+
+/* the well goes with it */
+.curtain.lifting .cta-cover {
+  animation: cta-melt 0.2s ease forwards;
 }
 
 @keyframes curtain-out {
@@ -2382,14 +2529,17 @@ html[data-reveal] .bottom {
   .sun-glow,
   .curtain::before,
   .curtain-credits,
+  .curtain-theme,
   .curtain-line span,
+  .cta-key,
   .curtain-cta {
     animation-duration: 0.01s !important;
     animation-delay: 0s !important;
     transition-duration: 0.2s !important;
   }
   .curtain.lifting .curtain-inner,
-  .curtain.lifting .curtain-credits,
+  .curtain.lifting .curtain-credits > :not(.cta-key),
+  .curtain.lifting .curtain-theme,
   html[data-reveal] .panes,
   html[data-reveal] .topbar,
   html[data-reveal] .rail-wrap,
@@ -3577,6 +3727,42 @@ html[data-reveal] .bottom {
   .topbar-right .acct-pop {
     margin-top: 2px;
     padding: 8px 0 14px;
+  }
+
+  /* Workspace row: the big words overflowed the name button (capped at 96px on phones) and the "+" landed on top of
+     them. The name now takes the free width and ends in "…" when long; "+" is its own round button beside it. */
+  .topbar-right .ws {
+    gap: 14px;
+    min-width: 0;
+  }
+
+  .topbar-right .menu-anchor > .pill.ws-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .topbar-right .ws-name > [aria-hidden='true'] {
+    flex: none;
+    font-size: 0.5em;
+  }
+
+  .topbar-right .menu-anchor > .pill.ws-plus {
+    flex: none;
+    display: grid;
+    place-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0 0 3px;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    font-size: 30px;
+    font-weight: 500;
+    line-height: 1;
   }
 }
 

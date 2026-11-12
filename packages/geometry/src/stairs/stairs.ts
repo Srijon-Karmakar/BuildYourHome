@@ -349,6 +349,8 @@ export function stairHoleWorld(layout: StairLayout, origin: Vec2, rotationY: num
 /** Tells the railing which runs to leave out (e.g. a side that stands flush against a wall). Local coordinates. */
 export interface StairRailContext {
   skip?: (a: Vec2, b: Vec2, kind: 'flight' | 'guard') => boolean;
+  /** Which runs to build: the rail of the flights, the guard round the opening on the floor above, or both (default). */
+  parts?: 'flight' | 'guard' | 'both';
 }
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a[0] - b[0], a[1] - b[1]);
@@ -511,7 +513,9 @@ function spiralPaths(layout: StairLayout): RailPath[] {
  */
 export function buildStairRailing(layout: StairLayout, options: Partial<RailOptions> | boolean = {}, ctx: StairRailContext = {}): RailMesh | null {
   const o: RailOptions = { ...DEFAULT_RAIL, spacing: 1.2, ...(options === true ? { infill: 'glass' as const } : options === false ? {} : options) };
-  let paths = layout.spiral ? spiralPaths(layout) : [...flightPaths(layout, ctx), ...guardPaths(layout, ctx)];
+  const parts = ctx.parts ?? 'both';
+  let paths = layout.spiral ? (parts === 'guard' ? [] : spiralPaths(layout)) : [...(parts === 'guard' ? [] : flightPaths(layout, ctx)), ...(parts === 'flight' ? [] : guardPaths(layout, ctx))];
+  if (paths.length === 0) return null;
   if (!layout.spiral && o.sides !== 'both') paths = paths.filter((p) => p.side === o.sides);
   const H = Math.min(1.3, Math.max(0.6, o.height));
   const spiral = layout.spiral;

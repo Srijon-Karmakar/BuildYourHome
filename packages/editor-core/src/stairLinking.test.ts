@@ -108,6 +108,7 @@ describe('stairs and walls', () => {
     const flush = Object.values(scene(e).stairs)[0]!;
     const skip = stairRailSkip(scene(e), flush);
     expect(skip([0.5, 0], [0.5, -3])).toBe(true); // the right side is against the wall
+
     expect(skip([-0.5, 0], [-0.5, -3])).toBe(false);
     e.execute(updateStairs([s.id], { origin: [5.9, 5.7] }));
     expect(stairProblems(scene(e), Object.values(scene(e).stairs)[0]!).join(' ')).toMatch(/wall/i);
@@ -194,5 +195,22 @@ describe('balcony and roof railing options', () => {
     r = scene(e).roofs[id]!;
     expect(r.railing).toBeUndefined();
     expect(r.railingOpts).toBeUndefined();
+  });
+});
+
+describe('guard rail and walls upstairs', () => {
+  it('a wall within 40 cm of the opening takes the guard away on that side only', () => {
+    const e = mk();
+    e.execute(addLevel());
+    e.execute(addStair({ fromLevel: L(e), origin: [3, 6], width: 1 }));
+    const s = Object.values(scene(e).stairs)[0]!;
+    // the stair stands at x 2.5..3.5 (local x -0.5..0.5, local z up the stair = world -z); a wall 0.3 m beside its right edge, upstairs
+    expect(stairRailSkip(scene(e), s)([0.5, -1], [0.5, -2], 'guard')).toBe(false);
+    box(e, L(e, 1), 3.8, 2, 6, 5);
+    const skip = stairRailSkip(scene(e), s);
+    expect(skip([0.5, -1], [0.5, -2], 'guard')).toBe(true);
+    expect(skip([-0.5, -1], [-0.5, -2], 'guard')).toBe(false);
+    // a flight rail only goes when it is really flush (a wall at 30 cm is no reason to take the rail away)
+    expect(skip([0.5, -1], [0.5, -2], 'flight')).toBe(false);
   });
 });
