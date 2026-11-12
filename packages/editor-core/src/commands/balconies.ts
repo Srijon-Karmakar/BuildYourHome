@@ -8,7 +8,7 @@ import {
   type Segment,
   type Collider,
 } from '@hd/geometry';
-import { newId, type Id, type MaterialRef, type Scene, type Vec2 } from '@hd/scene-schema';
+import { newId, type Balcony, type Id, type MaterialRef, type Scene, type Vec2 } from '@hd/scene-schema';
 import { cleanPolygon } from './plot';
 import { isHouseWall } from './walls';
 import type { Command } from '../types';
@@ -54,6 +54,27 @@ export function addBalcony(p: AddBalconyParams, rng?: () => number): Command {
 export interface BalconyProps {
   railing?: RailingKind;
   floorMaterial?: MaterialRef;
+  /** Railing fine tuning: fields given are merged into the current ones; `null` goes back to the plain look. */
+  railingOpts?: Partial<NonNullable<Balcony['railingOpts']>> | null;
+  /** Slab, supports and canopy: merged the same way; `null` resets. */
+  slab?: Partial<NonNullable<Balcony['slab']>> | null;
+  supports?: Partial<NonNullable<Balcony['supports']>> | null;
+  canopy?: Partial<NonNullable<Balcony['canopy']>> | null;
+}
+
+type OptKey = 'railingOpts' | 'slab' | 'supports' | 'canopy';
+
+function mergeInto(b: Balcony, key: OptKey, add: object | null | undefined): void {
+  if (add === undefined) return;
+  const rec = b as unknown as Record<string, unknown>;
+  if (add === null) {
+    delete rec[key];
+    return;
+  }
+  const merged = { ...((rec[key] as object | undefined) ?? {}), ...add } as Record<string, unknown>;
+  for (const k of Object.keys(merged)) if (merged[k] === undefined) delete merged[k];
+  if (Object.keys(merged).length) rec[key] = merged;
+  else delete rec[key];
 }
 
 export function updateBalconies(ids: readonly Id[], props: BalconyProps): Command {
@@ -66,6 +87,10 @@ export function updateBalconies(ids: readonly Id[], props: BalconyProps): Comman
         if (!b) continue;
         if (props.railing) b.railing = props.railing;
         if (props.floorMaterial) b.floorMaterial = props.floorMaterial;
+        mergeInto(b, 'railingOpts', props.railingOpts);
+        mergeInto(b, 'slab', props.slab);
+        mergeInto(b, 'supports', props.supports);
+        mergeInto(b, 'canopy', props.canopy);
       }
     },
   };

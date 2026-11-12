@@ -6,6 +6,8 @@ export * from './room/floor';
 export * from './collision/collision';
 export * from './roof/roof';
 export * from './stairs/stairs';
+export * from './stairs/railing';
+export * from './stairs/body';
 export * from './balcony/balcony';
 export * from './zone/zone';
 export * from './road/road';

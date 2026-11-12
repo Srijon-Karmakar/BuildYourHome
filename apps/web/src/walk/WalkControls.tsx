@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import type * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useStore } from 'zustand';
-import { buildColliders, moveWithCollision, stairHeightAt, stairToLocal } from '@hd/geometry';
+import { buildColliders, moveWithCollision, pointInPolygon, stairHeightAt, stairHole, stairToLocal } from '@hd/geometry';
 import { balconyColliders, itemColliders, layoutOf } from '@hd/editor-core';
 import { editor, useUi } from '../plan/session';
 import { rememberPose, resetWalkInput, spawnPose, walkInput, walkPose } from './walkState';
@@ -56,7 +56,7 @@ export function WalkControls() {
     return Object.values(stairs).flatMap((s) => {
       const layout = layoutOf(scene, s);
       const from = levels[s.fromLevel];
-      return layout && from ? [{ s, layout, fromElevation: from.elevation }] : [];
+      return layout && from ? [{ s, layout, fromElevation: from.elevation, hole: stairHole(layout) }] : [];
     });
   }, [stairs, levels]);
   const stairsRef = useRef(stairData);
@@ -67,9 +67,12 @@ export function WalkControls() {
   /** What is under (x, z): the height of the floor there and which floor the walker then belongs to. */
   const floorAt = (x: number, z: number): { y: number; level: string } => {
     const state = editor.getState();
-    for (const { s: stair, layout, fromElevation } of stairsRef.current) {
+    for (const { s: stair, layout, fromElevation, hole } of stairsRef.current) {
       if (stair.fromLevel !== state.activeLevelId && stair.toLevel !== state.activeLevelId) continue;
-      const h = stairHeightAt(layout, stairToLocal([stair.origin[0], stair.origin[2]], stair.rotationY, [x, z]));
+      const local = stairToLocal([stair.origin[0], stair.origin[2]], stair.rotationY, [x, z]);
+      const h = stairHeightAt(layout, local);
+      // On the floor above, the lower steps are under the floor: only the opening leads down.
+      if (h !== null && state.activeLevelId === stair.toLevel && !pointInPolygon(local, hole, 1e-6)) continue;
       if (h !== null) return { y: fromElevation + h, level: h >= layout.rise / 2 ? stair.toLevel : stair.fromLevel };
     }
     return { y: state.scene.levels[state.activeLevelId]?.elevation ?? 0, level: state.activeLevelId };

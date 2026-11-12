@@ -4,8 +4,13 @@ import {
   buildStairRailing,
   RAIL_HEIGHT_M,
   isSimplePolygon,
+  pointInPolygon,
   RISER_M,
   stairHeightAt,
+  stairHole,
+  STAIR_HEADROOM_M,
+  unionRects,
+  buildStairBody,
   stairLayout,
   stairOutlineWorld,
   stairRiserCount,
@@ -277,7 +282,8 @@ describe('railings', () => {
     const right = count({ sides: 'right' });
     expect(left).toBeLessThan(both);
     expect(right).toBeLessThan(both);
-    expect(left + right).toBeGreaterThanOrEqual(both - 200);
+    // (the guard across the cut edge of the opening belongs to 'both' only)
+    expect(left + right).toBeGreaterThanOrEqual(both - 600);
     // a spiral always keeps its outer rail
     const sp = stairLayout({ kind: 'spiral', width: 1, rise: 3 });
     expect(buildStairRailing(sp, { sides: 'left' })).toBeTruthy();
@@ -291,5 +297,108 @@ describe('railings', () => {
     const right = xs(buildStairRailing(lay, { sides: 'right' })!);
     expect(Math.max(...left)).toBeLessThan(0);
     expect(Math.min(...right)).toBeGreaterThan(0);
+  });
+});
+
+describe('the opening in the floor above', () => {
+  it('only opens where the steps are closer than the headroom; the lower steps pass under the floor', () => {
+    const lay = stairLayout({ kind: 'straight', width: 1, rise: 3 });
+    const hole = stairHole(lay);
+    const zs = hole.map((p) => p[1]);
+    // the outline runs from z = 0 to the far end; the opening starts further along
+    expect(Math.max(...zs)).toBeLessThan(-0.5);
+    expect(Math.min(...zs)).toBeCloseTo(Math.min(...lay.outline.map((p) => p[1])), 6);
+    // every step inside the opening is closer than the headroom to the floor, and the first step outside it is not
+    const limit = lay.rise - STAIR_HEADROOM_M;
+    for (const t of lay.treads) {
+      const inside = t.rect[3] <= Math.max(...zs) + 1e-6;
+      expect(inside).toBe(t.height > limit + 1e-6);
+    }
+  });
+
+  it('is the whole outline for spirals and for stairs too short to pass under', () => {
+    const sp = stairLayout({ kind: 'spiral', width: 1, rise: 3 });
+    expect(stairHole(sp)).toEqual(sp.outline);
+    const low = stairLayout({ kind: 'straight', width: 1, rise: 2 });
+    expect(stairHole(low)).toEqual(low.outline);
+  });
+
+  it('is one piece for L and U stairs and always inside the outline', () => {
+    for (const kind of ['L', 'U'] as const) {
+      const lay = stairLayout({ kind, width: 1, rise: 3 });
+      const hole = stairHole(lay);
+      expect(hole.length).toBeGreaterThanOrEqual(4);
+      for (const p of hole) expect(pointInPolygon(p, lay.outline, 1e-6)).toBe(true);
+      // smaller than the whole stair, but it holds the landing and the whole second flight
+      expect(area(hole)).toBeLessThan(area(lay.outline));
+      const landing = lay.treads.find((t) => t.landing)!;
+      expect(pointInPolygon([(landing.rect[0] + landing.rect[2]) / 2, (landing.rect[1] + landing.rect[3]) / 2], hole, 1e-6)).toBe(true);
+    }
+  });
+
+  it('unionRects joins touching rectangles into one outline', () => {
+    const u = unionRects([[0, 0, 1, 1], [1, 0, 2, 1], [0, 1, 1, 2]]);
+    expect(u).toHaveLength(6); // an L
+    const single = unionRects([[0, 0, 2, 3]]);
+    expect(single).toHaveLength(4);
+  });
+});
+
+describe('open stair builds', () => {
+  const lay = stairLayout({ kind: 'straight', width: 1, rise: 3 });
+  const slots = (m: ReturnType<typeof buildStairBody>) => m.groups.map((g) => g.slot);
+  const sum = (m: ReturnType<typeof buildStairBody>) => m.groups.reduce((n, g) => n + g.count, 0);
+
+  it('solid keeps the classic blocks; every build gives valid triangles', () => {
+    expect(sum(buildStairBody(lay))).toBe(buildStairMesh(lay).indices.length);
+    for (const build of ['solid', 'stringer', 'spine', 'floating'] as const) {
+      for (const kind of ['straight', 'L', 'U', 'spiral'] as const) {
+        const m = buildStairBody(stairLayout({ kind, width: 1, rise: 3 }), { build, risers: true });
+        expect(sum(m)).toBe(m.indices.length);
+        const n = m.positions.length / 3;
+        for (const i of m.indices) expect(i).toBeLessThan(n);
+        for (let i = 0; i < m.normals.length; i += 3) expect(Math.hypot(m.normals[i]!, m.normals[i + 1]!, m.normals[i + 2]!)).toBeCloseTo(1, 4);
+      }
+    }
+  });
+
+  it('floating is treads only; stringer and spine add a frame; risers are optional', () => {
+    expect(slots(buildStairBody(lay, { build: 'floating' }))).toEqual(['tread']);
+    expect(slots(buildStairBody(lay, { build: 'stringer' }))).toEqual(['tread', 'frame']);
+    expect(slots(buildStairBody(lay, { build: 'spine' }))).toEqual(['tread', 'frame']);
+    expect(slots(buildStairBody(lay, { build: 'floating', risers: true }))).toEqual(['tread', 'riser']);
+  });
+
+  it('open treads are slabs of the chosen thickness with nothing between them and the floor', () => {
+    const m = buildStairBody(lay, { build: 'floating', thickness: 0.06, nosing: 0 });
+    // lowest point of the mesh: the underside of the first tread, one thickness under its top
+    let lo = Infinity;
+    for (let i = 1; i < m.positions.length; i += 3) lo = Math.min(lo, m.positions[i]!);
+    expect(lo).toBeCloseTo(lay.riserHeight - 0.06, 6);
+  });
+
+  it('nosing moves the near edge of a tread back over the step below', () => {
+    const z = (o: number) => {
+      const m = buildStairBody(lay, { build: 'floating', nosing: o });
+      let hi = -Infinity;
+      for (let i = 2; i < m.positions.length; i += 3) hi = Math.max(hi, m.positions[i]!);
+      return hi;
+    };
+    expect(z(0.05)).toBeCloseTo(z(0) + 0.05, 6);
+  });
+
+  it('beams run under the treads: the side build has two, the spine one, and the frame stays under the steps', () => {
+    const xs = (b: 'stringer' | 'spine') => {
+      const m = buildStairBody(lay, { build: b });
+      const g = m.groups.find((q) => q.slot === 'frame')!;
+      const out: number[] = [];
+      for (let k = g.start; k < g.start + g.count; k++) out.push(m.positions[m.indices[k]! * 3]!);
+      return out;
+    };
+    const side = xs('stringer');
+    expect(Math.min(...side)).toBeLessThan(-0.4);
+    expect(Math.max(...side)).toBeGreaterThan(0.4);
+    const spine = xs('spine');
+    expect(Math.max(...spine.map(Math.abs))).toBeLessThan(0.1);
   });
 });

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { PopClose } from './PopClose';
 import { useStore } from 'zustand';
 import { addLevel, copyLevel, removeLevel, setAutoRoofs, setLevelProps, setRoof, updateRoofs, type RoofInput } from '@hd/editor-core';
 import { materialsFor } from '../view3d/placeholderMaterials';
@@ -150,6 +151,7 @@ export function LevelSwitcher() {
       {view !== '2d' && <ViewsMenu />}
       {open && (
         <div className="popover above" role="group" aria-label="Floor settings">
+          <PopClose onClick={() => setOpen(false)} />
           <TextField
             label="Name"
             value={current.name}

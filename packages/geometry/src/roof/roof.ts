@@ -454,3 +454,23 @@ export function buildRoofMesh(points: readonly Vec2[], elevation: number, params
   const box = orientedBox(points);
   return box ? buildRoofPart(box, elevation, params, wallHalf) : null;
 }
+
+/**
+ * The four corners (in order, seen from above) of a flat roof's top surface and the height of that surface, for a terrace
+ * railing. `parapet` is the height of the low wall round the edge (0 when there is none). Null when the style is not flat.
+ */
+export function flatRoofEdge(box: OrientedBox, elevation: number, params: RoofParams, wallHalf = 0.115): { corners: Vec2[]; y: number; parapet: number; wall: number } | null {
+  if (params.style !== 'flat') return null;
+  const swap = !!params.swap;
+  const angle = box.angle + (swap ? Math.PI / 2 : 0);
+  const length = swap ? box.width : box.length;
+  const width = swap ? box.length : box.width;
+  const a = length / 2 + wallHalf + Math.max(0, params.rake ?? params.overhang);
+  const b = width / 2 + wallHalf + Math.max(0, params.overhang);
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const P = (u: number, v: number): Vec2 => [box.cx + u * c - v * s, box.cz + u * s + v * c];
+  const t = clamp(params.thickness ?? FLAT_ROOF_THICKNESS_M, ROOF_MIN_THICKNESS_M, ROOF_MAX_THICKNESS_M);
+  const para = clamp(params.parapet ?? 0, 0, 0.9);
+  return { corners: [P(-a, -b), P(a, -b), P(a, b), P(-a, b)], y: elevation + t, parapet: para > 0.05 ? para : 0, wall: 0.12 };
+}

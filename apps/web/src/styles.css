@@ -1826,9 +1826,40 @@ a.pill.solid {
   overflow: hidden;
 }
 
-/* The frame: an empty window onto the workspace, ringed by a huge paper-coloured shadow (that is the splash's
-   background). --ft/--fr/--fb/--fl = its distance from each screen edge, set in Curtain.tsx to hug the content.
-   While the splash shows, its inside is paper too; on reveal the inside clears and the frame grows past the edges. */
+/* The splash background is paper with a faint plan grid that eases in. */
+.curtain {
+  background: var(--paper);
+}
+
+.curtain::before {
+  content: '';
+  position: absolute;
+  inset: -3%;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(17, 17, 17, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(17, 17, 17, 0.06) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: center;
+  -webkit-mask-image: radial-gradient(ellipse 58% 52% at 50% 46%, #000 0%, transparent 78%);
+  mask-image: radial-gradient(ellipse 58% 52% at 50% 46%, #000 0%, transparent 78%);
+  opacity: 0;
+  animation: grid-in 2.2s cubic-bezier(0.2, 0.7, 0.2, 1) 0.05s forwards;
+}
+
+@keyframes grid-in {
+  from {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The frame (shown only during the reveal): an empty window onto the workspace, ringed by a huge paper-coloured
+   shadow (that becomes the splash's background). --ft/--fr/--fb/--fl = its distance from each screen edge; Curtain.tsx
+   sets them to the button's box when the button is pressed. */
 .curtain {
   --ft: 0px;
   --fr: 0px;
@@ -1842,12 +1873,13 @@ a.pill.solid {
   right: var(--fr);
   bottom: var(--fb);
   left: var(--fl);
-  background: var(--paper);
+  visibility: hidden;
+  background: var(--orange);
   box-shadow: 0 0 0 0 rgba(253, 101, 4, 0), 0 0 0 150vmax var(--paper);
   pointer-events: none;
 }
 
-/* The orange line (the PlotFramer frame): 6px stroke centred on the edge, half clipped = a 3px inner border. */
+/* The orange line: 4px stroke centred on the edge, half clipped = a 2px inner border. */
 .frame-line {
   position: absolute;
   inset: 0;
@@ -1855,20 +1887,7 @@ a.pill.solid {
   height: 100%;
   fill: none;
   stroke: var(--orange);
-  stroke-width: 6;
-  stroke-linejoin: miter;
-}
-
-.frame-line rect {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: frame-draw 1.25s cubic-bezier(0.65, 0, 0.2, 1) 0.05s forwards;
-}
-
-@keyframes frame-draw {
-  to {
-    stroke-dashoffset: 0;
-  }
+  stroke-width: 4;
 }
 
 .curtain-inner {
@@ -1941,6 +1960,30 @@ a.pill.solid {
   animation-delay: 2.8s;
 }
 
+/* a soft orange halo blooms behind the sun once it is drawn, then breathes */
+.sun-glow {
+  fill: var(--orange);
+  stroke: none;
+  opacity: 0;
+  filter: blur(9px);
+  animation: sun-bloom 1.4s ease 2s forwards, sun-breathe 3.6s ease-in-out 3.4s infinite alternate;
+}
+
+@keyframes sun-bloom {
+  to {
+    opacity: 0.3;
+  }
+}
+
+@keyframes sun-breathe {
+  from {
+    opacity: 0.3;
+  }
+  to {
+    opacity: 0.14;
+  }
+}
+
 @keyframes curtain-draw {
   to {
     stroke-dashoffset: 0;
@@ -1968,8 +2011,13 @@ a.pill.solid {
   color: var(--ink-2);
   font-size: 12.5px;
   line-height: 1.4;
+}
+
+.curtain-sub .w {
+  display: inline-block;
+  margin-right: 0.27em;
   opacity: 0;
-  animation: curtain-rise 0.7s 0.7s ease forwards;
+  animation: curtain-rise 0.6s ease calc(0.6s + var(--i, 0) * 0.075s) forwards;
 }
 
 @keyframes curtain-rise {
@@ -2003,6 +2051,34 @@ a.pill.solid {
   opacity: 0.4;
   transform: translateY(6px);
   transition: opacity 0.5s ease, transform 0.5s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* one light sweep across the button the moment it becomes available */
+.curtain-cta {
+  position: relative;
+  overflow: hidden;
+}
+
+.curtain-cta::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 40%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  transform: skewX(-18deg);
+  pointer-events: none;
+}
+
+.curtain.ready .curtain-cta::after {
+  animation: cta-sheen 1.1s ease 0.2s 1 forwards;
+}
+
+@keyframes cta-sheen {
+  to {
+    left: 130%;
+  }
 }
 
 .curtain-cta svg {
@@ -2159,34 +2235,57 @@ a.pill.solid {
   color: var(--orange);
 }
 
-/* ----- Reveal: content falls away, the frame clears and grows past the screen edges, the bars pop in as it passes ----- */
+/* ----- Reveal: the button becomes a frame, hollows out into a window and grows past the screen edges; the bars pop in as it passes ----- */
 .curtain.lifting {
   pointer-events: none;
+  background: transparent;
 }
 
-.curtain.lifting .curtain-inner {
-  animation: curtain-out 0.5s cubic-bezier(0.5, 0, 0.75, 0) forwards;
-}
-
-.curtain.lifting .curtain-credits {
-  animation: curtain-out 0.4s ease forwards;
+.curtain.lifting::before {
+  animation: grid-out 0.4s ease forwards;
 }
 
 .curtain.lifting .curtain-frame {
+  visibility: visible;
   animation:
-    frame-grow 1.25s cubic-bezier(0.8, 0, 0.12, 1) 0.4s forwards,
-    frame-clear 0.35s ease 0.3s forwards,
-    frame-glow 1.25s ease 0.4s forwards;
+    frame-grow 1.25s cubic-bezier(0.8, 0, 0.12, 1) 0.3s forwards,
+    frame-clear 0.45s ease 0.5s forwards,
+    frame-glow 1.25s ease 0.3s forwards;
 }
 
 .curtain.lifting .frame-line {
   animation: frame-line-out 0.3s ease 1.45s forwards;
 }
 
+.curtain.lifting .curtain-inner > :not(.curtain-cta),
+.curtain.lifting .curtain-credits {
+  animation: curtain-out 0.45s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+}
+
+/* the button stays put (the orange frame sits exactly behind it) and just melts into it */
+.curtain.lifting .curtain-cta {
+  animation: cta-melt 0.25s ease 0.12s forwards;
+}
+
 @keyframes curtain-out {
   to {
     opacity: 0;
     transform: scale(1.05) translateY(-10px);
+  }
+}
+
+@keyframes cta-melt {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes grid-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
   }
 }
 
@@ -2279,7 +2378,9 @@ html[data-reveal] .bottom {
   .curtain-house path,
   .house-glow,
   .curtain-title,
-  .curtain-sub,
+  .curtain-sub .w,
+  .sun-glow,
+  .curtain::before,
   .curtain-credits,
   .curtain-line span,
   .curtain-cta {
@@ -2297,14 +2398,15 @@ html[data-reveal] .bottom {
     animation-duration: 0.3s !important;
     animation-delay: 0s !important;
   }
-  .frame-line rect {
-    stroke-dashoffset: 0;
-  }
   .curtain.lifting .curtain-frame {
+    display: none;
+  }
+  .curtain.lifting {
+    background: var(--paper);
     animation: curtain-fade 0.3s ease forwards !important;
   }
-  .curtain.lifting .frame-line {
-    animation: none !important;
+  .curtain-cta::after {
+    display: none;
   }
 }
 
@@ -3922,6 +4024,27 @@ html[data-reveal] .bottom {
   display: grid;
   gap: 10px;
 }
+
+/* The View card always opens upward and stays on screen (the compact layouts open other cards downward or centred). */
+.walk-settings .popover.above {
+  left: auto;
+  right: 0;
+  top: auto;
+  bottom: calc(100% + 10px);
+  transform: none;
+  width: min(270px, calc(100vw - 28px));
+  min-width: 0;
+  max-height: calc(100vh - var(--safe-t) - 150px);
+  overflow-y: auto;
+}
+
+/* On a phone the tool bar runs along the bottom: the View button sits above it, not on it. */
+@media (max-width: 699px) and (min-height: 501px) {
+  .walk-settings {
+    right: 12px;
+    bottom: calc(var(--safe-b) + var(--rail-h, 68px) + 24px);
+  }
+}
 .ws-range {
   display: grid;
   gap: 4px;
@@ -4130,4 +4253,46 @@ html[data-reveal] .bottom {
   border-radius: 16px;
   padding: 4px 12px 6px;
   align-self: start;
+}
+
+
+/* ---------- Close button on floating cards (phones, tablets, short windows) ---------- */
+.pop-close {
+  display: none;
+}
+
+@media (max-width: 899px), (max-height: 500px) {
+  .popover:has(> .pop-close) {
+    padding-top: 46px;
+  }
+
+  .pop-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(17, 17, 17, 0.08);
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .pop-close:hover {
+    background: rgba(17, 17, 17, 0.16);
+  }
+
+  .pop-close svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
 }

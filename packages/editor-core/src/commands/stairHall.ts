@@ -11,6 +11,8 @@ import { DEFAULT_STAIR_MATERIAL, DEFAULT_STAIR_WIDTH_M, layoutOf, levelAbove, st
 export const STAIR_LANDING_M = 1.0;
 /** Space around the flight, measured to the wall centre lines (a wall is ≈ 12 cm thick and the opening must clear it). */
 export const STAIR_HALL_MARGIN_M = 0.3;
+/** Extra floor beside a straight flight (on its right) so you can walk from the top of one flight back to the start of the next. */
+export const STAIR_HALL_PASSAGE_M = 0.9;
 
 /**
  * Four corners (world x, z) of the hall around a stair on the floor it arrives on: the flight's bounding box with a
@@ -49,6 +51,8 @@ export function stairHallCorners(layout: StairLayout, origin: Vec2, rotationY: n
   }
   if (arrival !== 3) x0 -= m;
   if (arrival !== 1) x1 += m;
+  // A straight flight on a straight flight: the climber must be able to walk back along the opening to the start of the next flight.
+  if (layout.kind === 'straight' && arrival === 0) x1 += STAIR_HALL_PASSAGE_M;
   if (arrival !== 0) z0 -= m;
   if (arrival !== 2) z1 += m;
   const local: Vec2[] = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
@@ -116,6 +120,18 @@ export function buildStairHall(d: Scene, stair: Stair): void {
   if (best) addOpening({ wallId: best.id, type: 'door', offset: best.offset }).apply(d);
 }
 
+/**
+ * Where the next flight of a stack starts. Straight, L and U flights stack in the same footprint (the lower flight's opening
+ * only covers the steps close to the floor, so the next one starts on solid floor). A spiral turns on: the next one starts at
+ * the angle where the last one arrived.
+ */
+export function nextFlightRotation(d: Scene, s: Stair): number {
+  if (s.kind !== 'spiral') return s.rotationY;
+  const layout = layoutOf(d, s);
+  const sp = layout?.spiral;
+  return sp && layout ? wrapAngle(s.rotationY + layout.treads.length * sp.delta) : s.rotationY;
+}
+
 export interface AddStairAssemblyParams extends AddStairParams {
   /** Build the room (walls, landing, door) that carries the top of the stair on the floor above. Default true. */
   hall?: boolean;
@@ -138,6 +154,7 @@ export function addStairAssembly(p: AddStairAssemblyParams, rng?: () => number):
       if (!start) return;
       if (!levelAbove(d, p.fromLevel)) addLevel(undefined, start.height).apply(d);
       let from: Id = p.fromLevel;
+      let rotation = wrapAngle(p.rotationY ?? 0);
       for (let n = 0; n < ids.length; n++) {
         const to = levelAbove(d, from);
         if (!to) break;
@@ -147,7 +164,7 @@ export function addStairAssembly(p: AddStairAssemblyParams, rng?: () => number):
           toLevel: to,
           kind: p.kind ?? 'straight',
           origin: [p.origin[0], 0, p.origin[1]],
-          rotationY: wrapAngle(p.rotationY ?? 0),
+          rotationY: rotation,
           width: Math.min(3, Math.max(0.6, p.width ?? DEFAULT_STAIR_WIDTH_M)),
           ...(p.mirror ? { mirror: true } : {}),
           material: p.material ?? { id: DEFAULT_STAIR_MATERIAL },
@@ -157,6 +174,7 @@ export function addStairAssembly(p: AddStairAssemblyParams, rng?: () => number):
         if (p.hall !== false) buildStairHall(d, stair);
         if (!p.toTop) break;
         from = to;
+        rotation = nextFlightRotation(d, stair);
       }
     },
   };
@@ -188,7 +206,7 @@ export function continueStairUp(stairId: Id, rng?: () => number): Command {
       if (!levelAbove(d, s.toLevel)) addLevel(undefined, top.height).apply(d);
       const next = levelAbove(d, s.toLevel);
       if (!next || Object.values(d.stairs).some((o) => o.fromLevel === s.toLevel && o.toLevel === next)) return;
-      const up: Stair = { ...s, id, fromLevel: s.toLevel, toLevel: next };
+      const up: Stair = { ...s, id, fromLevel: s.toLevel, toLevel: next, rotationY: nextFlightRotation(d, s) };
       d.stairs[id] = up;
       buildStairHall(d, up);
     },

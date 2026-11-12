@@ -108,6 +108,32 @@ export const Item = z.object({
   attach: z.object({ wallId: Id.optional(), roomId: Id.optional() }).optional(),
 });
 
+/** Fine tuning of a railing (all optional; unset = the look the railing choice gives). Shared by stairs, balconies and roofs. */
+export const RailingOpts = z.object({
+  infill: z.enum(['balusters', 'cables', 'glass', 'solid', 'none']).optional(),
+  /** Colour of the posts, handrail and balusters (hex). */
+  color: z.string().optional(),
+  /** Height of the handrail (m). */
+  height: z.number().min(0.6).max(1.3).optional(),
+  handrail: z.enum(['round', 'flat', 'wide']).optional(),
+  /** Gap between balusters / cables (m). */
+  gap: z.number().min(0.05).max(0.4).optional(),
+  /** Size of the posts (m). */
+  post: z.number().min(0.02).max(0.15).optional(),
+  /** Stairs only: which side of the flight gets a rail. */
+  sides: z.enum(['both', 'left', 'right']).optional(),
+  /** Glass colour. */
+  tint: z.enum(['clear', 'blue', 'green', 'smoked', 'frosted']).optional(),
+  /** Balconies and roofs: distance between posts along a straight run (m). */
+  spacing: z.number().min(0.6).max(3).optional(),
+  /** Roofs: how far the railing stands in from the roof edge (m). */
+  inset: z.number().min(0).max(1).optional(),
+  /** Roofs: sides left open, counted from the first corner of the roof (0-3). */
+  skip: z.array(z.number().int().min(0).max(3)).max(4).optional(),
+  /** Solid infill: thickness of the wall (m). */
+  thickness: z.number().min(0.03).max(0.3).optional(),
+});
+
 /** The rectangle (wall centre lines) a roof part covers; `length` is the long side, `angle` its direction. */
 export const RoofBox = z.object({
   cx: z.number(),
@@ -145,6 +171,9 @@ export const Roof = z.object({
   gable: MaterialRef.optional(),
   /** Dormer windows on the long slopes (gable / hip): position along the ridge (-1..1), which slope, width (m). */
   dormers: z.array(z.object({ pos: z.number().min(-1).max(1), side: z.union([z.literal(1), z.literal(-1)]), width: z.number().min(0.6).max(3) })).max(8).optional(),
+  /** Flat roofs: a terrace railing round the edge (or on top of the parapet). Unset / 'none' = no railing. */
+  railing: z.enum(['none', 'wood', 'metal', 'glass']).optional(),
+  railingOpts: RailingOpts.optional(),
 });
 
 export const Stair = z.object({
@@ -161,21 +190,33 @@ export const Stair = z.object({
   /** Rail along the open sides. Unset = none (homes made before railings keep their look). */
   railing: z.enum(['none', 'wood', 'metal', 'glass']).optional(),
   /** Fine tuning of the railing (all optional; unset = the look the `railing` choice gives). */
-  railingOpts: z
+  railingOpts: RailingOpts.optional(),
+  /**
+   * How the flight is built. Unset = solid (a block under every step, as before). `stringer` = open treads on two side beams,
+   * `spine` = open treads on one central beam, `floating` = treads only, nothing under them.
+   */
+  build: z.enum(['solid', 'stringer', 'spine', 'floating']).optional(),
+  /** The steps themselves (open builds use the thickness and nosing; risers can be added to any build). */
+  steps: z
     .object({
-      infill: z.enum(['balusters', 'cables', 'glass', 'solid', 'none']).optional(),
-      /** Colour of the posts, handrail and balusters (hex). */
+      /** Thickness of a tread (m). */
+      thickness: z.number().min(0.02).max(0.2).optional(),
+      /** How far a tread overhangs the step below (m). */
+      nosing: z.number().min(0).max(0.08).optional(),
+      /** Closed risers between the treads (open builds default to open). */
+      risers: z.boolean().optional(),
+      /** Colour of the risers (hex); unset = the frame colour. */
+      riserColor: z.string().optional(),
+    })
+    .optional(),
+  /** The beams of the `stringer` / `spine` builds (also the landing frame and the spiral pole). */
+  stringer: z
+    .object({
       color: z.string().optional(),
-      /** Height of the handrail (m). */
-      height: z.number().min(0.6).max(1.3).optional(),
-      handrail: z.enum(['round', 'flat', 'wide']).optional(),
-      /** Gap between balusters / cables (m). */
-      gap: z.number().min(0.05).max(0.4).optional(),
-      /** Size of the posts (m). */
-      post: z.number().min(0.02).max(0.15).optional(),
-      sides: z.enum(['both', 'left', 'right']).optional(),
-      /** Glass colour. */
-      tint: z.enum(['clear', 'blue', 'green', 'smoked', 'frosted']).optional(),
+      /** Width of a beam (m). */
+      width: z.number().min(0.02).max(0.4).optional(),
+      /** Vertical depth of a beam (m). */
+      depth: z.number().min(0.06).max(0.6).optional(),
     })
     .optional(),
 });
@@ -185,8 +226,36 @@ export const Balcony = z.object({
   id: Id,
   levelId: Id,
   outline: z.array(Vec2),
-  railing: z.enum(['glass', 'metal', 'wall', 'none']),
+  railing: z.enum(['glass', 'metal', 'wood', 'wall', 'none']),
   floorMaterial: MaterialRef,
+  /** Fine tuning of the railing (same choices as stair railings). */
+  railingOpts: RailingOpts.optional(),
+  /** The slab: thickness below the floor (m), colour of the edge band (hex), and a raised lip round the open edges (m). */
+  slab: z
+    .object({
+      thickness: z.number().min(0.08).max(0.6).optional(),
+      edgeColor: z.string().optional(),
+      lip: z.number().min(0).max(0.15).optional(),
+    })
+    .optional(),
+  /** What holds the balcony up: nothing (a cantilever), columns at the open corners, brackets under the open edges, or a wall under it. */
+  supports: z
+    .object({
+      kind: z.enum(['none', 'columns', 'brackets', 'wall']).optional(),
+      color: z.string().optional(),
+      /** Column size / bracket depth (m). */
+      size: z.number().min(0.05).max(0.6).optional(),
+    })
+    .optional(),
+  /** A cover over the balcony: a flat roof slab or open pergola slats. */
+  canopy: z
+    .object({
+      kind: z.enum(['none', 'flat', 'pergola']).optional(),
+      /** Height of the underside above the balcony floor (m). */
+      height: z.number().min(2).max(4).optional(),
+      color: z.string().optional(),
+    })
+    .optional(),
 });
 
 /** Something placed along a road: street lights, trees, benches, bins or bollards, at a spacing, on one or both sides. */
@@ -325,6 +394,7 @@ export type Opening = z.infer<typeof Opening>;
 export type OpeningShade = z.infer<typeof OpeningShade>;
 export type Room = z.infer<typeof Room>;
 export type Item = z.infer<typeof Item>;
+export type RailingOpts = z.infer<typeof RailingOpts>;
 export type Roof = z.infer<typeof Roof>;
 export type RoofBox = z.infer<typeof RoofBox>;
 export type Stair = z.infer<typeof Stair>;

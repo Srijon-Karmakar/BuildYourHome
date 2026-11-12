@@ -7,7 +7,7 @@ export const BALCONY_MIN_AREA_M2 = 1;
 /** How far a balcony edge may sit from a wall's centre line and still count as "against the house". */
 export const BALCONY_WALL_TOL_M = 0.2;
 
-export type RailingKind = 'glass' | 'metal' | 'wall' | 'none';
+export type RailingKind = 'glass' | 'metal' | 'wood' | 'wall' | 'none';
 
 export interface Segment {
   a: Vec2;

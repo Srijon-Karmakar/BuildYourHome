@@ -1,15 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useUi } from '../plan/session';
 import { BrandLogo } from './BrandLogo';
 
 /** Minimum time the loader is shown, so it reads as a calm intro rather than a flash. */
 const LOAD_FULL_MS = 1500;
 const LOAD_BRIEF_MS = 900;
-/** Total length of the reveal (frame grows, workspace settles). Keep in step with `.curtain.lifting` in styles.css. */
+/** Total length of the reveal (button becomes a frame, frame grows, workspace settles). Keep in step with `.curtain.lifting` in styles.css. */
 const LIFT_MS = 1950;
-/** Space between the splash content and the orange frame drawn around it. */
-const FRAME_PAD_X = 28;
-const FRAME_PAD_Y = 24;
+const TAGLINE = 'Draw your home in 2D. Walk through it in 3D.';
 /** Date of the latest release, shown in the credits. */
 const APP_UPDATED = '5 Nov 2026';
 
@@ -50,6 +48,7 @@ const HOUSE: Array<[string, string, number]> = [
 function HouseArt() {
   return (
     <svg className="curtain-house" viewBox="0 0 360 184" aria-hidden="true">
+      <circle className="sun-glow" cx="332" cy="30" r="30" />
       <rect className="house-glow" x="118" y="74" width="122" height="28" />
       <rect className="house-glow g2" x="56" y="124" width="78" height="38" />
       {HOUSE.map(([cls, d, delay], i) => (
@@ -66,47 +65,31 @@ function HouseArt() {
 }
 
 /**
- * Opening curtain: a paper-coloured screen where an orange frame (the PlotFramer mark) draws itself around a modern
- * house that sketches itself while the app settles. "Start designing" then grows that frame outward: it is a window
- * onto the workspace that expands until it passes the screen edges, and the bars pop in as it goes by
- * (`html[data-reveal]` drives the workspace side in styles.css). Reduced motion: no drawing, quick fade.
+ * Opening curtain: a clean paper screen with a faint plan grid where a modern house sketches itself while the app
+ * settles. "Start designing" then turns the orange button into a frame: it swells, hollows out into a window onto the
+ * workspace and grows past the screen edges while the bars pop in (`html[data-reveal]` drives the workspace side in
+ * styles.css). Reduced motion: no drawing, quick fade.
  */
 export function Curtain() {
   const mode = useUi((s) => s.curtain);
   const [phase, setPhase] = useState<'loading' | 'ready' | 'lifting'>('loading');
   const root = useRef<HTMLDivElement>(null);
-
-  /** Place the frame around the splash content (house, logo, tagline, button). Sets --ft/--fr/--fb/--fl in px. */
-  function fit() {
-    const el = root.current;
-    if (!el) return;
-    const parts = el.querySelectorAll<HTMLElement>(
-      '.curtain-house, .curtain-title, .curtain-sub, .curtain-cta',
-    );
-    if (!parts.length) return;
-    let l = Infinity;
-    let t = Infinity;
-    let r = -Infinity;
-    let b = -Infinity;
-    parts.forEach((p) => {
-      const q = p.getBoundingClientRect();
-      l = Math.min(l, q.left);
-      t = Math.min(t, q.top);
-      r = Math.max(r, q.right);
-      b = Math.max(b, q.bottom);
-    });
-    const w = el.clientWidth;
-    const h = el.clientHeight;
-    const px = (v: number) => `${Math.max(8, Math.round(v))}px`;
-    el.style.setProperty('--fl', px(l - FRAME_PAD_X));
-    el.style.setProperty('--ft', px(t - FRAME_PAD_Y));
-    el.style.setProperty('--fr', px(w - r - FRAME_PAD_X));
-    el.style.setProperty('--fb', px(h - b - FRAME_PAD_Y));
-  }
+  const cta = useRef<HTMLButtonElement>(null);
 
   function lift() {
     if (phase === 'lifting') return;
-    fit();
+    // The frame starts exactly on the button (or a small box in the middle when there is none) and grows from there.
+    const el = root.current;
+    if (el) {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      const r = cta.current?.getBoundingClientRect();
+      const box = r ?? { left: w / 2 - 70, top: h / 2 - 22, right: w / 2 + 70, bottom: h / 2 + 22 };
+      el.style.setProperty('--fl', `${Math.round(box.left)}px`);
+      el.style.setProperty('--ft', `${Math.round(box.top)}px`);
+      el.style.setProperty('--fr', `${Math.round(w - box.right)}px`);
+      el.style.setProperty('--fb', `${Math.round(h - box.bottom)}px`);
+    }
     setPhase('lifting');
     document.documentElement.dataset.reveal = 'on';
     window.setTimeout(() => {
@@ -114,17 +97,6 @@ export function Curtain() {
       useUi.getState().setCurtain('off');
     }, LIFT_MS);
   }
-
-  useLayoutEffect(() => {
-    if (mode === 'off') return;
-    fit();
-    const el = root.current;
-    const ro = typeof ResizeObserver === 'function' && el ? new ResizeObserver(() => fit()) : null;
-    if (el) ro?.observe(el);
-    void document.fonts?.ready.then(fit);
-    return () => ro?.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
 
   useEffect(() => {
     if (mode === 'off') return;
@@ -157,7 +129,7 @@ export function Curtain() {
     >
       <div className="curtain-frame" aria-hidden="true">
         <svg className="frame-line">
-          <rect x="0" y="0" width="100%" height="100%" pathLength="1" />
+          <rect x="0" y="0" width="100%" height="100%" />
         </svg>
       </div>
 
@@ -166,10 +138,17 @@ export function Curtain() {
         <h1 className="curtain-title">
           <BrandLogo className="large" />
         </h1>
-        <p className="curtain-sub">Draw your home in 2D. Walk through it in 3D.</p>
+        <p className="curtain-sub" aria-label={TAGLINE}>
+          {TAGLINE.split(' ').map((word, i) => (
+            <span key={i} className="w" aria-hidden="true" style={{ '--i': i } as CSSProperties}>
+              {word}
+            </span>
+          ))}
+        </p>
         {mode === 'full' && (
           <button
             type="button"
+            ref={cta}
             className="curtain-cta"
             disabled={phase !== 'ready'}
             onClick={lift}

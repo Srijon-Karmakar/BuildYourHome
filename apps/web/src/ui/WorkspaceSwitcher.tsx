@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { PopClose } from './PopClose';
 import { useStore } from 'zustand';
 import { createEmptyScene } from '@hd/scene-schema';
 import { editor } from '../plan/session';
@@ -72,6 +73,7 @@ export function WorkspaceSwitcher() {
       </button>
       {open && (
         <div className="popover below ws-pop" role="group" aria-label="Workspace list">
+          <PopClose onClick={() => setOpen(false)} />
           {!session ? (
             <>
               <p className="fine">This is your home. Sign in to keep several homes and open them on any device.</p>

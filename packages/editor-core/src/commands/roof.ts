@@ -26,6 +26,10 @@ export interface RoofInput {
   gableMaterialId?: string;
   /** Replaces the whole list of dormers. */
   dormers?: NonNullable<Roof['dormers']>;
+  /** Flat roofs: terrace railing ('none' removes it). */
+  railing?: NonNullable<Roof['railing']>;
+  /** Fine tuning of the railing: fields given are merged into the current ones; `null` goes back to the plain look. */
+  railingOpts?: Partial<NonNullable<Roof['railingOpts']>> | null;
 }
 
 /** Id of the old-style roof of a floor (one roof over the whole floor). */
@@ -51,6 +55,19 @@ function applyProps(roof: Roof, input: RoofInput): void {
   if (input.parapet !== undefined) roof.parapet = clamp(input.parapet, 0, 0.9);
   if (input.trim !== undefined) roof.trim = input.trim;
   if (input.gableMaterialId) roof.gable = { id: input.gableMaterialId };
+  if (input.railing) {
+    if (input.railing === 'none') {
+      delete roof.railing;
+      delete roof.railingOpts;
+    } else roof.railing = input.railing;
+  }
+  if (input.railingOpts === null) delete roof.railingOpts;
+  else if (input.railingOpts) {
+    const merged = { ...(roof.railingOpts ?? {}), ...input.railingOpts } as Record<string, unknown>;
+    for (const k of Object.keys(merged)) if (merged[k] === undefined) delete merged[k];
+    if (Object.keys(merged).length) roof.railingOpts = merged as NonNullable<Roof['railingOpts']>;
+    else delete roof.railingOpts;
+  }
   if (input.dormers) {
     const list = input.dormers.slice(0, 8).map((d) => ({ pos: clamp(d.pos, -1, 1), side: d.side >= 0 ? (1 as const) : (-1 as const), width: clamp(d.width, 0.6, 3) }));
     if (list.length) roof.dormers = list;
@@ -128,7 +145,7 @@ export function matchRoofsOnFloor(roofId: Id): Command {
         r.pitchDeg = src.pitchDeg;
         r.overhang = src.overhang;
         r.material = { ...src.material };
-        for (const k of ['thickness', 'rake', 'ridgeCap', 'gutter', 'parapet', 'trim'] as const) {
+        for (const k of ['thickness', 'rake', 'ridgeCap', 'gutter', 'parapet', 'trim', 'railing', 'railingOpts'] as const) {
           if (src[k] === undefined) delete r[k];
           else (r as Record<string, unknown>)[k] = src[k];
         }

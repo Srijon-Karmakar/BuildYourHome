@@ -1563,8 +1563,21 @@ try {
     check('the inspector offers Railing and Floor', (await ins.getByRole('group', { name: 'Railing', exact: true }).isVisible()) && (await ins.getByText('Floor').first().isVisible()));
     await ins.getByRole('group', { name: 'Railing', exact: true }).getByRole('button', { name: 'Metal' }).click();
     check('Railing › Metal applies', (await B())[0].railing === 'metal');
-    await ins.getByRole('radio', { name: 'Teak' }).click();
+    await ins.getByRole('radiogroup', { name: 'Floor' }).getByRole('radio', { name: 'Teak' }).click();
     check('the floor can be changed', (await B())[0].floorMaterial.id === 'floor-wood-teak');
+    // the balcony designer: railing options, slab, supports, cover
+    await ins.getByRole('group', { name: 'Railing style' }).getByRole('button', { name: 'Cables' }).click();
+    check('the railing options apply to the balcony', (await B())[0].railingOpts?.infill === 'cables');
+    await ins.getByRole('group', { name: 'Supports' }).getByRole('button', { name: 'Columns' }).click();
+    check('Supports > Columns is saved', (await B())[0].supports?.kind === 'columns');
+    await ins.getByRole('group', { name: 'Cover above' }).getByRole('button', { name: 'Pergola' }).click();
+    check('Cover above > Pergola is saved', (await B())[0].canopy?.kind === 'pergola');
+    check('the slab has thickness, edge colour and a kerb', (await ins.getByText('Slab thickness').isVisible()) && (await ins.getByText('Slab edge colour').isVisible()) && (await ins.getByText('Raised lip').isVisible()));
+    await ins.getByRole('button', { name: 'Reset balcony options' }).click();
+    {
+      const r = (await B())[0];
+      check('Reset balcony options clears them', !r.railingOpts && !r.supports && !r.canopy && !r.slab);
+    }
     await page.screenshot({ path: `${SP}/e2e-balcony.png` });
 
     // Drag it on the plan (one undo step), then undo.
@@ -1957,10 +1970,10 @@ try {
     check('a window can get a chajja sunshade', win && win.shade.style === 'slab' && win.shade.depth > 0.3, JSON.stringify(win?.shade));
     await ins.getByRole('group', { name: 'Sunshade' }).getByRole('button', { name: 'None' }).click();
     check('and None takes it off again', !Object.values((await sc()).openings).some((o) => o.shade));
-    // Walk view settings
+    // Walk settings (field of view, eye height)
     await page.evaluate(() => window.__hd.useUi.getState().setWalk(true));
     await page.waitForTimeout(800);
-    await page.getByRole('button', { name: 'Walk view settings' }).click();
+    await page.getByRole('button', { name: 'Walk settings' }).click();
     const fov = page.getByRole('slider', { name: 'Field of view' });
     await fov.fill('100');
     check('the walk field of view is a slider (default 80) and is remembered', (await page.evaluate(() => window.__hd.useUi.getState().walkFov)) === 100 && (await page.evaluate(() => localStorage.getItem('hd.walkFov'))) === '100');
@@ -2087,6 +2100,82 @@ try {
     await ins.getByRole('button', { name: 'Reset railing options' }).click();
     check('Reset goes back to the plain look', (await opts()) === null);
     check('no page errors with the railing options', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2z4b. stair builds, the opening above, roof terrace railing
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?view=2d');
+    await page.waitForFunction(() => window.__hd && window.__hd.core);
+    await page.evaluate(() => {
+      const { editor: ed, core } = window.__hd;
+      const L0 = ed.getState().scene.levelOrder[0];
+      ed.execute(core.addStairAssembly({ fromLevel: L0, origin: [2, 6], kind: 'straight' }));
+      ed.select([Object.keys(ed.getState().scene.stairs)[0]]);
+    });
+    const ins = page.getByRole('complementary', { name: 'Properties' });
+    const stair = () => page.evaluate(() => Object.values(window.__hd.editor.getState().scene.stairs)[0]);
+    const build = ins.getByRole('group', { name: 'Build', exact: true });
+    check('Build offers Solid, Side beams, Centre spine and Floating', (await build.getByRole('button', { name: 'Solid' }).isVisible()) && (await build.getByRole('button', { name: 'Side beams' }).isVisible()) && (await build.getByRole('button', { name: 'Centre spine' }).isVisible()) && (await build.getByRole('button', { name: 'Floating' }).isVisible()));
+    check('a new stair is solid (nothing stored)', (await stair()).build === undefined);
+    await build.getByRole('button', { name: 'Floating' }).click();
+    check('Floating is saved', (await stair()).build === 'floating');
+    check('open builds offer step thickness, overhang and closed risers', (await ins.getByText('Step thickness').isVisible()) && (await ins.getByText('Overhang').first().isVisible()) && (await ins.getByRole('switch', { name: /Closed risers/ }).isVisible()));
+    await ins.getByRole('switch', { name: /Closed risers/ }).click();
+    check('closed risers are saved', (await stair()).steps?.risers === true);
+    await build.getByRole('button', { name: 'Side beams' }).click();
+    check('side beams offer a beam colour, width and depth', (await ins.getByText('Beam colour').isVisible()) && (await ins.getByText('Beam width').isVisible()) && (await ins.getByText('Beam depth').isVisible()));
+    await ins.getByRole('radiogroup', { name: 'Beam colour' }).getByRole('radio', { name: 'Steel' }).click();
+    check('the beam colour is saved', (await stair()).stringer?.color === '#6c7378');
+    await ins.getByRole('button', { name: 'Reset step options' }).click();
+    check('Reset step options clears them', (await stair()).steps === undefined && (await stair()).stringer === undefined);
+    await build.getByRole('button', { name: 'Solid' }).click();
+    check('Solid goes back to the stored default', (await stair()).build === undefined);
+    // the opening in the floor above only covers the steps that are close to it
+    const zr = await page.evaluate(() => {
+      const { editor: ed, core } = window.__hd;
+      const sc = ed.getState().scene;
+      const s = Object.values(sc.stairs)[0];
+      const span = (p) => Math.max(...p.map((q) => q[1])) - Math.min(...p.map((q) => q[1]));
+      return { outline: span(core.stairOutline(sc, s)), hole: span(core.stairHole(sc, s)) };
+    });
+    check('the opening above is shorter than the stairs (the lower steps pass under the floor)', zr.hole < zr.outline - 0.8, JSON.stringify(zr));
+    check('no page errors with the stair builds', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?demo=1&view=split');
+    await page.waitForFunction(() => window.__hd && window.__hd.core);
+    await page.evaluate(() => {
+      const { editor: ed } = window.__hd;
+      ed.select([Object.keys(ed.getState().scene.roofs)[0]]);
+    });
+    const ins = page.getByRole('complementary', { name: 'Properties' });
+    const roof = () => page.evaluate(() => Object.values(window.__hd.editor.getState().scene.roofs)[0]);
+    check('a gable roof has no terrace railing choice', (await ins.getByRole('group', { name: 'Terrace railing' }).count()) === 0);
+    await ins.getByRole('group', { name: 'Shape' }).getByRole('button', { name: 'Flat' }).click();
+    check('a flat roof offers a terrace railing', await ins.getByRole('group', { name: 'Terrace railing' }).isVisible());
+    await ins.getByRole('group', { name: 'Terrace railing' }).getByRole('button', { name: 'Glass' }).click();
+    check('Terrace railing > Glass is saved', (await roof()).railing === 'glass');
+    check('the terrace railing offers the full choices, a set-in and the sides', (await ins.getByText('Railing style').isVisible()) && (await ins.getByText('Set in from edge').isVisible()) && (await ins.getByText('Post spacing').isVisible()) && (await ins.getByText('Sides with a railing').isVisible()));
+    check('the four sides are named by compass', (await ins.getByRole('switch', { name: /North side/ }).isVisible()) && (await ins.getByRole('switch', { name: /South side/ }).isVisible()));
+    await ins.getByRole('switch', { name: /North side/ }).click();
+    check('switching a side off is saved', ((await roof()).railingOpts?.skip ?? []).length === 1);
+    await ins.getByRole('group', { name: 'Railing style' }).getByRole('button', { name: 'Cables' }).click();
+    check('the railing style is saved', (await roof()).railingOpts?.infill === 'cables');
+    await ins.getByRole('group', { name: 'Terrace railing' }).getByRole('button', { name: 'None' }).click();
+    check('None removes the railing and its options', (await roof()).railing === undefined && (await roof()).railingOpts === undefined);
+    check('no page errors with the terrace railing', errors.length === 0, errors.slice(0, 2).join(' | '));
     await page.close();
   }
 

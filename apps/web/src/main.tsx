@@ -10,6 +10,7 @@ import { Viewer, ViewerGone } from './ui/Viewer';
 import { startBenchmark } from './view3d/benchmark';
 import { rememberPose, walkInput, walkPose } from './walk/walkState';
 import { frameInfo, usePerf } from './view3d/qualityStore';
+import { flyCameraTo, getCameraPose } from './view3d/cameraBridge';
 import * as core from '@hd/editor-core';
 import { SAMPLES } from './plan/samples';
 import '@fontsource-variable/outfit';
@@ -21,7 +22,7 @@ startPwa();
 const params = new URLSearchParams(window.location.search);
 
 // Dev-only handle for automated browser tests (never shipped in production builds).
-if (import.meta.env.DEV) (window as unknown as { __hd: unknown }).__hd = { editor, useUi, walkPose, rememberPose, useCloud, frameInfo, usePerf, core, samples: SAMPLES, walkInput };
+if (import.meta.env.DEV) (window as unknown as { __hd: unknown }).__hd = { editor, useUi, walkPose, rememberPose, useCloud, frameInfo, usePerf, core, samples: SAMPLES, walkInput, camera: { flyCameraTo, getCameraPose } };
 
 function render(node: ReactNode): void {
   createRoot(document.getElementById('root')!).render(<StrictMode>{node}</StrictMode>);

@@ -577,8 +577,28 @@ Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-
 - Smoke test: 395/395 after the change (one earlier run crashed on `window.__hd` right after a hot reload; the re-run was clean).
 - Open: on windows shorter than ~900px the tool strip scrolls and the last tool shows cut off with no hint.
 
-## Splash: "frame grows into workspace" transition
-- **Intro:** an orange frame (the PlotFramer mark) draws itself (stroke draw, 1.25s) around the house sketch + logo + button, which sizes to the content (`fit()` in `Curtain.tsx` sets `--ft/--fr/--fb/--fl`; re-fits on resize / fonts). Credits sit outside the frame.
-- **Reveal (Start designing):** content falls away → the frame's inside clears into a window onto the workspace (orange glow) → the frame grows past the screen edges (1.25s) → bars pop in as it passes (delays in `html[data-reveal]` rules moved to 1.1–1.3s). `LIFT_MS` 1600 → 1950.
-- **How:** the frame is one empty box with a huge paper-coloured `box-shadow` (= the splash background), so only `top/right/bottom/left` animate. The old two-panel/seam parts were removed. CSS + SVG only (no WebGL); reduced motion = plain fade.
-- Verified by frame captures on desktop (1280×800) and phone (390×800). Smoke test: all curtain/tour checks pass; the full run later stops in the new Display › Horizon test (another in-progress feature, not this change).
+## Splash: button-becomes-frame transition (owner rejected the first boxed-frame version)
+- **Intro (clean, no box):** faint plan grid eases in, house sketches itself, sun halo blooms then breathes, tagline rises word by word, one light sweep crosses the button when it becomes available.
+- **Reveal (Start designing):** the orange button itself becomes the frame (it sits exactly behind the button), the other content falls away, the frame hollows out into a window onto the workspace (orange glow), then grows past the screen edges (1.25s) while the bars pop in (`html[data-reveal]` delays 1.1-1.3s). `LIFT_MS` 1950.
+- **How:** one empty box (`.curtain-frame`) with a huge paper-coloured `box-shadow` as the splash background, so only `top/right/bottom/left` animate; `Curtain.tsx` sets `--ft/--fr/--fb/--fl` from the button's rect on click. Old two-panel/seam parts removed. CSS + SVG only; reduced motion = plain fade.
+- Verified by frame captures on desktop (1248x800) and phone (390x800); curtain/tour smoke checks pass.
+
+## P3-12 — Stairs, balconies, roof railing, trees (owner feedback, ADR-029)
+- **Open stairs.** Stair › Build: Solid (as before) / Side beams / Centre spine / Floating (treads only, nothing under them). Options: step thickness, overhang, closed risers + colour, beam width / depth / colour; a spiral hangs on a pole. Old homes stay solid.
+- **Floor linking.** The floor above only opens where the steps are within 2.05 m of it (the lower steps pass under the floor), so a stacked flight starts on floor; a guard rail follows the opening at floor level; rails against a house wall are left out; the plan shows the opening solid and the run under the floor dotted; the walker only goes down through the opening. Stairs are pushed out of walls when placed, and the inspector reports a wall in the way, a wall through the opening and furniture on the stairs. A straight flight's room gets a 0.9 m walkway beside it; a continued spiral starts where the last one arrived.
+- **Balcony designer.** Railing (glass / metal / wood / wall) with the full stair-railing choices + post spacing; slab thickness, edge colour, kerb; supports (columns / brackets / wall below); cover (flat roof / pergola) with height and colour. Reset button.
+- **Roof railing.** Flat roofs: Terrace railing (wood / metal / glass) with the same choices, set-in from the edge (or standing on the parapet), post spacing, and which sides (named North / East / South / West) are left open.
+- **Trees.** New leaf-card trees (`view3d/furniture/realTrees.ts`): bark-textured forked trunks, 250-800 leaf cards per crown, species shapes (round, dome, cone, columnar, weeping, palm, banyan with roots, shrubs). Touch screens get about half the leaves.
+- **Code.** `geometry/stairs/{railing,body,solids}.ts` (one railing engine, stair bodies, small solids), `stairHole` / `STAIR_HEADROOM_M` / `unionRects`, `flatRoofEdge`; editor-core `stairHole`, `stairPushOut`, `stairRailSkip`, `stairProblems`, `nextFlightRotation`, balcony and roof option merging; web `RailingPanel`, `StairBuildPanel`, `BalconyPanel`, `BalconyMesh` rewrite, roof terrace in `RoofMesh` / `RoofPanel`. Dev handle `__hd.camera` for test camera moves.
+- **Tests.** geometry 113, editor-core 215, web 166 unit tests pass; see the browser result below.
+
+## Fix: Walk "View" card (field of view / eye height) on small screens
+- On phones and small windows the compact layout opens cards downward or centred (meant for the floors row); the Walk View card inherited that, so it dropped onto the bottom tool bar and was cut off at the left edge. It now always opens upward, right-aligned, at most the screen width, and on a phone the View button sits above the bottom bar. CSS only (`.walk-settings` in `styles.css`). Checked at 390x800, 800x380, 820x1100, 1280x800 and 442x300.
+- Open: in a window that is both narrow and short (about 440x300) the tool bar turns into a wide grey strip; unrelated to this card, not changed.
+
+## Fix: floating cards have a close button
+- Owner: the Views / Layers card on a phone had no way to close. Every floating card (Views & layers, Floor settings, Snap, Home, Workspaces, Walk view) now has a round ✕ in its top-right corner on phones, tablets and short windows (`ui/PopClose.tsx`, `.pop-close` in `styles.css`; hidden on a desktop window where Esc and a click away already work). The Views and Walk view cards also close when you tap outside them (the others already did) and on Esc. Account / Display open inside the Menu sheet and close by tapping their row again.
+- Checked on screen at 390x800 and 800x380 (✕ visible, closes; tap outside closes) and 1280x800 (no ✕, as designed).
+
+## Fix: two "View" buttons while walking
+- In Walk mode on a phone the right column's **Views** (saved views and layers) and the walk card's **View** (field of view, eye height) looked like the same button. The walk one is now labelled **Walk settings** (tooltip: Field of view and eye height); Views keeps its name.

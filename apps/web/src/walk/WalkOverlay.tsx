@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useUi } from '../plan/session';
+import { PopClose } from '../ui/PopClose';
 import { resetWalkInput, walkInput } from './walkState';
 
 const STICK_RADIUS_PX = 56;
@@ -103,15 +104,30 @@ const EYES: { label: string; value: number }[] = [
 /** Walk mode view settings: how wide you see (field of view) and how tall you are (eye height). */
 export function WalkSettings() {
   const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('pointerdown', away);
+    window.addEventListener('keydown', esc);
+    return () => {
+      window.removeEventListener('pointerdown', away);
+      window.removeEventListener('keydown', esc);
+    };
+  }, [open]);
   const fov = useUi((s) => s.walkFov);
   const eye = useUi((s) => s.walkEye);
   return (
-    <div className="walk-settings" onPointerDown={(e) => e.stopPropagation()}>
-      <button type="button" className="pill small" aria-expanded={open} aria-label="Walk view settings" onClick={() => setOpen((o) => !o)}>
-        View
+    <div ref={root} className="walk-settings" onPointerDown={(e) => e.stopPropagation()}>
+      <button type="button" className="pill small" aria-expanded={open} aria-label="Walk settings" title="Field of view and eye height" onClick={() => setOpen((o) => !o)}>
+        Walk settings
       </button>
       {open && (
         <div className="popover above" role="group" aria-label="Walk view">
+          <PopClose onClick={() => setOpen(false)} />
           <label className="ws-range">
             <span>
               Field of view <b>{Math.round(fov)}°</b>

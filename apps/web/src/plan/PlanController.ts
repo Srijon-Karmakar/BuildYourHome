@@ -23,6 +23,7 @@ import {
   removeStairs,
   rotateStairs,
   stairOutline,
+  stairPushOut,
   stairRise,
   translateStairs,
   updateStairs,
@@ -551,12 +552,16 @@ export class PlanController {
     return g ? [Math.round(w[0] / g) * g, Math.round(w[1] / g) * g] : w;
   }
 
-  /** Pull stairs flush against nearby walls (when "Join onto walls" snapping is on). */
+  /** Pull stairs flush against nearby walls (when "Join onto walls" snapping is on), then out of any wall they would still cross. */
   private snapStairToWalls(origin: Vec2, layout: StairLayout, rotationY: number): Vec2 {
-    if (!useUi.getState().snap.walls) return origin;
     const st = editor.getState();
-    const [dx, dz] = snapStairToWalls(st.scene, st.activeLevelId, stairOutlineWorld(layout, origin, rotationY));
-    return [origin[0] + dx, origin[1] + dz];
+    let o = origin;
+    if (useUi.getState().snap.walls) {
+      const [dx, dz] = snapStairToWalls(st.scene, st.activeLevelId, stairOutlineWorld(layout, origin, rotationY));
+      o = [origin[0] + dx, origin[1] + dz];
+    }
+    const [px, pz] = stairPushOut(st.scene, st.activeLevelId, layout, o, rotationY);
+    return [o[0] + px, o[1] + pz];
   }
 
   /** Where the ready-made room would go: centred on the pointer, on a 10 cm grid, edges pulled onto nearby walls. */

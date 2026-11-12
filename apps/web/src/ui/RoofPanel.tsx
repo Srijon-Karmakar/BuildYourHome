@@ -2,7 +2,9 @@ import { useStore } from 'zustand';
 import type { Roof } from '@hd/scene-schema';
 import { matchRoofsOnFloor, resetRoofs, setAutoRoofs, updateRoofs } from '@hd/editor-core';
 import { editor } from '../plan/session';
-import { DEFAULT_GABLE, DEFAULT_TRIM } from '../view3d/RoofMesh';
+import { flatRoofEdge, orientedBox } from '@hd/geometry';
+import { DEFAULT_GABLE, DEFAULT_TRIM, roofFootprint } from '../view3d/RoofMesh';
+import { RailingPanel } from './RailingPanel';
 import { materialsFor, paintMaterials } from '../view3d/placeholderMaterials';
 import { AngleField, ColorSwatches, LengthField, Section, Segmented, Swatches, Toggle } from './fields';
 
@@ -26,6 +28,25 @@ const STYLES = [
   { id: 'mansard', label: 'Mansard' },
   { id: 'barrel', label: 'Barrel' },
 ] as const;
+
+/** Compass names of the four sides of a flat roof, in the order the railing counts them (corner 0 → 1 → 2 → 3). */
+function sideNames(roof: Roof, scene: Parameters<typeof roofFootprint>[0]): string[] {
+  const level = scene.levels[roof.levelId];
+  const box = roof.box ?? orientedBox(roofFootprint(scene, roof.levelId).points);
+  if (!box || !level) return ['Side 1', 'Side 2', 'Side 3', 'Side 4'];
+  const edge = flatRoofEdge(box, level.elevation + level.height, { style: 'flat', pitchDeg: 0, overhang: roof.overhang, swap: !!roof.ridgeAngle, rake: roof.rake }, 0.115);
+  if (!edge) return ['Side 1', 'Side 2', 'Side 3', 'Side 4'];
+  const cx = edge.corners.reduce((a, q) => a + q[0], 0) / 4;
+  const cz = edge.corners.reduce((a, q) => a + q[1], 0) / 4;
+  const names = edge.corners.map((a, i) => {
+    const b = edge.corners[(i + 1) % 4]!;
+    const dx = (a[0] + b[0]) / 2 - cx;
+    const dz = (a[1] + b[1]) / 2 - cz;
+    return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'East side' : 'West side') : dz < 0 ? 'North side' : 'South side';
+  });
+  // a roof turned 45 degrees can give two sides the same name
+  return names.map((n, i) => (names.indexOf(n) !== i ? `${n} (2)` : n));
+}
 
 const common = <T,>(vals: readonly T[]): T | null => (vals.length > 0 && vals.every((v) => v === vals[0]) ? vals[0]! : null);
 
@@ -65,6 +86,31 @@ export function RoofPanel({ roofs }: { roofs: Roof[] }) {
       )}
       {plate && <LengthField label="Edge thickness" value={common(roofs.map((r) => r.thickness ?? (r.style === 'flat' ? 0.18 : 0.12))) ?? 0.12} min={0.05} max={0.4} step={0.01} onCommit={(thickness) => edit({ thickness })} />}
       {style === 'flat' && <LengthField label="Parapet" hint="Low wall round the edge" value={common(roofs.map((r) => r.parapet ?? 0)) ?? 0} min={0} max={0.9} step={0.05} onCommit={(parapet) => edit({ parapet })} />}
+      {style === 'flat' && (
+        <>
+          <Segmented
+            label="Terrace railing"
+            value={common(roofs.map((r) => r.railing ?? 'none'))}
+            options={[
+              { id: 'none', label: 'None' },
+              { id: 'wood', label: 'Wood' },
+              { id: 'metal', label: 'Metal' },
+              { id: 'glass', label: 'Glass' },
+            ]}
+            onChange={(railing) => edit({ railing: railing as NonNullable<Roof['railing']> })}
+          />
+          {some((r) => !!r.railing && r.railing !== 'none') && (
+            <RailingPanel
+              rails={roofs.filter((r) => r.railing && r.railing !== 'none').map((r) => ({ railing: r.railing, opts: r.railingOpts }))}
+              spacing
+              inset
+              edges={roofs.length === 1 ? sideNames(roofs[0]!, scene) : undefined}
+              onEdit={(railingOpts) => edit({ railingOpts })}
+              onReset={() => edit({ railingOpts: null })}
+            />
+          )}
+        </>
+      )}
       <Swatches label="Roof material" items={materialsFor('roof')} value={common(roofs.map((r) => r.material.id))} onPick={(materialId) => edit({ materialId })} />
       {plate && <ColorSwatches label="Trim colour" items={TRIM_COLORS} value={common(roofs.map((r) => r.trim ?? DEFAULT_TRIM))} onPick={(trim) => edit({ trim })} />}
       {(style === 'gable' || style === 'shed' || style === 'barrel' || style === 'flat') && (

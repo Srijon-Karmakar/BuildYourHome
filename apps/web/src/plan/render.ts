@@ -1,7 +1,7 @@
 import { getAsset, itemFootprint, frontOf } from '@hd/assets';
 import type { Opening, Scene, Vec2, Vec3 } from '@hd/scene-schema';
 import type { SnapResult } from '@hd/editor-core';
-import { facePoint, leftNormal, stairToWorld, type RoadLayout, type StairLayout, type WallFootprint } from '@hd/geometry';
+import { facePoint, leftNormal, stairHole, STAIR_HEADROOM_M, stairToWorld, type RoadLayout, type StairLayout, type WallFootprint } from '@hd/geometry';
 import { formatArea, formatLength, type DisplayUnits } from '../lib/units';
 import { toScreen, toWorld, type View } from './viewport';
 import type { LevelGeometry } from './wallGeom';
@@ -943,10 +943,26 @@ function drawStairs(ctx: CanvasRenderingContext2D, s: RenderState): void {
       return toScreen(v, w[0], w[1]);
     };
     const faint = d.role === 'down';
+    // From the floor above only the opening is shown solid: the lower steps pass under the floor (dotted).
+    const hole = faint ? stairHole(d.layout) : d.layout.outline;
+    const limit = d.layout.rise - STAIR_HEADROOM_M;
     ctx.save();
     if (d.role === 'ghost') ctx.globalAlpha = 0.7;
+    if (faint && hole !== d.layout.outline) {
+      ctx.beginPath();
+      d.layout.outline.forEach((p, i) => {
+        const [x, y] = sc(p);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(17,17,17,0.2)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 4]);
+      ctx.stroke();
+    }
     ctx.beginPath();
-    d.layout.outline.forEach((p, i) => {
+    hole.forEach((p, i) => {
       const [x, y] = sc(p);
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
@@ -966,6 +982,7 @@ function drawStairs(ctx: CanvasRenderingContext2D, s: RenderState): void {
     ctx.strokeStyle = faint ? 'rgba(17,17,17,0.28)' : 'rgba(17,17,17,0.55)';
     ctx.beginPath();
     for (const t of d.layout.treads) {
+      if (faint && t.height <= limit + 1e-6 && !d.layout.spiral) continue; // passes under the floor
       const [x0, z0, x1, z1] = t.rect;
       if (t.landing) {
         const a = sc([x0, z0]), b = sc([x1, z0]), c = sc([x1, z1]), e = sc([x0, z1]);

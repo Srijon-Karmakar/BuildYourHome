@@ -217,7 +217,7 @@ function template(d: Scene, levelId: Id): Pick<Roof, 'style' | 'pitchDeg' | 'ove
   const area = (r: Roof) => (r.box ? r.box.length * r.box.width : 0);
   const pick = [...onLevel].sort((a, b) => area(b) - area(a))[0];
   if (!pick) return { style: 'gable', pitchDeg: DEFAULT_ROOF_PITCH_DEG, overhang: DEFAULT_ROOF_OVERHANG_M, material: { id: DEFAULT_MATERIAL_ROOF } };
-  const { style, pitchDeg, overhang, material, thickness, rake, ridgeCap, gutter, trim, gable, parapet } = pick;
+  const { style, pitchDeg, overhang, material, thickness, rake, ridgeCap, gutter, trim, gable, parapet, railing, railingOpts } = pick;
   return {
     style,
     pitchDeg,
@@ -230,6 +230,8 @@ function template(d: Scene, levelId: Id): Pick<Roof, 'style' | 'pitchDeg' | 'ove
     ...(trim ? { trim } : {}),
     ...(gable ? { gable: { ...gable } } : {}),
     ...(parapet !== undefined ? { parapet } : {}),
+    ...(railing ? { railing } : {}),
+    ...(railingOpts ? { railingOpts: { ...railingOpts } } : {}),
   };
 }
 

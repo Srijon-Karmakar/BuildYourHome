@@ -132,7 +132,7 @@ describe('stairs: stairwell openings', () => {
 
   it('a stair that pokes out of the room opens only the part inside it, and is reported', () => {
     const { e, g, up } = setup();
-    e.execute(addStair({ fromLevel: g, origin: [3, 1], width: 1 })); // runs out through the north wall
+    e.execute(addStair({ fromLevel: g, origin: [3, 3], width: 1 })); // its upper part runs out through the north wall
     const room = polysOf(e, up)[0]!;
     const holes = stairOpenings(scene(e), up, 'floor', room);
     expect(holes).toHaveLength(1);

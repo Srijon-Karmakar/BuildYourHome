@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { removeViewpoint, renameViewpoint, saveViewpoint } from '@hd/editor-core';
 import { editor, useUi } from '../plan/session';
 import { flyCameraTo, getCameraPose } from '../view3d/cameraBridge';
 import { anyHidden, LAYERS, type LayerId } from '../view3d/layers';
+import { PopClose } from './PopClose';
 
 const IconViews = () => (
   <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -17,6 +18,7 @@ const IconViews = () => (
  */
 export function ViewsMenu() {
   const [open, setOpen] = useState(false);
+  const root = useRef<HTMLSpanElement>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const views = useStore(editor.store, (s) => s.scene.viewpoints);
@@ -29,8 +31,15 @@ export function ViewsMenu() {
   useEffect(() => {
     if (!open) return;
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    const away = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
     window.addEventListener('keydown', esc);
-    return () => window.removeEventListener('keydown', esc);
+    window.addEventListener('pointerdown', away);
+    return () => {
+      window.removeEventListener('keydown', esc);
+      window.removeEventListener('pointerdown', away);
+    };
   }, [open]);
 
   const save = () => {
@@ -44,7 +53,7 @@ export function ViewsMenu() {
   const flip = (id: LayerId) => (id === 'roofs' ? useUi.getState().toggleRoof() : useUi.getState().toggleLayer(id));
 
   return (
-    <>
+    <span ref={root} className="views-anchor">
       <button
         type="button"
         className="pill small"
@@ -59,6 +68,7 @@ export function ViewsMenu() {
       </button>
       {open && (
         <div className="popover above views-pop" role="group" aria-label="Views and layers">
+          <PopClose onClick={() => setOpen(false)} />
           <div className="vp-head">
             <strong>Saved views</strong>
             <button type="button" className="pill small solid" onClick={save}>
@@ -117,6 +127,6 @@ export function ViewsMenu() {
           {note && <small className="fine">{note}</small>}
         </div>
       )}
-    </>
+    </span>
   );
 }

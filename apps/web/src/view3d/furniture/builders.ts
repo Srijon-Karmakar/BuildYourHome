@@ -15,6 +15,7 @@ import { BUILDERS5 } from './builders5';
 import { BUILDERS6 } from './builders6';
 import { BUILDERS8 } from './builders8';
 import { TREE_BUILDERS } from './trees';
+import { REAL_TREE_BUILDERS } from './realTrees';
 import { ball, BLACK, box, CHROME, cyl, GLASS, GLOW, legs, mat, mergeByMaterial, shade, WHITE, type Builder } from './kit';
 
 function sofa(seats: number): Builder {
@@ -373,6 +374,7 @@ const BUILDERS: Record<string, Builder> = {
   ...BUILDERS6,
   ...BUILDERS8,
   ...TREE_BUILDERS, // the lumpy-crowned trees replace the first, simpler ones
+  ...REAL_TREE_BUILDERS, // and the leaf-card trees (real branches, bark and leaves) replace those
   'bed-king': bed(2),
   'painting-large': wallArt,
   'sofa-2': sofa(2),

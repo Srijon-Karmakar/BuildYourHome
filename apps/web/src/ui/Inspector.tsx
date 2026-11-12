@@ -7,9 +7,11 @@ import { SHADE_COLORS, SHADE_STYLES, defaultShadeDepth, type ShadeStyle } from '
 import { RoofPanel } from './RoofPanel';
 import { isTree, TreeSize } from './TreeSize';
 import { StairRailPanel } from './StairRailPanel';
+import { StairBuildPanel } from './StairBuildPanel';
+import { BalconyPanel } from './BalconyPanel';
 import { RoadPanel } from './RoadPanel';
 import { useEnvPanelVisible } from './EnvironmentPanel';
-import { addRoofOverRooms, connectStairHall, continueStairUp, levelAbove, batch, updateZones, updateBalconies, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
+import { addRoofOverRooms, connectStairHall, continueStairUp, levelAbove, batch, updateZones, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, stairProblems, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
 import { formatArea, formatLength } from '../lib/units';
 import { requireAccess } from '../cloud/store';
 import { deleteSelection } from '../plan/PlanController';
@@ -198,8 +200,6 @@ export function Inspector() {
   const editStairs = (props: Parameters<typeof updateStairs>[1]) => editor.execute(updateStairs(stairIds, props));
   const stairRooms = (lid: string) => levelRooms(scene, lid).map((r) => r.polygon);
   const needsRoom = stairs.length === 1 ? stairNeedsRoom(scene, stairs[0]!, stairRooms) : null;
-  const balconyIds = balconies.map((b) => b.id);
-  const editBalconies = (props: Parameters<typeof updateBalconies>[1]) => editor.execute(updateBalconies(balconyIds, props));
   const zoneIds = zones.map((z) => z.id);
   const editZones = (props: Parameters<typeof updateZones>[1]) => editor.execute(updateZones(zoneIds, props));
   const canDelete = walls.length + openings.length + items.length + stairs.length + balconies.length + zones.length + roofs.length > 0;
@@ -384,24 +384,7 @@ export function Inspector() {
 
           {balconies.length > 0 && (
             <Section title="Balcony">
-              <Segmented
-                label="Railing"
-                value={common(balconies.map((b) => b.railing))}
-                options={[
-                  { id: 'glass', label: 'Glass' },
-                  { id: 'metal', label: 'Metal' },
-                  { id: 'wall', label: 'Wall' },
-                  { id: 'none', label: 'None' },
-                ]}
-                onChange={(railing) => editBalconies({ railing })}
-              />
-              <Swatches
-                label="Floor"
-                items={materialsFor('floor')}
-                value={common(balconies.map((b) => b.floorMaterial.id))}
-                onPick={(id) => editBalconies({ floorMaterial: { id } })}
-              />
-              <p className="f-note">The railing stays off the side that touches your house wall. Add a door in that wall to step out.</p>
+              <BalconyPanel balconies={balconies} />
             </Section>
           )}
 
@@ -438,6 +421,7 @@ export function Inspector() {
                   ↻ 90°
                 </button>
               </div>
+              <StairBuildPanel stairs={stairs} />
               <Segmented
                 label="Railing"
                 value={common(stairs.map((s) => s.railing ?? 'none'))}
@@ -456,6 +440,11 @@ export function Inspector() {
                 value={common(stairs.map((s) => s.material?.id ?? 'floor-wood-walnut'))}
                 onPick={(id) => editStairs({ material: { id } })}
               />
+              {stairs.length === 1 && stairProblems(scene, stairs[0]!).map((msg) => (
+                <p key={msg} className="f-note" role="status" data-testid="stair-problem">
+                  {msg}
+                </p>
+              ))}
               {needsRoom && (
                 <>
                   <p className="f-note" role="status" data-testid="stair-warning">

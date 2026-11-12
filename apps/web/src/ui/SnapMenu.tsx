@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { PopClose } from './PopClose';
 import { useUi } from '../plan/session';
 import { IconSnap } from './icons';
 
@@ -45,6 +46,7 @@ export function SnapMenu() {
       </button>
       {open && (
         <div className="popover" role="group" aria-label="Snapping">
+          <PopClose onClick={() => setOpen(false)} />
           <h4>Snap to</h4>
           {OPTIONS.map((o) => (
             <button

@@ -2,8 +2,10 @@ import {
   MAX_STAIR_WIDTH_M,
   MIN_STAIR_WIDTH_M,
   pointInPolygon,
+  stairHoleWorld,
   stairLayout,
   stairOutlineWorld,
+  stairToLocal,
   stairToWorld,
   type StairKind,
   type StairLayout,
@@ -11,6 +13,7 @@ import {
 import { newId, type Id, type MaterialRef, type Scene, type Stair, type Vec2 } from '@hd/scene-schema';
 import { wrapAngle } from '../placement';
 import type { Command } from '../types';
+import { isHouseWall } from './walls';
 
 export const DEFAULT_STAIR_WIDTH_M = 1;
 /** Darker than the default oak floor so stairs stand out from above. */
@@ -40,6 +43,15 @@ export function layoutOf(scene: Scene, s: Stair): StairLayout | null {
 export function stairOutline(scene: Scene, s: Stair): Vec2[] | null {
   const l = layoutOf(scene, s);
   return l ? stairOutlineWorld(l, [s.origin[0], s.origin[2]], s.rotationY) : null;
+}
+
+/**
+ * The opening a stair needs in the floor above, on the plan (world x, z): only where the steps are closer to that floor than
+ * the headroom, so the lower steps pass under it. See `stairHole` in the geometry package.
+ */
+export function stairHole(scene: Scene, s: Stair): Vec2[] | null {
+  const l = layoutOf(scene, s);
+  return l ? stairHoleWorld(l, [s.origin[0], s.origin[2]], s.rotationY) : null;
 }
 
 export interface AddStairParams {
@@ -89,8 +101,20 @@ export interface StairProps {
   railing?: Stair['railing'];
   /** Fine tuning of the railing: fields given are merged into the current ones; `null` goes back to the plain look. */
   railingOpts?: Partial<NonNullable<Stair['railingOpts']>> | null;
+  /** How the flight is built (solid blocks, open treads on side beams, on a spine, or floating). */
+  build?: NonNullable<Stair['build']>;
+  /** Treads and risers: fields given are merged into the current ones; `null` goes back to the defaults. */
+  steps?: Partial<NonNullable<Stair['steps']>> | null;
+  /** The beams: merged like `steps`. */
+  stringer?: Partial<NonNullable<Stair['stringer']>> | null;
   /** New position on the plan. */
   origin?: Vec2;
+}
+
+function mergeOpts<T extends object>(cur: T | undefined, add: Partial<T>): T | undefined {
+  const merged = { ...(cur ?? {}), ...add } as Record<string, unknown>;
+  for (const k of Object.keys(merged)) if (merged[k] === undefined) delete merged[k];
+  return Object.keys(merged).length ? (merged as T) : undefined;
 }
 
 /** Change one or more stairs (kind, width, turn, material, position). */
@@ -117,6 +141,22 @@ export function updateStairs(ids: readonly Id[], props: StairProps): Command {
           for (const k of Object.keys(merged) as Array<keyof typeof merged>) if (merged[k] === undefined) delete merged[k];
           if (Object.keys(merged).length) s.railingOpts = merged;
           else delete s.railingOpts;
+        }
+        if (props.build) {
+          if (props.build === 'solid') delete s.build;
+          else s.build = props.build;
+        }
+        if (props.steps === null) delete s.steps;
+        else if (props.steps) {
+          const m = mergeOpts(s.steps, props.steps);
+          if (m) s.steps = m;
+          else delete s.steps;
+        }
+        if (props.stringer === null) delete s.stringer;
+        else if (props.stringer) {
+          const m = mergeOpts(s.stringer, props.stringer);
+          if (m) s.stringer = m;
+          else delete s.stringer;
         }
         if (props.origin) s.origin = [props.origin[0], 0, props.origin[1]];
       }
@@ -173,7 +213,7 @@ export function stairOpenings(scene: Scene, levelId: Id, part: 'floor' | 'ceilin
   const out: Vec2[][] = [];
   for (const s of Object.values(scene.stairs)) {
     if ((part === 'floor' ? s.toLevel : s.fromLevel) !== levelId) continue;
-    const o = stairOutline(scene, s);
+    const o = stairHole(scene, s);
     if (!o) continue;
     if (outlineInside(o, room)) {
       out.push(o);
@@ -263,4 +303,170 @@ export function stairNeedsRoom(scene: Scene, s: Stair, rooms: (levelId: Id) => r
   const exit: Vec2 = [c[0] + last.dir[0] * (half + 0.45), c[1] + last.dir[1] * (half + 0.45)];
   const w = stairToWorld([s.origin[0], s.origin[2]], s.rotationY, exit);
   return rooms(s.toLevel).some((r) => pointInPolygon(w, r, 0.01)) ? null : s.toLevel;
+}
+
+
+// ------------------------------------------------------------------------------------------------
+// Walls and furniture in the way
+// ------------------------------------------------------------------------------------------------
+
+/** A wall body as an oriented rectangle: centre, half length, half thickness, direction. */
+interface WallBox {
+  id: Id;
+  a: Vec2;
+  b: Vec2;
+  half: number;
+}
+
+function wallBoxes(scene: Scene, levelId: Id): WallBox[] {
+  const out: WallBox[] = [];
+  for (const w of Object.values(scene.walls)) {
+    if (w.levelId !== levelId || !isHouseWall(w)) continue;
+    const a = scene.nodes[w.a]?.p;
+    const b = scene.nodes[w.b]?.p;
+    if (a && b) out.push({ id: w.id, a: [a[0], a[1]], b: [b[0], b[1]], half: w.thickness / 2 });
+  }
+  return out;
+}
+
+/**
+ * Minimum translation that moves rectangle `r` ([x0, z0, x1, z1], in the stair's own frame) out of a wall body
+ * (given in the same frame), or null when they do not overlap. Separating-axis test on the four edge normals.
+ */
+function pushOut(r: readonly [number, number, number, number], a: Vec2, b: Vec2, half: number, eps = 0.005): Vec2 | null {
+  const dx = b[0] - a[0];
+  const dz = b[1] - a[1];
+  const len = Math.hypot(dx, dz) || 1;
+  const u: Vec2 = [dx / len, dz / len];
+  const n: Vec2 = [-u[1], u[0]];
+  const wallCorners: Vec2[] = [
+    [a[0] + n[0] * half, a[1] + n[1] * half],
+    [b[0] + n[0] * half, b[1] + n[1] * half],
+    [b[0] - n[0] * half, b[1] - n[1] * half],
+    [a[0] - n[0] * half, a[1] - n[1] * half],
+  ];
+  const rectCorners: Vec2[] = [[r[0], r[1]], [r[2], r[1]], [r[2], r[3]], [r[0], r[3]]];
+  let best: Vec2 | null = null;
+  let bestDepth = Infinity;
+  for (const axis of [[1, 0], [0, 1], u, n] as Vec2[]) {
+    const proj = (pts: Vec2[]) => pts.map((p) => p[0] * axis[0] + p[1] * axis[1]);
+    const pa = proj(rectCorners);
+    const pb = proj(wallCorners);
+    const minA = Math.min(...pa);
+    const maxA = Math.max(...pa);
+    const minB = Math.min(...pb);
+    const maxB = Math.max(...pb);
+    const overlap = Math.min(maxA, maxB) - Math.max(minA, minB);
+    if (overlap <= eps) return null; // a separating axis: no overlap
+    if (overlap < bestDepth) {
+      bestDepth = overlap;
+      // push the rectangle toward the side it is already more on
+      const dir = (minA + maxA) / 2 < (minB + maxB) / 2 ? -1 : 1;
+      best = [axis[0] * overlap * dir, axis[1] * overlap * dir];
+    }
+  }
+  return best;
+}
+
+/** The treads of a layout as rectangles in the stair's frame (a spiral counts as the square round its steps). */
+function footprintRects(layout: StairLayout): Array<[number, number, number, number]> {
+  if (layout.spiral) {
+    const R = layout.spiral.radius;
+    return [[-R, -R, R, R]];
+  }
+  return layout.treads.map((t) => t.rect);
+}
+
+/** Walls of `levelId` that a stair at this place crosses (house walls only). */
+export function wallsInStairWay(scene: Scene, levelId: Id, layout: StairLayout, origin: Vec2, rotationY: number, rects: Array<[number, number, number, number]> = footprintRects(layout)): Id[] {
+  const hits: Id[] = [];
+  for (const w of wallBoxes(scene, levelId)) {
+    const a = stairToLocal(origin, rotationY, w.a);
+    const b = stairToLocal(origin, rotationY, w.b);
+    if (rects.some((r) => pushOut(r, a, b, w.half) !== null)) hits.push(w.id);
+  }
+  return hits;
+}
+
+/**
+ * How far to move a stair so it no longer overlaps a wall of its floor: pushed out along the shortest way, wall by wall (at
+ * most `max` metres in total). [0, 0] when nothing is in the way or no short move clears it.
+ */
+export function stairPushOut(scene: Scene, levelId: Id, layout: StairLayout, origin: Vec2, rotationY: number, max = 0.8): Vec2 {
+  const rects = footprintRects(layout);
+  const boxes = wallBoxes(scene, levelId);
+  let off: Vec2 = [0, 0];
+  for (let round = 0; round < 6; round++) {
+    let moved = false;
+    const o: Vec2 = [origin[0] + off[0], origin[1] + off[1]];
+    for (const w of boxes) {
+      const a = stairToLocal(o, rotationY, w.a);
+      const b = stairToLocal(o, rotationY, w.b);
+      let worst: Vec2 | null = null;
+      for (const r of rects) {
+        const m = pushOut(r, a, b, w.half);
+        if (m && (!worst || Math.hypot(m[0], m[1]) > Math.hypot(worst[0], worst[1]))) worst = m;
+      }
+      if (worst) {
+        // `worst` moves the steps (in their own frame) clear of the wall: turn it into a world shift
+        const c = Math.cos(rotationY);
+        const sn = Math.sin(rotationY);
+        const wx = worst[0] * c + worst[1] * sn;
+        const wz = -worst[0] * sn + worst[1] * c;
+        off = [off[0] + wx, off[1] + wz];
+        moved = true;
+        break;
+      }
+    }
+    if (!moved) break;
+  }
+  return Math.hypot(off[0], off[1]) <= max && wallsInStairWay(scene, levelId, layout, [origin[0] + off[0], origin[1] + off[1]], rotationY).length === 0 ? off : [0, 0];
+}
+
+/**
+ * Which runs of a stair's rail to leave out because they stand flush against a house wall (on the floor it starts on or the one
+ * it reaches): a rail inside a wall only clutters it. Answers in the stair's own frame.
+ */
+export function stairRailSkip(scene: Scene, s: Stair): (a: Vec2, b: Vec2) => boolean {
+  const origin: Vec2 = [s.origin[0], s.origin[2]];
+  const boxes = [...wallBoxes(scene, s.fromLevel), ...wallBoxes(scene, s.toLevel)];
+  return (a, b) => {
+    const wa = stairToWorld(origin, s.rotationY, a);
+    const wb = stairToWorld(origin, s.rotationY, b);
+    const wm: Vec2 = [(wa[0] + wb[0]) / 2, (wa[1] + wb[1]) / 2];
+    return boxes.some((w) => [wa, wm, wb].every((p) => distToSeg(p, w.a, w.b) <= w.half + 0.06));
+  };
+}
+
+function distToSeg(p: Vec2, a: Vec2, b: Vec2): number {
+  const abx = b[0] - a[0];
+  const abz = b[1] - a[1];
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * abx + (p[1] - a[1]) * abz) / (abx * abx + abz * abz || 1)));
+  return Math.hypot(p[0] - (a[0] + abx * t), p[1] - (a[1] + abz * t));
+}
+
+/** Things wrong with where a stair stands, in plain words (empty = fine). */
+export function stairProblems(scene: Scene, s: Stair): string[] {
+  const layout = layoutOf(scene, s);
+  if (!layout) return [];
+  const out: string[] = [];
+  const origin: Vec2 = [s.origin[0], s.origin[2]];
+  if (wallsInStairWay(scene, s.fromLevel, layout, origin, s.rotationY).length) out.push('A wall crosses the steps. Move the stairs or the wall.');
+  const hole = stairHole(scene, s);
+  if (hole) {
+    // A wall on the floor above cutting through the opening.
+    for (const w of wallBoxes(scene, s.toLevel)) {
+      const through = [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9].some((t) => pointInPolygon([w.a[0] + (w.b[0] - w.a[0]) * t, w.a[1] + (w.b[1] - w.a[1]) * t], hole, 0) && !hole.some((q, i) => distToSeg([w.a[0] + (w.b[0] - w.a[0]) * t, w.a[1] + (w.b[1] - w.a[1]) * t], q, hole[(i + 1) % hole.length]!) < 0.03));
+      if (through) {
+        out.push('A wall on the floor above runs through the opening.');
+        break;
+      }
+    }
+    // Furniture on either floor inside the footprint.
+    const outline = stairOutline(scene, s);
+    const lower = outline ?? hole;
+    const blocked = Object.values(scene.items).some((it) => (it.levelId === s.fromLevel && pointInPolygon([it.position[0], it.position[2]], lower, 0)) || (it.levelId === s.toLevel && pointInPolygon([it.position[0], it.position[2]], hole, 0)));
+    if (blocked) out.push('Furniture stands where the stairs go. Move or delete it.');
+  }
+  return out;
 }

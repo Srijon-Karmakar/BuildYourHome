@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { PopClose } from './PopClose';
 import { useStore } from 'zustand';
 import { WALL_THICKNESS_EXTERIOR_M, WALL_THICKNESS_INTERIOR_M } from '@hd/scene-schema';
 import {
@@ -71,6 +72,7 @@ export function HomeMenu({ onOpenChange }: { onOpenChange?: (open: boolean) => v
       </button>
       {open && (
         <div className="popover below home-pop" role="group" aria-label="Home settings">
+          <PopClose onClick={() => setOpen(false)} />
           <Section title="Your home">
             <TextField label="Name" value={scene.meta.name} onCommit={(name) => editor.execute(setSceneName(name))} />
             <Swatches
