@@ -151,6 +151,8 @@ export interface AddStairAssemblyParams extends AddStairParams {
   steps?: Stair['steps'];
   stringer?: Stair['stringer'];
   railingOpts?: Stair['railingOpts'];
+  /** A roof room / glass box / hatch over the top of the last flight (that flight then gets no room built round it). */
+  exit?: Stair['exit'];
 }
 
 /**
@@ -179,6 +181,7 @@ export function addStairAssembly(p: AddStairAssemblyParams, rng?: () => number):
         }
         const to = levelAbove(d, from);
         if (!to) break;
+        const isLast = n === count - 1 || (!addFloors && !levelAbove(d, to));
         const stair: Stair = {
           id: ids[n]!,
           fromLevel: from,
@@ -194,9 +197,10 @@ export function addStairAssembly(p: AddStairAssemblyParams, rng?: () => number):
           ...(p.steps ? { steps: { ...p.steps } } : {}),
           ...(p.stringer ? { stringer: { ...p.stringer } } : {}),
           ...(p.railingOpts ? { railingOpts: { ...p.railingOpts } } : {}),
+          ...(p.exit && isLast ? { exit: { ...p.exit } } : {}),
         };
         d.stairs[stair.id] = stair;
-        if (p.hall !== false) buildStairHall(d, stair);
+        if (p.hall !== false && !(p.exit && isLast)) buildStairHall(d, stair);
         from = to;
         rotation = nextFlightRotation(d, stair);
       }

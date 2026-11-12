@@ -308,6 +308,21 @@ export const Stair = z.object({
       depth: z.number().min(0.06).max(0.6).optional(),
     })
     .optional(),
+  /**
+   * What covers the top where the stair comes out on a roof or an empty floor: a roof room (chilekotha / mumty), a glass box
+   * or a hatch. Unset = open (just the guard rail).
+   */
+  exit: z
+    .object({
+      kind: z.enum(['room', 'glass', 'hatch']),
+      /** Height of the walls (room / glass) or the kerb (hatch), m. */
+      height: z.number().min(0.15).max(3.5).optional(),
+      /** Wall colour of a room, kerb colour of a hatch (hex). */
+      color: z.string().optional(),
+      /** Frame colour (door frame, glass frame, lid frame; hex). */
+      frame: z.string().optional(),
+    })
+    .optional(),
 });
 
 /** A balcony / porch slab attached to a floor. Railings run along the edges that are not against a house wall. */

@@ -47,6 +47,7 @@ import {
 import { cancelPlot, editor, finishDrawing, finishPlot, useUi, wallTool } from './session';
 import { roadLayout, stairLayout, stairOutlineWorld, type StairLayout } from '@hd/geometry';
 import { addStairAssembly, roadCoverage, snapStairToWalls } from '@hd/editor-core';
+import { stairExitPlan } from '@hd/geometry';
 import { drawPlan, pointInPolygon, type ItemGhost, type OpeningPreview, type StairDraw } from './render';
 import { levelRooms } from './rooms';
 import { highlightSides } from './wallFaces';
@@ -529,7 +530,8 @@ export class PlanController {
       if (s.fromLevel !== st.activeLevelId && s.toLevel !== st.activeLevelId) continue;
       const layout = layoutOf(st.scene, s);
       if (!layout) continue;
-      out.push({ layout, origin: [s.origin[0], s.origin[2]], rotationY: s.rotationY, selected: st.selection.includes(s.id), role: s.fromLevel === st.activeLevelId ? 'up' : 'down' });
+      const role = s.fromLevel === st.activeLevelId ? 'up' : 'down';
+      out.push({ layout, origin: [s.origin[0], s.origin[2]], rotationY: s.rotationY, selected: st.selection.includes(s.id), role, ...(role === 'down' && s.exit ? { exit: stairExitPlan(layout, s.exit.kind) } : {}) });
     }
     return out;
   }
@@ -717,6 +719,7 @@ export class PlanController {
         build: ui.newStair.build,
         railing: ui.newStair.railing,
         ...(ui.newStair.floorHeight !== null ? { floorHeight: ui.newStair.floorHeight } : {}),
+        ...(ui.newStair.exit !== 'none' ? { exit: { kind: ui.newStair.exit } } : {}),
       }),
     );
     const added = Object.keys(editor.getState().scene.stairs).filter((id) => !before.has(id));

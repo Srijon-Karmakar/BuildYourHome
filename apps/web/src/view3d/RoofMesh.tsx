@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import type { Level, Roof, Scene } from '@hd/scene-schema';
 import { buildRailFromPaths, buildRoofMesh, buildRoofPart, flatRoofEdge, orientedBox, railPathsFromSegments, ROOF_SLOTS, type OrientedBox, type RoofParams } from '@hd/geometry';
-import { isHouseWall } from '@hd/editor-core';
+import { isHouseWall, stairHole } from '@hd/editor-core';
 import { Outlines } from '@react-three/drei';
 import { makeSurface } from './materials';
 import { pickProps, SELECT_COLOR, useIsSelected } from './pick';
@@ -85,6 +85,11 @@ export function RoofMesh({ roof, level, scene, tier }: { roof: Roof; level: Leve
     parapet: roof.parapet,
     dormers: roof.dormers,
   };
+  // Stairs that climb on from this floor go up through a flat roof: cut their opening in the slab.
+  if (roof.style === 'flat') {
+    const holes = Object.values(scene.stairs).flatMap((st) => (st.fromLevel === level.id ? [stairHole(scene, st)] : [])).filter((h): h is [number, number][] => !!h);
+    if (holes.length) params.holes = holes;
+  }
   const top = level.elevation + level.height;
   const where = roof.box ? `${roof.box.cx.toFixed(3)},${roof.box.cz.toFixed(3)},${roof.box.angle.toFixed(4)},${roof.box.length.toFixed(3)},${roof.box.width.toFixed(3)}` : fp.points.map((p) => p.map((v) => v.toFixed(3)).join(',')).join(';');
   const key = `${JSON.stringify(params)}|${top}|${fp.wallHalf}|${where}`;

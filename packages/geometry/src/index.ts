@@ -8,6 +8,7 @@ export * from './roof/roof';
 export * from './stairs/stairs';
 export * from './stairs/railing';
 export * from './stairs/body';
+export * from './stairs/exit';
 export * from './balcony/balcony';
 export * from './zone/zone';
 export * from './road/road';

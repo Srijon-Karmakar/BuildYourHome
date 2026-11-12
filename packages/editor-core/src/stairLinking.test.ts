@@ -205,6 +205,10 @@ describe('guard rail and walls upstairs', () => {
     e.execute(addStair({ fromLevel: L(e), origin: [3, 6], width: 1 }));
     const s = Object.values(scene(e).stairs)[0]!;
     // the stair stands at x 2.5..3.5 (local x -0.5..0.5, local z up the stair = world -z); a wall 0.3 m beside its right edge, upstairs
+    // no room upstairs yet: there is no floor for a guard to stand on
+    expect(stairRailSkip(scene(e), s)([0.5, -1], [0.5, -2], 'guard')).toBe(true);
+    expect(stairRailSkip(scene(e), s)([-0.5, -1], [-0.5, -2], 'guard')).toBe(true);
+    box(e, L(e, 1), -2, -4, 12, 14); // a big room upstairs round everything
     expect(stairRailSkip(scene(e), s)([0.5, -1], [0.5, -2], 'guard')).toBe(false);
     box(e, L(e, 1), 3.8, 2, 6, 5);
     const skip = stairRailSkip(scene(e), s);
@@ -212,5 +216,19 @@ describe('guard rail and walls upstairs', () => {
     expect(skip([-0.5, -1], [-0.5, -2], 'guard')).toBe(false);
     // a flight rail only goes when it is really flush (a wall at 30 cm is no reason to take the rail away)
     expect(skip([0.5, -1], [0.5, -2], 'flight')).toBe(false);
+  });
+});
+
+describe('stairs through a flat roof', () => {
+  it('a flat roof over the floor below is a terrace: the guard stands on it; a pitched one is not', () => {
+    const e = mk();
+    box(e, L(e), -2, -4, 12, 14); // a house on the ground floor (gets its automatic flat roof)
+    e.execute(addStairAssembly({ fromLevel: L(e), origin: [3, 6], width: 1, hall: false }));
+    const s = Object.values(scene(e).stairs)[0]!;
+    const roof = Object.values(scene(e).roofs).find((r) => r.levelId === L(e))!;
+    expect(roof.style).toBe('flat');
+    expect(stairRailSkip(scene(e), s)([-0.5, -1], [-0.5, -2], 'guard')).toBe(false);
+    e.execute(updateRoofs([roof.id], { style: 'gable' }));
+    expect(stairRailSkip(scene(e), s)([-0.5, -1], [-0.5, -2], 'guard')).toBe(true);
   });
 });

@@ -3,7 +3,7 @@ import type * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useStore } from 'zustand';
 import { buildColliders, moveWithCollision, pointInPolygon, stairHeightAt, stairHole, stairToLocal } from '@hd/geometry';
-import { balconyColliders, itemColliders, layoutOf } from '@hd/editor-core';
+import { balconyColliders, itemColliders, layoutOf, stairExitColliders } from '@hd/editor-core';
 import { editor, useUi } from '../plan/session';
 import { rememberPose, resetWalkInput, spawnPose, walkInput, walkPose } from './walkState';
 
@@ -43,9 +43,10 @@ export function WalkControls() {
       ),
       ...itemColliders(editor.getState().scene, levelId), // large furniture blocks the way
       ...balconyColliders(editor.getState().scene, levelId), // railings keep you on the balcony
+      ...stairExitColliders(editor.getState().scene, levelId), // the walls of a roof room / glass box over a stair
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [nodes, walls, openings, items, levelId, balconies],
+    [nodes, walls, openings, items, levelId, balconies, stairs],
   );
   const collidersRef = useRef(colliders);
   collidersRef.current = colliders;

@@ -182,3 +182,36 @@ describe('one-step staircase through several floors', () => {
     for (let i = 1; i <= 3; i++) expect(levelRoomsOf(sc, sc.levelOrder[i]!).length).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe('exit over the top of the stairs', () => {
+  it('the last flight of a staircase gets the exit (and no room); its walls block the walker except at the door', async () => {
+    const { stairExitColliders, updateStairs } = await import('./index');
+    const e = createEditor(createEmptyScene());
+    e.execute(addStairAssembly({ fromLevel: L(e), origin: [2, 2], flights: 2, hall: true, exit: { kind: 'room' } }));
+    const sc = e.getState().scene;
+    const top = Object.values(sc.stairs).find((s) => s.toLevel === sc.levelOrder[2])!;
+    const low = Object.values(sc.stairs).find((s) => s.toLevel === sc.levelOrder[1])!;
+    expect(top.exit).toEqual({ kind: 'room' });
+    expect(low.exit).toBeUndefined();
+    expect(Object.values(sc.walls).filter((w) => w.levelId === sc.levelOrder[2])).toHaveLength(0); // the exit, not a room
+    expect(Object.values(sc.walls).filter((w) => w.levelId === sc.levelOrder[1]).length).toBeGreaterThan(0); // Room above on the floor between
+    expect(stairExitColliders(sc, sc.levelOrder[2]!)).toHaveLength(5);
+    expect(stairExitColliders(sc, sc.levelOrder[1]!)).toHaveLength(0);
+    // change kind: a hatch keeps the colour, starts at its own height; null takes it away
+    e.execute(updateStairs([top.id], { exit: { color: '#ffffff', height: 2.8 } }));
+    e.execute(updateStairs([top.id], { exit: { kind: 'hatch' } }));
+    expect(e.getState().scene.stairs[top.id]!.exit).toEqual({ kind: 'hatch', color: '#ffffff' });
+    e.execute(updateStairs([top.id], { exit: null }));
+    expect(e.getState().scene.stairs[top.id]!.exit).toBeUndefined();
+  });
+
+  it('on a flat roof the exit stands on the roof top', async () => {
+    const { stairExitBase } = await import('./index');
+    const e = createEditor(createEmptyScene());
+    e.execute(batch('loop', [[-4, -4], [6, -4], [6, 6], [-4, 6]].map((p, i, a) => addWall({ levelId: L(e), from: p as [number, number], to: a[(i + 1) % 4] as [number, number], kind: 'exterior' }))));
+    e.execute(addStairAssembly({ fromLevel: L(e), origin: [1, 3], hall: false, exit: { kind: 'glass' } }));
+    const sc = e.getState().scene;
+    const s = Object.values(sc.stairs)[0]!;
+    expect(stairExitBase(sc, s)).toBeCloseTo(sc.levels[s.toLevel]!.elevation + 0.18);
+  });
+});

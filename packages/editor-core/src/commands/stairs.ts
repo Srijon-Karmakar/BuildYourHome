@@ -1,4 +1,7 @@
 import {
+  FLAT_ROOF_THICKNESS_M,
+  stairExitPlan,
+  stairExitWalls,
   MAX_STAIR_WIDTH_M,
   MIN_STAIR_WIDTH_M,
   pointInPolygon,
@@ -14,6 +17,7 @@ import { newId, type Id, type MaterialRef, type Scene, type Stair, type Vec2 } f
 import { wrapAngle } from '../placement';
 import type { Command } from '../types';
 import { isHouseWall } from './walls';
+import { roomPolygons } from '../roofSync';
 
 export const DEFAULT_STAIR_WIDTH_M = 1;
 /** Darker than the default oak floor so stairs stand out from above. */
@@ -109,6 +113,8 @@ export interface StairProps {
   stringer?: Partial<NonNullable<Stair['stringer']>> | null;
   /** New position on the plan. */
   origin?: Vec2;
+  /** The cover over the top (roof room / glass box / hatch): fields given are merged; `null` takes it away. */
+  exit?: Partial<NonNullable<Stair['exit']>> | null;
 }
 
 function mergeOpts<T extends object>(cur: T | undefined, add: Partial<T>): T | undefined {
@@ -159,6 +165,17 @@ export function updateStairs(ids: readonly Id[], props: StairProps): Command {
           else delete s.stringer;
         }
         if (props.origin) s.origin = [props.origin[0], 0, props.origin[1]];
+        if (props.exit === null) delete s.exit;
+        else if (props.exit) {
+          const kind = props.exit.kind ?? s.exit?.kind;
+          if (kind) {
+            const merged = { ...(s.exit ?? {}), ...props.exit, kind };
+            // A new kind starts from its own height.
+            if (props.exit.kind && props.exit.kind !== s.exit?.kind && props.exit.height === undefined) delete merged.height;
+            for (const k of Object.keys(merged) as Array<keyof typeof merged>) if (merged[k] === undefined) delete merged[k];
+            s.exit = merged;
+          }
+        }
       }
     },
   };
@@ -425,16 +442,22 @@ export function stairPushOut(scene: Scene, levelId: Id, layout: StairLayout, ori
 
 /**
  * Which runs of a stair's rail to leave out because they stand flush against a house wall (on the floor it starts on or the one
- * it reaches): a rail inside a wall only clutters it. Answers in the stair's own frame.
+ * it reaches): a rail inside a wall only clutters it. Guard runs (round the opening upstairs) are also left out where the floor
+ * above has no room and no flat roof covers the floor below, i.e. nothing to stand on. Answers in the stair's own frame.
  */
 export function stairRailSkip(scene: Scene, s: Stair): (a: Vec2, b: Vec2, kind?: 'flight' | 'guard') => boolean {
   const origin: Vec2 = [s.origin[0], s.origin[2]];
   const flightBoxes = [...wallBoxes(scene, s.fromLevel), ...wallBoxes(scene, s.toLevel)];
   const upperBoxes = wallBoxes(scene, s.toLevel);
+  // The guard stands on the floor above: where that floor has no room (stairs on their own) there is no floor, so no guard.
+  // A flat roof over the floor the stair starts on is a terrace to stand on too.
+  const flatRoof = Object.values(scene.roofs).some((r) => r.levelId === s.fromLevel && r.style === 'flat');
+  const upperRooms = [...roomPolygons(scene, s.toLevel), ...(flatRoof ? roomPolygons(scene, s.fromLevel) : [])];
   return (a, b, kind = 'flight') => {
     const wa = stairToWorld(origin, s.rotationY, a);
     const wb = stairToWorld(origin, s.rotationY, b);
     const wm: Vec2 = [(wa[0] + wb[0]) / 2, (wa[1] + wb[1]) / 2];
+    if (kind === 'guard' && !upperRooms.some((r) => pointInPolygon(wm, r, 0.01))) return true;
     // A flight rail goes when its side stands flush against a wall. The guard on the floor above also goes when a wall is
     // closer than a person can stand between it and the opening (the room built round the stairs keeps 30 cm).
     const gap = kind === 'guard' ? 0.42 : 0.06;
@@ -471,6 +494,47 @@ export function stairProblems(scene: Scene, s: Stair): string[] {
     const lower = outline ?? hole;
     const blocked = Object.values(scene.items).some((it) => (it.levelId === s.fromLevel && pointInPolygon([it.position[0], it.position[2]], lower, 0)) || (it.levelId === s.toLevel && pointInPolygon([it.position[0], it.position[2]], hole, 0)));
     if (blocked) out.push('Furniture stands where the stairs go. Move or delete it.');
+  }
+  return out;
+}
+
+// ------------------------------------------------------------------------------------------------
+// The cover over the top of a stair (roof room / glass box / hatch)
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * Height the exit over a stair stands at: the floor it reaches, or the top of a flat roof of the floor below when one covers
+ * the opening (the stair then comes out on the roof terrace).
+ */
+export function stairExitBase(scene: Scene, s: Stair): number {
+  const to = scene.levels[s.toLevel];
+  if (!to) return 0;
+  const hole = stairHole(scene, s);
+  if (!hole) return to.elevation;
+  const cx = hole.reduce((a, p) => a + p[0], 0) / hole.length;
+  const cz = hole.reduce((a, p) => a + p[1], 0) / hole.length;
+  for (const r of Object.values(scene.roofs)) {
+    if (r.levelId !== s.fromLevel || r.style !== 'flat' || !r.box) continue;
+    const b = r.box;
+    const dx = cx - b.cx;
+    const dz = cz - b.cz;
+    const u = dx * Math.cos(b.angle) + dz * Math.sin(b.angle);
+    const v = -dx * Math.sin(b.angle) + dz * Math.cos(b.angle);
+    if (Math.abs(u) <= b.length / 2 + 0.5 && Math.abs(v) <= b.width / 2 + 0.5) return to.elevation + (r.thickness ?? FLAT_ROOF_THICKNESS_M);
+  }
+  return to.elevation;
+}
+
+/** The walls of every stair exit on a floor, as walker colliders (the door / open side stays free). */
+export function stairExitColliders(scene: Scene, levelId: Id): Array<{ a: Vec2; b: Vec2; halfThickness: number }> {
+  const out: Array<{ a: Vec2; b: Vec2; halfThickness: number }> = [];
+  for (const s of Object.values(scene.stairs)) {
+    if (s.toLevel !== levelId || !s.exit) continue;
+    const layout = layoutOf(scene, s);
+    if (!layout) continue;
+    const plan = stairExitPlan(layout, s.exit.kind);
+    const o: Vec2 = [s.origin[0], s.origin[2]];
+    for (const [a, b] of stairExitWalls(plan)) out.push({ a: stairToWorld(o, s.rotationY, a), b: stairToWorld(o, s.rotationY, b), halfThickness: s.exit.kind === 'glass' ? 0.04 : 0.075 });
   }
   return out;
 }

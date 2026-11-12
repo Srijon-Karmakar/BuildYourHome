@@ -1,3 +1,4 @@
+import earcut from 'earcut';
 import type { Vec2 } from '@hd/scene-schema';
 
 export type RoofStyleId = 'gable' | 'hip' | 'flat' | 'shed' | 'butterfly' | 'mansard' | 'barrel';
@@ -172,7 +173,44 @@ export interface RoofParams {
   parapet?: number;
   /** Dormer windows on the long slopes of gable and hip roofs: `pos` -1..1 along the ridge, `side` ±1 = which slope. */
   dormers?: { pos: number; side: 1 | -1; width: number }[];
+  /**
+   * Flat roofs: openings cut through the slab (world x, z), e.g. where stairs climb on through the roof. Each is clipped to
+   * the roof (kept 2 cm in from its edge); the cut faces get the trim colour.
+   */
+  holes?: readonly (readonly Vec2[])[];
 }
+
+/** `poly` (roof-frame u, v) cut to the rectangle |u| <= a, |v| <= b. */
+function clipToRect(poly: readonly Vec2[], a: number, b: number): Vec2[] {
+  let out: Vec2[] = poly.map((p): Vec2 => [p[0], p[1]]);
+  const planes: Array<(p: Vec2) => number> = [(p) => a - p[0], (p) => p[0] + a, (p) => b - p[1], (p) => p[1] + b];
+  for (const d of planes) {
+    const next: Vec2[] = [];
+    for (let i = 0; i < out.length; i++) {
+      const p = out[i]!;
+      const q = out[(i + 1) % out.length]!;
+      const dp = d(p);
+      const dq = d(q);
+      if (dp >= 0) next.push(p);
+      if (dp >= 0 !== dq >= 0) {
+        const k = dp / (dp - dq);
+        next.push([p[0] + (q[0] - p[0]) * k, p[1] + (q[1] - p[1]) * k]);
+      }
+    }
+    out = next;
+    if (out.length < 3) return [];
+  }
+  return out;
+}
+
+const signedArea = (p: readonly Vec2[]): number => {
+  let s = 0;
+  for (let i = 0; i < p.length; i++) {
+    const q = p[(i + 1) % p.length]!;
+    s += p[i]![0] * q[1] - q[0] * p[i]![1];
+  }
+  return s / 2;
+};
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 export const ROOF_MIN_THICKNESS_M = 0.05;
@@ -276,10 +314,47 @@ export function buildRoofPart(box: OrientedBox, elevation: number, params: RoofP
     }
   } else if (flat) {
     const c1 = P(-a, -b, E), c2 = P(a, -b, E), c3 = P(a, b, E), c4 = P(-a, b, E);
-    const inside = P(0, 0, E - t / 2);
-    void inside;
-    T.quadDir(c1, c2, c3, c4, [0, 1, 0]); // top
-    T.quadDir(down(c1, t), down(c2, t), down(c3, t), down(c4, t), [0, -1, 0]); // soffit
+    // Openings in the slab, in the roof's own frame (u along `angle`, v across).
+    const toUV = (w: Vec2): Vec2 => {
+      const dx = w[0] - box.cx;
+      const dz = w[1] - box.cz;
+      return [dx * c + dz * s, -dx * s + dz * c];
+    };
+    const holes = (params.holes ?? []).map((h) => clipToRect(h.map(toUV), a - 0.02, b - 0.02)).filter((h) => h.length >= 3 && Math.abs(signedArea(h)) > 0.05);
+    if (holes.length === 0) {
+      T.quadDir(c1, c2, c3, c4, [0, 1, 0]); // top
+      T.quadDir(down(c1, t), down(c2, t), down(c3, t), down(c4, t), [0, -1, 0]); // soffit
+    } else {
+      const outer: Vec2[] = [[-a, -b], [a, -b], [a, b], [-a, b]];
+      const all = [...outer, ...holes.flat()];
+      const starts: number[] = [];
+      let at = outer.length;
+      for (const h of holes) {
+        starts.push(at);
+        at += h.length;
+      }
+      const tri = earcut(all.flatMap((p) => [p[0], p[1]]), starts);
+      for (let k = 0; k < tri.length; k += 3) {
+        const [p, q, r] = [all[tri[k]!]!, all[tri[k + 1]!]!, all[tri[k + 2]!]!];
+        T.triDir(P(p[0], p[1], E), P(q[0], q[1], E), P(r[0], r[1], E), [0, 1, 0]);
+        T.triDir(P(p[0], p[1], E - t), P(q[0], q[1], E - t), P(r[0], r[1], E - t), [0, -1, 0]);
+      }
+      // The cut faces round each opening, facing into it.
+      for (const h of holes) {
+        const ccw = signedArea(h) > 0;
+        for (let i = 0; i < h.length; i++) {
+          const p = h[i]!;
+          const q = h[(i + 1) % h.length]!;
+          const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
+          if (len < 1e-4) continue;
+          // Normal pointing out of the hole region (into the slab).
+          const nx = ((q[1] - p[1]) / len) * (ccw ? 1 : -1);
+          const nz = (-(q[0] - p[0]) / len) * (ccw ? 1 : -1);
+          const solid = P((p[0] + q[0]) / 2 + nx * 0.05, (p[1] + q[1]) / 2 + nz * 0.05, E - t / 2);
+          S.trim.quad(P(p[0], p[1], E), P(q[0], q[1], E), P(q[0], q[1], E - t), P(p[0], p[1], E - t), solid);
+        }
+      }
+    }
     edge(c1, c2, 'trim', P(0, 0, E - t / 2));
     edge(c2, c3, 'trim', P(0, 0, E - t / 2));
     edge(c3, c4, 'trim', P(0, 0, E - t / 2));

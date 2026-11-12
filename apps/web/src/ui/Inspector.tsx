@@ -7,6 +7,7 @@ import { SHADE_COLORS, SHADE_STYLES, defaultShadeDepth, type ShadeStyle } from '
 import { RoofPanel } from './RoofPanel';
 import { isTree, TreeSize } from './TreeSize';
 import { StairRailPanel } from './StairRailPanel';
+import { StairExitPanel } from './StairExitPanel';
 import { StairBuildPanel } from './StairBuildPanel';
 import { BalconyPanel } from './BalconyPanel';
 import { RoadPanel } from './RoadPanel';
@@ -437,6 +438,7 @@ export function Inspector() {
                 onChange={(railing) => editStairs({ railing })}
               />
               {stairs.some((st) => st.railing && st.railing !== 'none') && <StairRailPanel stairs={stairs} />}
+              <StairExitPanel stairs={stairs} />
               <Swatches
                 label="Steps"
                 items={materialsFor('floor')}

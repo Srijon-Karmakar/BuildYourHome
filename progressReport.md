@@ -661,3 +661,21 @@ Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-
 - **Flat roof default.** New automatic / Roof-button / own-room roofs are flat with a concrete slab look. The sample home's roof is now flat too.
 - **Code.** editor-core `addStairAssembly` (`flights`, `floorHeight`, build options, `MAX_STAIR_FLIGHTS`), `continueStairUp` `{ hall }`; scene-schema `DEFAULT_ROOF_STYLE`, `DEFAULT_MATERIAL_ROOF = 'roof-concrete'`; web `ui/StairOptions.tsx`, `NewStairSettings` in `session.ts`, Inspector standalone note.
 - **Tests.** editor-core +4 unit tests (229 of mine pass; `facade.test.ts` from the parallel facade work fails one panel check, not touched here), geometry 121, web 166; browser 503/503 incl. new 2m3 one-step staircase block; typecheck clean; lint clean except the same parallel `facade.test.ts`. Checked the bar and card at 1280x800, 390x800, 800x380 (card scrolls inside itself on short landscape).
+
+## Fix: floating guard rail on stairs that stand on their own
+- Owner: a box of railing hung in the air at the top of a stacked standalone stair. It was the guard round the opening on the floor above (ADR-029); with no room upstairs there is no floor there, so it floated.
+- Now `stairRailSkip` leaves out every guard run whose midpoint is not inside a room of the floor above (`roomPolygons`), so the guard only stands where there is floor. Flight and landing rails are unchanged.
+- Tests: `stairLinking.test.ts` guard test now checks "no room upstairs = no guard" and uses a room upstairs for the wall case; editor-core all pass except the parallel `facade.test.ts`; browser 503/503; typecheck clean. Checked a 5-floor floating U stair with glass rails in 3D.
+
+## Fix: stairs blocked by the flat roof
+- Owner: stairs going up from a house to empty floors above ran into the house's flat roof (no opening).
+- Flat roofs now get the stair opening cut through the slab (`RoofParams.holes`, world x/z, clipped 2 cm inside the roof; top, underside and the cut faces in trim colour; earcut). `RoofMesh` passes `stairHole` of every stair that starts on the roof's floor.
+- The guard round the opening now also stands where a flat roof over the floor below makes a terrace (`stairRailSkip`), so nobody walks off the roof into the stairwell. The stair rail rebuilds when that roof turns flat / pitched.
+- Limit: pitched roofs (gable, hip, shed, ...) are not cut; stairs through one still hit it. Owner can switch that roof to flat or move the stairs.
+- Tests: geometry +1 (122), editor-core +1 (all pass except the parallel `facade.test.ts`), browser 503/503, typecheck clean. Checked a one-room house with a 3-floor floating U stair through its roof in 3D.
+
+## P3-14 — Stair exit on the roof: roof room / glass box / hatch (ADR-032)
+- Owner request: an exit structure where stairs come out on the roof (chilekotha / mumty, glass stair box, roof hatch).
+- **Use:** select the top flight > Exit at the top: Open / Roof room / Glass box / Hatch, then height, wall / kerb colour and door / frame colour. New stairs: Stair options > Exit at the top (goes on the last flight).
+- **Code:** `geometry/stairs/exit.ts` (`stairExitPlan`, `stairExitWalls`, `buildStairExit`), schema `Stair.exit`, editor-core `updateStairs({ exit })`, `addStairAssembly({ exit })`, `stairExitBase`, `stairExitColliders`; web `StairExit` in `StairMesh.tsx`, `ui/StairExitPanel.tsx`, plan wall lines in `render.ts`, walker colliders.
+- **Tests:** geometry +4 (126), editor-core +2 (all pass except the parallel `facade.test.ts`), browser 505/505 (new: exit from the options card on the top flight only, inspector switch to glass box). Checked all three kinds in 3D on a flat roof and the room on the plan.

@@ -250,3 +250,28 @@ describe('roof detail', () => {
     expect(slots(buildRoofMesh(pts, 0, params('flat', { dormers: [{ pos: 0, side: 1, width: 1.2 }] }))!)).not.toContain('glass');
   });
 });
+
+describe('flat roof openings', () => {
+  const box = { cx: 0, cz: 0, angle: 0, length: 8, width: 6 };
+  const area = (m: { positions: Float32Array; indices: Uint32Array }, y: number) => {
+    let s = 0;
+    for (let i = 0; i < m.indices.length; i += 3) {
+      const [a, b, c] = [m.indices[i]!, m.indices[i + 1]!, m.indices[i + 2]!].map((k) => [m.positions[k * 3]!, m.positions[k * 3 + 1]!, m.positions[k * 3 + 2]!]);
+      if (![a, b, c].every((p) => Math.abs(p![1]! - y) < 1e-4)) continue;
+      s += Math.abs((b![0]! - a![0]!) * (c![2]! - a![2]!) - (c![0]! - a![0]!) * (b![2]! - a![2]!)) / 2;
+    }
+    return s;
+  };
+  it('cuts a stair opening out of the top and the underside, with faces round it', () => {
+    const p = { style: 'flat' as const, pitchDeg: 0, overhang: 0, thickness: 0.2 };
+    const plain = buildRoofPart(box, 3, p, 0);
+    const holed = buildRoofPart(box, 3, { ...p, holes: [[[0, 0], [1, 0], [1, 2], [0, 2]]] }, 0);
+    expect(area(plain, 3.2) - area(holed, 3.2)).toBeCloseTo(2, 3);
+    expect(area(plain, 3) - area(holed, 3)).toBeCloseTo(2, 3);
+    // an opening reaching past the edge is cut to the roof; one outside it changes nothing
+    const edge = buildRoofPart(box, 3, { ...p, holes: [[[3, 0], [6, 0], [6, 1], [3, 1]]] }, 0);
+    expect(area(plain, 3.2) - area(edge, 3.2)).toBeCloseTo(0.98, 2);
+    const outside = buildRoofPart(box, 3, { ...p, holes: [[[10, 10], [11, 10], [11, 11]]] }, 0);
+    expect(area(outside, 3.2)).toBeCloseTo(area(plain, 3.2), 4);
+  });
+});

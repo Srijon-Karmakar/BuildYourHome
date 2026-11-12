@@ -25,6 +25,8 @@ export interface NewStairSettings {
   railing: 'none' | 'wood' | 'metal' | 'glass';
   /** Height of the floors it adds (m); null = same as the floor below. */
   floorHeight: number | null;
+  /** What covers the top of the last flight: open, a roof room, a glass box or a hatch. */
+  exit: 'none' | 'room' | 'glass' | 'hatch';
 }
 
 const wide = typeof window !== 'undefined' && window.matchMedia('(min-width: 900px)').matches;
@@ -283,7 +285,7 @@ export const useUi = create<UiState>((set) => ({
   },
   setPaintSide: (paintSide) => set({ paintSide }),
   additive: false,
-  newStair: { kind: 'straight', mirror: false, width: 1, hall: false, flights: 1, build: 'solid', railing: 'wood', floorHeight: null },
+  newStair: { kind: 'straight', mirror: false, width: 1, hall: false, flights: 1, build: 'solid', railing: 'wood', floorHeight: null, exit: 'none' },
   setNewStair: (p) => set((s) => ({ newStair: { ...s.newStair, ...p } })),
   stairRotation: 0,
   rotateStair: (delta) => set((s) => ({ stairRotation: s.stairRotation + delta })),

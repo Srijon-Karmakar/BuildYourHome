@@ -1359,15 +1359,22 @@ try {
     check('Stair options opens a card with room, width, build, railing and floor height', (await card.getByRole('switch', { name: /Room above/ }).isVisible()) && (await card.getByRole('group', { name: 'Build' }).isVisible()) && (await card.getByRole('group', { name: 'Railing' }).isVisible()) && (await card.getByText('New floor height').isVisible()));
     await card.getByRole('group', { name: 'Build' }).getByRole('button', { name: 'Floating' }).click();
     await card.getByRole('group', { name: 'Railing' }).getByRole('button', { name: 'Metal' }).click();
+    await card.getByRole('group', { name: 'Exit at the top' }).getByRole('button', { name: 'Roof room' }).click();
     await page.getByRole('button', { name: 'Stair options' }).click(); // close the card (Esc would also stop the tool)
     await page.mouse.move(cx, cy);
     await page.mouse.click(cx, cy);
     const r = await page.evaluate(() => {
       const sc = window.__hd.editor.getState().scene;
-      return { stairs: Object.values(sc.stairs).map((s) => [s.build, s.railing]), levels: sc.levelOrder.length, walls: Object.keys(sc.walls).length, roofs: Object.keys(sc.roofs).length };
+      return { stairs: Object.values(sc.stairs).map((s) => [s.build, s.railing]), levels: sc.levelOrder.length, walls: Object.keys(sc.walls).length, roofs: Object.keys(sc.roofs).length, exits: Object.values(sc.stairs).map((s) => (s.exit ? `${sc.levelOrder.indexOf(s.toLevel)}:${s.exit.kind}` : '')).filter(Boolean) };
     });
     check('one click builds stairs through 3 floors, adding them, with no walls or roofs round them', r.stairs.length === 3 && r.levels === 4 && r.walls === 0 && r.roofs === 0, JSON.stringify(r));
     check('every flight gets the chosen build and railing', r.stairs.every(([b, rl]) => b === 'floating' && rl === 'metal'), JSON.stringify(r.stairs));
+    check('only the top flight gets the roof room over its exit', r.exits.join() === '3:room', JSON.stringify(r.exits));
+    const ins = page.getByRole('complementary', { name: 'Properties' });
+    await page.evaluate(() => { const ed = window.__hd.editor; const sc = ed.getState().scene; ed.select([Object.values(sc.stairs).find((s) => s.toLevel === sc.levelOrder[3]).id]); });
+    await ins.getByRole('group', { name: 'Exit at the top' }).getByRole('button', { name: 'Glass box' }).click();
+    check('the inspector switches the exit to a glass box', (await page.evaluate(() => Object.values(window.__hd.editor.getState().scene.stairs).filter((s) => s.exit?.kind === 'glass').length)) === 1);
+    await page.keyboard.press('Control+z'); // the glass box change
     await page.keyboard.press('Control+z');
     check('one undo removes the whole staircase and the added floors', (await page.evaluate(() => [Object.keys(window.__hd.editor.getState().scene.stairs).length, window.__hd.editor.getState().scene.levelOrder.length])).join() === '0,1');
     check('no page errors with the one-step staircase', errors.length === 0, errors.slice(0, 2).join(' | '));

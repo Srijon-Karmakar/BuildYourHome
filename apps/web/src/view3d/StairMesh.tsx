@@ -1,8 +1,8 @@
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import type { Scene, Stair } from '@hd/scene-schema';
-import { layoutOf, stairRailSkip } from '@hd/editor-core';
-import { buildStairBody, buildStairRailing, type StairBuildOptions } from '@hd/geometry';
+import { layoutOf, stairExitBase, stairRailSkip } from '@hd/editor-core';
+import { buildStairBody, buildStairExit, buildStairRailing, STAIR_EXIT_SLOTS, type StairBuildOptions, type StairLayout } from '@hd/geometry';
 import { Outlines } from '@react-three/drei';
 import { makeSurface } from './materials';
 import { railGeometry, railMaterialsFor, railOptions } from './railing';
@@ -74,8 +74,10 @@ export function StairMesh({ stair, scene, tier, upperVisible = true }: { stair: 
 
   // Handrail, posts and balusters (or glass) on the open sides; left out where a side stands against a wall.
   const railing = stair.railing && stair.railing !== 'none' ? stair.railing : null;
-  const railKey = JSON.stringify([stair.railing, stair.railingOpts, build]) + '|' + (railing ? wallSignature(scene, stair) : '');
-  const guardOn = stair.railingOpts?.guard !== false && upperVisible;
+  const flatRoofBelow = Object.values(scene.roofs).some((r) => r.levelId === stair.fromLevel && r.style === 'flat');
+  const railKey = JSON.stringify([stair.railing, stair.railingOpts, build, flatRoofBelow]) + '|' + (railing ? wallSignature(scene, stair) : '');
+  // An exit (roof room / glass box / hatch) closes the opening itself: no guard rail round it.
+  const guardOn = stair.railingOpts?.guard !== false && upperVisible && !stair.exit;
   const rail = useMemo(() => {
     if (!layout || !railing) return null;
     const skip = stairRailSkip(scene, stair);
@@ -105,6 +107,45 @@ export function StairMesh({ stair, scene, tier, upperVisible = true }: { stair: 
       {selected && <Outlines thickness={0.03} color={SELECT_COLOR} />}
       {rail && <mesh geometry={rail} material={railMaterials} castShadow receiveShadow raycast={() => null} />}
       {guard && <mesh geometry={guard} material={railMaterials} castShadow receiveShadow raycast={() => null} />}
+      {stair.exit && upperVisible && layout && <StairExit stair={stair} layout={layout} tier={tier} base={stairExitBase(scene, stair) - from.elevation} />}
     </mesh>
   );
+}
+
+export const DEFAULT_EXIT_WALL = '#ece6da';
+export const DEFAULT_EXIT_FRAME = '#2b2b2b';
+/** A roof room's door and frame default to wood. */
+export const DEFAULT_EXIT_DOOR = '#7a5236';
+export const defaultExitFrame = (kind: string): string => (kind === 'room' ? DEFAULT_EXIT_DOOR : DEFAULT_EXIT_FRAME);
+
+/** The roof room / glass box / hatch over the top of a stair, in the stair's frame, standing at `base` above its lower floor. */
+function StairExit({ stair, layout, tier, base }: { stair: Stair; layout: StairLayout; tier: Tier; base: number }) {
+  const exit = stair.exit!;
+  const key = `${layout.kind}|${layout.width}|${layout.rise.toFixed(4)}|${stair.mirror ? 1 : 0}|${exit.kind}|${exit.height ?? ''}`;
+  const geometry = useMemo(() => {
+    const m = buildStairExit(layout, exit.kind, exit.height);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(m.uvs, 2));
+    g.setIndex(new THREE.BufferAttribute(m.indices, 1));
+    for (const grp of m.groups) g.addGroup(grp.start, grp.count, STAIR_EXIT_SLOTS.indexOf(grp.slot));
+    return g;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  const wall = exit.color ?? DEFAULT_EXIT_WALL;
+  const frame = exit.frame ?? defaultExitFrame(exit.kind);
+  // wall, roof, frame, glass (STAIR_EXIT_SLOTS order)
+  const materials = useMemo(
+    () => [
+      new THREE.MeshStandardMaterial({ color: wall, roughness: 0.85 }),
+      makeSurface('roof-concrete', tier),
+      new THREE.MeshStandardMaterial({ color: frame, roughness: 0.4, metalness: 0.6 }),
+      new THREE.MeshPhysicalMaterial({ color: '#bcd4e6', transparent: true, opacity: 0.3, roughness: 0.05, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide }),
+    ],
+    [wall, frame, tier],
+  );
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
+  return <mesh geometry={geometry} material={materials} position={[0, base, 0]} castShadow receiveShadow raycast={() => null} />;
 }

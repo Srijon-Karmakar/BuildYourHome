@@ -1,7 +1,7 @@
 import { getAsset, itemFootprint, frontOf } from '@hd/assets';
 import type { Opening, Scene, Vec2, Vec3 } from '@hd/scene-schema';
 import type { SnapResult } from '@hd/editor-core';
-import { facePoint, leftNormal, stairHole, STAIR_HEADROOM_M, stairToWorld, type RoadLayout, type StairLayout, type WallFootprint } from '@hd/geometry';
+import { facePoint, leftNormal, stairExitWalls, stairHole, STAIR_HEADROOM_M, stairToWorld, type StairExitPlan, type RoadLayout, type StairLayout, type WallFootprint } from '@hd/geometry';
 import { formatArea, formatLength, type DisplayUnits } from '../lib/units';
 import { toScreen, toWorld, type View } from './viewport';
 import type { LevelGeometry } from './wallGeom';
@@ -60,6 +60,8 @@ export interface StairDraw {
   selected?: boolean;
   /** `up`: starts on this floor. `down`: arrives from below (a stairwell). `ghost`: about to be placed. */
   role: 'up' | 'down' | 'ghost';
+  /** On the floor it reaches: the roof room / glass box / hatch over its top. */
+  exit?: StairExitPlan;
 }
 
 export interface RenderState {
@@ -1044,6 +1046,22 @@ function drawStairs(ctx: CanvasRenderingContext2D, s: RenderState): void {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         halo(ctx, faint ? 'DN' : 'UP', start[0] + 18, start[1] - (faint ? -10 : 10));
+      }
+    }
+    // The walls of the exit over the top (a hatch's kerb is thinner, glass is a thin line).
+    if (d.exit) {
+      const px = Math.max(1.5, (d.exit.kind === 'glass' ? 0.04 : d.exit.kind === 'hatch' ? 0.12 : 0.15) * v.scale);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = d.exit.kind === 'glass' ? '#5d87a8' : '#3b3b3b';
+      ctx.lineWidth = px;
+      ctx.lineCap = 'square';
+      for (const [a, b] of stairExitWalls(d.exit)) {
+        const [ax, ay] = sc(a);
+        const [bx, by] = sc(b);
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
       }
     }
     ctx.restore();

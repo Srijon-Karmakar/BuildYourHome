@@ -3,6 +3,7 @@ import { MAX_STAIR_FLIGHTS } from '@hd/editor-core';
 import { useUi, type NewStairSettings } from '../plan/session';
 import { LengthField, Segmented, Toggle } from './fields';
 import { PopClose } from './PopClose';
+import { EXIT_OPTIONS } from './StairExitPanel';
 
 const BUILDS: Array<{ id: NewStairSettings['build']; label: string }> = [
   { id: 'solid', label: 'Solid' },
@@ -74,6 +75,7 @@ export function StairOptions() {
           <LengthField label="Width" value={ns.width} min={0.6} max={3} step={0.05} onCommit={(width) => set({ width })} />
           <Segmented label="Build" value={ns.build} options={BUILDS} onChange={(build) => set({ build })} />
           <Segmented label="Railing" value={ns.railing} options={RAILINGS} onChange={(railing) => set({ railing })} />
+          <Segmented label="Exit at the top" value={ns.exit} options={EXIT_OPTIONS} onChange={(exit) => set({ exit })} />
           <LengthField
             label="New floor height"
             hint="Used for floors the stairs add"
@@ -83,7 +85,7 @@ export function StairOptions() {
             step={0.1}
             onCommit={(floorHeight) => set({ floorHeight })}
           />
-          <button type="button" className="pill small" onClick={() => set({ hall: false, flights: 1, width: 1, build: 'solid', railing: 'wood', floorHeight: null })}>
+          <button type="button" className="pill small" onClick={() => set({ hall: false, flights: 1, width: 1, build: 'solid', railing: 'wood', floorHeight: null, exit: 'none' })}>
             Reset
           </button>
         </div>
