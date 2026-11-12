@@ -12,3 +12,4 @@ export * from './balcony/balcony';
 export * from './zone/zone';
 export * from './road/road';
 export * from './road/mesh';
+export * from './wall/dressing';

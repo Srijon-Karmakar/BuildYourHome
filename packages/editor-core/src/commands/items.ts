@@ -77,6 +77,8 @@ export interface ItemProps {
   scale?: number;
   /** Main colour (hex); null resets to the catalog default. */
   variant?: string | null;
+  /** Text on the item (name plate, house number); '' or null removes it. */
+  text?: string | null;
   locked?: boolean;
 }
 
@@ -95,6 +97,8 @@ export function setItemsProps(ids: readonly Id[], props: ItemProps): Command {
         }
         if (props.variant === null) delete it.variant;
         else if (props.variant !== undefined) it.variant = props.variant;
+        if (props.text === null || props.text === '') delete it.text;
+        else if (props.text !== undefined) it.text = props.text.slice(0, 40);
         if (props.locked !== undefined) it.locked = props.locked || undefined;
       }
     },

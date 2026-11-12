@@ -10,6 +10,7 @@ import { usePwa } from '../lib/pwa';
 import { BrandLogo } from './BrandLogo';
 import iconUrl from '../assets/plotframer-icon.png?inline';
 import { GooGroup } from './Goo';
+import { SaveButton, useSaveHotkey } from './SaveButton';
 
 const VIEWS: Array<{ id: ViewMode; label: string; title: string }> = [
   { id: '2d', label: 'Plan', title: 'Floor plan only' },
@@ -42,6 +43,7 @@ export function TopBar() {
   const walk = useUi((s) => s.walk);
   const setWalk = useUi((s) => s.setWalk);
   const bumpFit = useUi((s) => s.bumpFit);
+  useSaveHotkey();
   // Compact screens (phones, small tablets): Account / Home / Display / Fit / Walk live in a bottom sheet.
   const [menuOpen, setMenuOpen] = useState(false);
   const [sheetKey, setSheetKey] = useState(0);
@@ -101,6 +103,7 @@ export function TopBar() {
 
       <div className="topbar-actions">
         <HomeMenu key={homeKey} onOpenChange={setHomeOpen} />
+        <SaveButton />
         <button type="button" className="pill share-btn" title="Save, send or share your home" onClick={() => useUi.getState().setShareOpen(true)}>
           Share
         </button>
@@ -109,9 +112,14 @@ export function TopBar() {
           className="pill walk-quick"
           title="Walk through your home in first person (Esc to exit)"
           aria-pressed={walk}
+          aria-label={walk ? 'Exit walk' : 'Walk'}
           onClick={() => setWalk(!walk)}
         >
-          {walk ? 'Exit walk' : 'Walk'}
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="11" cy="3.6" r="1.6" />
+            <path d="M7.5 9.5L9.5 6.8H12L14 10M10.4 7L9 12L11.6 14.2L12.4 18M9 12L7.4 15.4L5.6 18" />
+          </svg>
+          <span className="lbl">{walk ? 'Exit walk' : 'Walk'}</span>
         </button>
         <button
           type="button"
@@ -155,6 +163,7 @@ export function TopBar() {
           <div className="hm-desktop">
             <HomeMenu />
           </div>
+          <SaveButton />
           <button
             type="button"
             className="pill small"

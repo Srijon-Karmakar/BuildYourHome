@@ -1,5 +1,5 @@
 import { detectRooms, orientedBox, type OrientedBox } from '@hd/geometry';
-import { DEFAULT_MATERIAL_ROOF, DEFAULT_ROOF_OVERHANG_M, DEFAULT_ROOF_PITCH_DEG, type Id, type Roof, type Scene, type Vec2 } from '@hd/scene-schema';
+import { DEFAULT_MATERIAL_ROOF, DEFAULT_ROOF_STYLE, DEFAULT_ROOF_OVERHANG_M, DEFAULT_ROOF_PITCH_DEG, type Id, type Roof, type Scene, type Vec2 } from '@hd/scene-schema';
 import { isHouseWall } from './commands/walls';
 
 /** Smallest roof part worth building (m): thinner slivers between rooms are covered by their neighbours' overhang. */
@@ -216,7 +216,7 @@ function template(d: Scene, levelId: Id): Pick<Roof, 'style' | 'pitchDeg' | 'ove
   const onLevel = Object.values(d.roofs).filter((r) => r.levelId === levelId);
   const area = (r: Roof) => (r.box ? r.box.length * r.box.width : 0);
   const pick = [...onLevel].sort((a, b) => area(b) - area(a))[0];
-  if (!pick) return { style: 'gable', pitchDeg: DEFAULT_ROOF_PITCH_DEG, overhang: DEFAULT_ROOF_OVERHANG_M, material: { id: DEFAULT_MATERIAL_ROOF } };
+  if (!pick) return { style: DEFAULT_ROOF_STYLE, pitchDeg: DEFAULT_ROOF_PITCH_DEG, overhang: DEFAULT_ROOF_OVERHANG_M, material: { id: DEFAULT_MATERIAL_ROOF } };
   const { style, pitchDeg, overhang, material, thickness, rake, ridgeCap, gutter, trim, gable, parapet, railing, railingOpts } = pick;
   return {
     style,

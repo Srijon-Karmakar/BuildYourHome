@@ -1,6 +1,6 @@
 import type { HiddenLayers, LayerId } from '../view3d/layers';
 import { create } from 'zustand';
-import { createEmptyScene, type Vec2 } from '@hd/scene-schema';
+import { createEmptyScene, DEFAULT_ROOF_STYLE, type Vec2 } from '@hd/scene-schema';
 import type { StairKind } from '@hd/geometry';
 import { type RoadPresetId, roadStyleFor, setAutoRoofs, setRoof, addBalcony, addZone, balconyProblem, GARDEN_SURFACES, zoneProblem, type GardenSurface, cleanPolygon, createEditor, createWallTool, DEFAULT_SNAP, plotProblem, setPlot, type SnapSettings } from '@hd/editor-core';
 
@@ -11,6 +11,21 @@ export const wallTool = createWallTool(editor, () => useUi.getState().newWallKin
 export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'place' | 'plot' | 'stair' | 'balcony' | 'garden' | 'road' | 'room';
 export type ViewMode = '2d' | '3d' | 'split';
 export type { FloorView } from '../view3d/floors';
+
+/** What the Stairs tool builds next (the bottom bar and its Stair options card). */
+export interface NewStairSettings {
+  kind: StairKind;
+  mirror: boolean;
+  width: number;
+  /** Build walls, a landing and a door round the top on each floor (off: the stairs stand on their own). */
+  hall: boolean;
+  /** How many floors the staircase climbs; missing floors are added. */
+  flights: number;
+  build: 'solid' | 'stringer' | 'spine' | 'floating';
+  railing: 'none' | 'wood' | 'metal' | 'glass';
+  /** Height of the floors it adds (m); null = same as the floor below. */
+  floorHeight: number | null;
+}
 
 const wide = typeof window !== 'undefined' && window.matchMedia('(min-width: 900px)').matches;
 
@@ -115,8 +130,8 @@ interface UiState {
   toggleSnap(k: 'grid' | 'nodes' | 'walls' | 'angle'): void;
   setDrawing(v: boolean): void;
   /** Settings of the stairs the Stairs tool places next. */
-  newStair: { kind: StairKind; mirror: boolean; width: number; hall: boolean; toTop: boolean };
-  setNewStair(p: Partial<{ kind: StairKind; mirror: boolean; width: number; hall: boolean; toTop: boolean }>): void;
+  newStair: NewStairSettings;
+  setNewStair(p: Partial<NewStairSettings>): void;
   /** Rotation (radians) of the stairs about to be placed. */
   stairRotation: number;
   rotateStair(delta: number): void;
@@ -268,7 +283,7 @@ export const useUi = create<UiState>((set) => ({
   },
   setPaintSide: (paintSide) => set({ paintSide }),
   additive: false,
-  newStair: { kind: 'straight', mirror: false, width: 1, hall: true, toTop: false },
+  newStair: { kind: 'straight', mirror: false, width: 1, hall: false, flights: 1, build: 'solid', railing: 'wood', floorHeight: null },
   setNewStair: (p) => set((s) => ({ newStair: { ...s.newStair, ...p } })),
   stairRotation: 0,
   rotateStair: (delta) => set((s) => ({ stairRotation: s.stairRotation + delta })),
@@ -289,7 +304,7 @@ export function addOrSelectRoof(): void {
   const onTop = () => Object.values(editor.getState().scene.roofs).filter((r) => r.levelId === top);
   if (onTop().length === 0) {
     editor.execute(setAutoRoofs(top, true));
-    if (onTop().length === 0) editor.execute(setRoof(top, { style: 'gable' }));
+    if (onTop().length === 0) editor.execute(setRoof(top, { style: DEFAULT_ROOF_STYLE }));
   }
   useUi.setState({ showRoof: true, tool: 'select' });
   editor.setActiveLevel(top);

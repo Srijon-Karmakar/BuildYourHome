@@ -11,7 +11,7 @@ import { StairBuildPanel } from './StairBuildPanel';
 import { BalconyPanel } from './BalconyPanel';
 import { RoadPanel } from './RoadPanel';
 import { useEnvPanelVisible } from './EnvironmentPanel';
-import { addRoofOverRooms, connectStairHall, continueStairUp, levelAbove, batch, updateZones, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, stairProblems, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
+import { addRoofOverRooms, connectStairHall, isHouseWall, continueStairUp, levelAbove, batch, updateZones, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, stairProblems, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
 import { formatArea, formatLength } from '../lib/units';
 import { requireAccess } from '../cloud/store';
 import { deleteSelection } from '../plan/PlanController';
@@ -199,7 +199,10 @@ export function Inspector() {
   const stairIds = stairs.map((s) => s.id);
   const editStairs = (props: Parameters<typeof updateStairs>[1]) => editor.execute(updateStairs(stairIds, props));
   const stairRooms = (lid: string) => levelRooms(scene, lid).map((r) => r.polygon);
-  const needsRoom = stairs.length === 1 ? stairNeedsRoom(scene, stairs[0]!, stairRooms) : null;
+  const missingRoom = stairs.length === 1 ? stairNeedsRoom(scene, stairs[0]!, stairRooms) : null;
+  // Stairs on their own (nothing built on the floor above yet) are a choice, not a mistake: offer the room, don't warn.
+  const standalone = missingRoom !== null && !Object.values(scene.walls).some((w) => w.levelId === missingRoom && isHouseWall(w));
+  const needsRoom = standalone ? null : missingRoom;
   const zoneIds = zones.map((z) => z.id);
   const editZones = (props: Parameters<typeof updateZones>[1]) => editor.execute(updateZones(zoneIds, props));
   const canDelete = walls.length + openings.length + items.length + stairs.length + balconies.length + zones.length + roofs.length > 0;
@@ -455,8 +458,18 @@ export function Inspector() {
                   </button>
                 </>
               )}
+              {standalone && (
+                <>
+                  <p className="f-note" role="status" data-testid="stair-standalone">
+                    These stairs stand on their own: nothing is built on {scene.levels[missingRoom!]?.name ?? 'the floor above'} yet.
+                  </p>
+                  <button type="button" className="pill small" onClick={() => editor.execute(connectStairHall(stairs[0]!.id))}>
+                    Build a room above
+                  </button>
+                </>
+              )}
               {stairs.length === 1 && !needsRoom && !Object.values(scene.stairs).some((o) => o.fromLevel === stairs[0]!.toLevel) && (
-                <button type="button" className="pill small" title="Add a matching flight from this stair's top floor to the next one (adds the floor if needed)" onClick={() => editor.execute(continueStairUp(stairs[0]!.id))}>
+                <button type="button" className="pill small" title="Add a matching flight from this stair's top floor to the next one (adds the floor if needed)" onClick={() => editor.execute(continueStairUp(stairs[0]!.id, undefined, { hall: !standalone }))}>
                   {levelAbove(scene, stairs[0]!.toLevel) ? 'Continue stairs up' : 'Continue stairs up (adds a floor)'}
                 </button>
               )}

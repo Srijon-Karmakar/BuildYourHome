@@ -66,6 +66,7 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 - [x] P3-10 Roads and pavements (draw on the plan, lanes / markings / crossings / kerbs / pavements / street lights and trees), neighbouring buildings (7 new types) with street fill in 5 styles, street life, weather (clear / cloudy / fog / rain), clouds, horizon (hills / city), ground detail (ADR-027)
 - [x] P3-11 Environment editor: scenery per side (hills, mountains, forest, sea, desert, city) with height / colour / snow, sky and air, ground detail, ring of trees, 7 one-tap looks; new homes start as open flat land (ADR-028)
 - [x] P3-12 Owner feedback: open stair builds (side beams / centre spine / floating, tread and beam options), exact floor-to-floor linking (headroom opening, floor-level guard, walls and furniture checks), balcony designer (railing, slab, supports, cover), roof terrace railing, leaf-card trees (ADR-029)
+- [x] P3-13 One-click staircase through several floors (floors stepper + Stair options card), standalone stairs (no room / walls / roof unless asked), flat roof by default (ADR-031)
 **Exit:** an exterior "hero view" looks good on high tier and runs on low tier.
 
 ## Phase 4 — Mobile app & polish (≈ 3–4 weeks)

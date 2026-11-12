@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { clearHome } from '@hd/editor-core';
 import { editor } from '../plan/session';
 import { activePlan } from '../plan/PlanCanvas';
-import { fileNameFor, MAX_FILE_BYTES, parseSceneFile, serializeScene } from '../lib/persistence';
+import { downloadSceneFile, MAX_FILE_BYTES, parseSceneFile } from '../lib/persistence';
 import { useUi } from '../plan/session';
 import { buildTemplate } from '../plan/templates';
 import { useCloud } from '../cloud/store';
@@ -23,15 +23,7 @@ export function FileActions({ onDone }: { onDone: () => void }) {
   };
 
   const save = () => {
-    const scene = editor.getState().scene;
-    const url = URL.createObjectURL(new Blob([serializeScene(scene)], { type: 'application/json' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileNameFor(scene);
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+    downloadSceneFile(editor.getState().scene);
     setMessage('Saved to your downloads.');
   };
 

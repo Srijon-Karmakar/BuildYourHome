@@ -1,9 +1,34 @@
 import type { WallFootprint } from './footprint';
 import { axialOf, facePoint, validCuts, type OpeningCut } from './openings';
 
-/** Material slot per triangle group; apps map these to materials (sideA = wall.materialA, …). */
-export type WallSlot = 'sideA' | 'sideB' | 'top' | 'ends';
-export const WALL_SLOTS: readonly WallSlot[] = ['sideA', 'sideB', 'top', 'ends'];
+/**
+ * Material slot per triangle group; apps map these to materials (sideA = wall.materialA, …). `lowerA` / `lowerB` are
+ * the parts of the faces below a two-tone split (ADR-030); they are appended so the first four slots keep their index.
+ */
+export type WallSlot = 'sideA' | 'sideB' | 'top' | 'ends' | 'lowerA' | 'lowerB';
+export const WALL_SLOTS: readonly WallSlot[] = ['sideA', 'sideB', 'top', 'ends', 'lowerA', 'lowerB'];
+
+/** Two-tone split heights per face (m above the wall's floor); the face below goes to the `lower*` slot. */
+export interface WallSplits {
+  A?: number;
+  B?: number;
+}
+
+/** Cut strips at height `h`: [below, above] (either may be empty). */
+function splitStrips(strips: readonly Strip[], h: number | undefined): [Strip[], Strip[]] {
+  if (h === undefined || !(h > 0)) return [[], [...strips]];
+  const below: Strip[] = [];
+  const above: Strip[] = [];
+  for (const st of strips) {
+    if (st.y1 <= h + 1e-9) below.push(st);
+    else if (st.y0 >= h - 1e-9) above.push(st);
+    else {
+      below.push({ ...st, y1: h });
+      above.push({ ...st, y0: h });
+    }
+  }
+  return [below, above];
+}
 
 export interface MeshGroup {
   slot: WallSlot;
@@ -92,6 +117,7 @@ export function buildWallMesh(
   elevation: number,
   height: number,
   openings: readonly OpeningCut[] = [],
+  splits: WallSplits = {},
 ): MeshData {
   const [aL, bL, bR, aR] = fp.footprint;
   const cuts = validCuts(fp, openings, height);
@@ -105,28 +131,32 @@ export function buildWallMesh(
   const u: [number, number] = [ux / lenL, uz / lenL]; // wall direction a → b
   const nL: V3 = [-u[1], 0, u[0]];
 
-  const per = { sideA: new Builder(), sideB: new Builder(), top: new Builder(), ends: new Builder() };
+  const per = { sideA: new Builder(), sideB: new Builder(), top: new Builder(), ends: new Builder(), lowerA: new Builder(), lowerB: new Builder() };
 
   // Side A (L face), read from outside: u runs a → b. Edge points are the mitered footprint ends.
   const sL0 = axialOf(fp, aL);
   const sL1 = axialOf(fp, bL);
-  for (const st of faceStrips(sL0, sL1, cuts, height)) {
+  const [lowA, highA] = splitStrips(faceStrips(sL0, sL1, cuts, height), splits.A);
+  for (const st of [...highA, ...lowA]) {
+    const into = highA.includes(st) ? per.sideA : per.lowerA;
     const p0 = st.s0 === sL0 ? v(aL, st.y0) : at(st.s0, st.y0, 1);
     const p3 = st.s0 === sL0 ? v(aL, st.y1) : at(st.s0, st.y1, 1);
     const p1 = st.s1 === sL1 ? v(bL, st.y0) : at(st.s1, st.y0, 1);
     const p2 = st.s1 === sL1 ? v(bL, st.y1) : at(st.s1, st.y1, 1);
-    per.sideA.quad([p0, p1, p2, p3], [[st.s0, st.y0], [st.s1, st.y0], [st.s1, st.y1], [st.s0, st.y1]], nL);
+    into.quad([p0, p1, p2, p3], [[st.s0, st.y0], [st.s1, st.y0], [st.s1, st.y1], [st.s0, st.y1]], nL);
   }
 
   // Side B (R face), read from outside: u runs b → a.
   const sR0 = axialOf(fp, aR);
   const sR1 = axialOf(fp, bR);
-  for (const st of faceStrips(sR0, sR1, cuts, height)) {
+  const [lowB, highB] = splitStrips(faceStrips(sR0, sR1, cuts, height), splits.B);
+  for (const st of [...highB, ...lowB]) {
+    const into = highB.includes(st) ? per.sideB : per.lowerB;
     const p0 = st.s0 === sR0 ? v(aR, st.y0) : at(st.s0, st.y0, -1);
     const p3 = st.s0 === sR0 ? v(aR, st.y1) : at(st.s0, st.y1, -1);
     const p1 = st.s1 === sR1 ? v(bR, st.y0) : at(st.s1, st.y0, -1);
     const p2 = st.s1 === sR1 ? v(bR, st.y1) : at(st.s1, st.y1, -1);
-    per.sideB.quad(
+    into.quad(
       [p0, p1, p2, p3],
       [[sR1 - st.s0, st.y0], [sR1 - st.s1, st.y0], [sR1 - st.s1, st.y1], [sR1 - st.s0, st.y1]],
       [-nL[0], 0, -nL[2]],

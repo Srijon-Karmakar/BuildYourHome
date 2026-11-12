@@ -105,7 +105,7 @@ export function buildDemoScene(): Scene {
   furnish('bathtub', [8.9, 5.45]);
   furnish('mirror', [7.9, 3.7]);
 
-  // The roof comes by itself: the floor has automatic roofs on, so closing the rooms already put a gable roof on.
+  // The roof comes by itself: the floor has automatic roofs on, so closing the rooms already put a (flat, by default) roof on.
 
   return e.getState().scene;
 }

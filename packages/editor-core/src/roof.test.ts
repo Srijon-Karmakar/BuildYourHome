@@ -7,11 +7,11 @@ const ground = (e: Editor) => e.getState().scene.levelOrder[0]!;
 const roofs = (e: Editor) => Object.values(e.getState().scene.roofs);
 
 describe('setRoof', () => {
-  it('creates a default gable roof, then edits it in place (one roof per floor)', () => {
+  it('creates a roof (new roofs default to a concrete slab), then edits it in place (one roof per floor)', () => {
     const e = mk();
     e.execute(setRoof(ground(e), { style: 'gable' }));
     expect(roofs(e)).toHaveLength(1);
-    expect(roofs(e)[0]).toMatchObject({ style: 'gable', pitchDeg: 25, overhang: 0.4, material: { id: 'roof-tile-terracotta' } });
+    expect(roofs(e)[0]).toMatchObject({ style: 'gable', pitchDeg: 25, overhang: 0.4, material: { id: 'roof-concrete' } });
     e.execute(setRoof(ground(e), { style: 'hip', pitchDeg: 35 }));
     expect(roofs(e)).toHaveLength(1);
     expect(roofs(e)[0]).toMatchObject({ style: 'hip', pitchDeg: 35, overhang: 0.4 });

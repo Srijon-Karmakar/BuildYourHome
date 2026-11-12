@@ -22,6 +22,7 @@ const GROUPS: Array<{ title: string; rows: Array<[string, string]> }> = [
   {
     title: 'Editing',
     rows: [
+      ['Ctrl + S', 'Save now'],
       ['Ctrl + Z / Y', 'Undo / redo'],
       ['Delete', 'Delete the selection'],
       ['Shift + click', 'Add to the selection'],

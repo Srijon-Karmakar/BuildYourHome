@@ -12,11 +12,13 @@ export const DEFAULT_TERRAIN_SIZE_M = 60;
 export const DEFAULT_MATERIAL_WALL = 'paint-white';
 export const DEFAULT_MATERIAL_FLOOR = 'floor-wood-oak';
 export const DEFAULT_MATERIAL_GROUND = 'ground-grass';
-export const DEFAULT_MATERIAL_ROOF = 'roof-tile-terracotta';
+/** New roofs are flat (owner decision 2026-11-12); a flat roof reads as a concrete slab. */
+export const DEFAULT_ROOF_STYLE = 'flat' as const;
+export const DEFAULT_MATERIAL_ROOF = 'roof-concrete';
 
 export const DEFAULT_MATERIAL_CEILING = 'paint-white';
 
-export const DOOR_STYLES = ['flush', 'panel', 'glass', 'double', 'louvered', 'french', 'sliding'] as const;
+export const DOOR_STYLES = ['flush', 'panel', 'glass', 'double', 'louvered', 'french', 'sliding', 'carved', 'pivot', 'barn', 'glazed'] as const;
 export const WINDOW_STYLES = ['single', 'double', 'sliding', 'casement', 'louvered'] as const;
 export type DoorStyle = (typeof DOOR_STYLES)[number];
 export type WindowStyle = (typeof WINDOW_STYLES)[number];

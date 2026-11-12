@@ -3,6 +3,7 @@ import { GARDEN_SURFACES, ROAD_PRESETS } from '@hd/editor-core';
 import { editor, finishDrawing, finishPlot, useUi } from '../plan/session';
 import { nextTip } from './tipsLogic';
 import { GooGroup } from './Goo';
+import { StairFloorsStepper, StairOptions } from './StairOptions';
 
 const CAPTION = {
   wall: 'Click to place points · type a length + Enter for an exact wall · Esc to finish',
@@ -16,7 +17,7 @@ const CAPTION = {
   balcony:
     'Click the corners of the balcony or porch · click the first corner or press Enter to close · Esc to cancel',
   stair:
-    'Click to place the stairs · R turns them · they climb to the floor above (one is added if needed) · Esc to stop',
+    'Click to place the stairs · R turns them · they climb the floors you chose (missing floors are added) · Esc to stop',
   place: 'Click to place · R turns it · Esc to stop',
   select: 'Tap a wall, room, door or furniture to edit it · drag to move',
   view3d: 'Drag to look around · scroll or pinch to zoom',
@@ -127,14 +128,13 @@ export function BottomBar() {
               </button>
             ))}
           </GooGroup>
-          <GooGroup className="segmented" role="group" aria-label="Stair floors" data-goo-host="">
-            <button type="button" className="seg" title="Build the walls, landing and door round the top of the stairs on the floor above" aria-pressed={newStair.hall} onClick={() => setNewStair({ hall: !newStair.hall })}>
+          <div className="stair-bar">
+            <StairFloorsStepper />
+            <button type="button" className="pill small" title="Build the walls, landing and door round the top of the stairs on each floor (off: the stairs stand on their own)" aria-pressed={newStair.hall} onClick={() => setNewStair({ hall: !newStair.hall })}>
               Room above
             </button>
-            <button type="button" className="seg" title="Put a matching flight on every floor up to the top" aria-pressed={newStair.toTop} onClick={() => setNewStair({ toTop: !newStair.toTop })}>
-              All floors
-            </button>
-          </GooGroup>
+            <StairOptions />
+          </div>
           {newStair.kind !== 'straight' && (
             <GooGroup className="segmented" role="group" aria-label="Stair turn" data-goo-host="">
               {([false, true] as const).map((m) => (

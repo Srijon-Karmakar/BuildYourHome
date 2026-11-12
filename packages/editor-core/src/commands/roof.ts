@@ -1,5 +1,5 @@
 import { detectRooms, loopSignature, orientedBox } from '@hd/geometry';
-import { DEFAULT_MATERIAL_ROOF, DEFAULT_ROOF_OVERHANG_M, DEFAULT_ROOF_PITCH_DEG, newId, type Id, type Roof, type Scene, type Vec2 } from '@hd/scene-schema';
+import { DEFAULT_MATERIAL_ROOF, DEFAULT_ROOF_STYLE, DEFAULT_ROOF_OVERHANG_M, DEFAULT_ROOF_PITCH_DEG, newId, type Id, type Roof, type Scene, type Vec2 } from '@hd/scene-schema';
 import type { Command } from '../types';
 import { isHouseWall } from './walls';
 import { centreLine } from '../roofSync';
@@ -106,7 +106,7 @@ export function setRoof(levelId: Id, input: RoofInput): Command {
         : {
             id,
             levelId,
-            style: 'gable',
+            style: DEFAULT_ROOF_STYLE,
             pitchDeg: DEFAULT_ROOF_PITCH_DEG,
             overhang: DEFAULT_ROOF_OVERHANG_M,
             material: { id: DEFAULT_MATERIAL_ROOF },
@@ -241,7 +241,7 @@ export function addRoofOverRooms(roomIds: readonly Id[], input: RoofInput = {}, 
       const roof: Roof = {
         id,
         levelId: o.levelId,
-        style: nearby?.style ?? 'gable',
+        style: nearby?.style ?? DEFAULT_ROOF_STYLE,
         pitchDeg: nearby?.pitchDeg ?? DEFAULT_ROOF_PITCH_DEG,
         overhang: nearby?.overhang ?? DEFAULT_ROOF_OVERHANG_M,
         material: { ...(nearby?.material ?? { id: DEFAULT_MATERIAL_ROOF }) },

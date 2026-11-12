@@ -131,3 +131,54 @@ describe('stairs stay joined to the right floors', () => {
     expect(clipToConvex(stair, [[0, 0], [4, 0], [4, 3], [2, 1], [0, 3]], 0)).toBeNull();
   });
 });
+
+describe('one-step staircase through several floors', () => {
+  it('climbs the chosen number of floors, adding the missing ones, as one undo step', () => {
+    const e = createEditor(createEmptyScene());
+    e.execute(addLevel()); // one floor above already there
+    e.execute(addStairAssembly({ fromLevel: L(e), origin: [2, 2], kind: 'U', flights: 4, hall: false, floorHeight: 3.2 }));
+    const sc = e.getState().scene;
+    expect(sc.levelOrder).toHaveLength(5);
+    expect(count(e, 'stairs')).toBe(4);
+    // every flight goes from one floor to the next, stacked
+    const st = Object.values(sc.stairs);
+    for (let i = 0; i < 4; i++) expect(st.some((s) => s.fromLevel === sc.levelOrder[i] && s.toLevel === sc.levelOrder[i + 1])).toBe(true);
+    // the added floors use the chosen height, the existing one keeps its own
+    expect(sc.levels[sc.levelOrder[1]!]!.height).toBe(3);
+    expect(sc.levels[sc.levelOrder[2]!]!.height).toBeCloseTo(3.2);
+    e.undo();
+    expect(e.getState().scene.levelOrder).toHaveLength(2);
+    expect(count(e, 'stairs')).toBe(0);
+  });
+
+  it('without the room: no walls, doors or roofs are added round the stairs', () => {
+    const e = createEditor(createEmptyScene());
+    e.execute(addStairAssembly({ fromLevel: L(e), origin: [2, 2], flights: 3, hall: false }));
+    expect(count(e, 'stairs')).toBe(3);
+    expect(count(e, 'walls')).toBe(0);
+    expect(count(e, 'openings')).toBe(0);
+    expect(Object.keys(e.getState().scene.roofs)).toHaveLength(0);
+    const s = Object.values(e.getState().scene.stairs).find((x) => x.fromLevel === L(e, 2))!;
+    e.execute(continueStairUp(s.id, undefined, { hall: false }));
+    expect(count(e, 'stairs')).toBe(4);
+    expect(count(e, 'walls')).toBe(0);
+  });
+
+  it('carries the build and railing choices onto every flight and clamps the count', () => {
+    const e = createEditor(createEmptyScene());
+    e.execute(addStairAssembly({ fromLevel: L(e), origin: [0, 0], flights: 99, hall: false, build: 'floating', railing: 'glass', width: 1.3 }));
+    const st = Object.values(e.getState().scene.stairs);
+    expect(st).toHaveLength(12);
+    expect(st.every((s) => s.build === 'floating' && s.railing === 'glass' && s.width === 1.3)).toBe(true);
+    const f = createEditor(createEmptyScene());
+    f.execute(addStairAssembly({ fromLevel: L(f), origin: [0, 0], flights: 2, build: 'solid' }));
+    expect(Object.values(f.getState().scene.stairs).every((s) => s.build === undefined)).toBe(true);
+  });
+
+  it('with the room: each flight gets its room on the floor it reaches', () => {
+    const e = createEditor(createEmptyScene());
+    e.execute(addStairAssembly({ fromLevel: L(e), origin: [2, 2], kind: 'straight', flights: 3 }));
+    const sc = e.getState().scene;
+    for (let i = 1; i <= 3; i++) expect(levelRoomsOf(sc, sc.levelOrder[i]!).length).toBeGreaterThanOrEqual(1);
+  });
+});

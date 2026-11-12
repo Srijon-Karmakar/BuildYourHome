@@ -675,7 +675,7 @@ try {
     await page.waitForTimeout(2500);
     const roofs = () => page.evaluate(() => Object.values(window.__hd.editor.getState().scene.roofs));
     const group = page.getByRole('group', { name: 'Floors' });
-    check('the sample home has a gable roof', (await roofs()).length === 1 && (await roofs())[0].style === 'gable');
+    check('the sample home has a flat roof (new roofs are flat)', (await roofs()).length === 1 && (await roofs())[0].style === 'flat');
     check('a Hide roof button appears once there is a roof', await group.getByRole('button', { name: 'Hide roof' }).isVisible());
     await group.getByRole('button', { name: 'Hide roof' }).click();
     check('Hide roof turns it off', (await page.evaluate(() => window.__hd.useUi.getState().showRoof)) === false);
@@ -1231,8 +1231,7 @@ try {
     await room();
     await page.keyboard.press('s');
     check('the Stairs tool is on (key S) and shows its options', (await page.evaluate(() => window.__hd.useUi.getState().tool)) === 'stair' && (await page.getByRole('group', { name: 'Stair shape' }).isVisible()));
-    check('the Stairs tool offers Room above and All floors (Room above is on)', (await page.getByRole('button', { name: 'Room above' }).getAttribute('aria-pressed')) === 'true' && (await page.getByRole('button', { name: 'All floors' }).getAttribute('aria-pressed')) === 'false');
-    await page.getByRole('button', { name: 'Room above' }).click(); // this part of the test checks the plain stair and its warning
+    check('the Stairs tool offers Room above (off) and a floors stepper (1 floor)', (await page.getByRole('button', { name: 'Room above' }).getAttribute('aria-pressed')) === 'false' && (await page.getByRole('group', { name: 'Floors to connect' }).textContent()).includes('Up 1 floor'));
     await page.mouse.move(cx, cy + 150);
     await page.mouse.click(cx, cy + 150);
     let s = await S();
@@ -1241,7 +1240,7 @@ try {
     check('the stairs connect ground floor → floor above, origin on the plan', s.stairs[0].fromLevel === s.levels[0] && s.stairs[0].toLevel === s.levels[1] && Math.abs(s.stairs[0].origin[2] - 2.5) < 0.06);
     const ins = page.getByRole('complementary', { name: 'Properties' });
     check('the inspector shows the stairs and how far they climb', (await ins.getByText('Stairs').first().isVisible()) && /steps/.test(await ins.textContent()));
-    check('it warns that the floor above has no room to open yet', await ins.getByTestId('stair-warning').isVisible());
+    check('stairs on their own: no warning, a note and an optional Build a room above', (await ins.getByTestId('stair-warning').count()) === 0 && (await ins.getByTestId('stair-standalone').isVisible()) && (await ins.getByRole('button', { name: 'Build a room above' }).isVisible()));
     await page.screenshot({ path: `${SP}/e2e-stairs-plan.png` });
 
     // Draw the room above → the warning goes away.
@@ -1322,6 +1321,7 @@ try {
     const cy = box.y + box.height / 2;
     const S = () => page.evaluate(() => { const st = window.__hd.editor.getState().scene; return { stairs: Object.keys(st.stairs).length, levels: st.levelOrder.length, walls: Object.values(st.walls).filter((w) => w.levelId === st.levelOrder[1]).length, doors: Object.keys(st.openings).length, rooms: Object.values(st.rooms).filter((r) => r.levelId === st.levelOrder[1]).length }; });
     await page.keyboard.press('s');
+    await page.getByRole('button', { name: 'Room above' }).click();
     await page.mouse.move(cx, cy);
     await page.mouse.click(cx, cy);
     const a = await S();
@@ -1334,6 +1334,43 @@ try {
     await page.keyboard.press('Control+z');
     check('one undo takes the extra floor away again', (await S()).levels === 2);
     check('no page errors with connected stairs', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2m3. one-step staircase through several floors, on its own
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    await page.addInitScript(() => localStorage.setItem('hd.quality', 'low'));
+    await page.goto(BASE + '?view=2d');
+    await page.waitForSelector('canvas.plan-canvas');
+    const box = await page.locator('canvas.plan-canvas').boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    await page.keyboard.press('s');
+    const floors = page.getByRole('group', { name: 'Floors to connect' });
+    await floors.getByRole('button', { name: 'One floor more' }).click();
+    await floors.getByRole('button', { name: 'One floor more' }).click();
+    check('the stepper counts the floors', (await floors.textContent()).includes('Up 3 floors'));
+    await page.getByRole('button', { name: 'Stair options' }).click();
+    const card = page.getByRole('group', { name: 'New stairs' });
+    check('Stair options opens a card with room, width, build, railing and floor height', (await card.getByRole('switch', { name: /Room above/ }).isVisible()) && (await card.getByRole('group', { name: 'Build' }).isVisible()) && (await card.getByRole('group', { name: 'Railing' }).isVisible()) && (await card.getByText('New floor height').isVisible()));
+    await card.getByRole('group', { name: 'Build' }).getByRole('button', { name: 'Floating' }).click();
+    await card.getByRole('group', { name: 'Railing' }).getByRole('button', { name: 'Metal' }).click();
+    await page.getByRole('button', { name: 'Stair options' }).click(); // close the card (Esc would also stop the tool)
+    await page.mouse.move(cx, cy);
+    await page.mouse.click(cx, cy);
+    const r = await page.evaluate(() => {
+      const sc = window.__hd.editor.getState().scene;
+      return { stairs: Object.values(sc.stairs).map((s) => [s.build, s.railing]), levels: sc.levelOrder.length, walls: Object.keys(sc.walls).length, roofs: Object.keys(sc.roofs).length };
+    });
+    check('one click builds stairs through 3 floors, adding them, with no walls or roofs round them', r.stairs.length === 3 && r.levels === 4 && r.walls === 0 && r.roofs === 0, JSON.stringify(r));
+    check('every flight gets the chosen build and railing', r.stairs.every(([b, rl]) => b === 'floating' && rl === 'metal'), JSON.stringify(r.stairs));
+    await page.keyboard.press('Control+z');
+    check('one undo removes the whole staircase and the added floors', (await page.evaluate(() => [Object.keys(window.__hd.editor.getState().scene.stairs).length, window.__hd.editor.getState().scene.levelOrder.length])).join() === '0,1');
+    check('no page errors with the one-step staircase', errors.length === 0, errors.slice(0, 2).join(' | '));
     await page.close();
   }
 
@@ -1998,6 +2035,7 @@ try {
     const scene = () => page.evaluate(() => window.__hd.editor.getState().scene);
     await page.keyboard.press('s');
     await page.getByRole('group', { name: 'Stair shape' }).getByRole('button', { name: 'Spiral' }).click();
+    await page.getByRole('button', { name: 'Room above' }).click();
     await page.mouse.move(cx, cy);
     await page.mouse.click(cx, cy);
     let sc = await scene();
@@ -2017,6 +2055,8 @@ try {
       ed.execute(core.batch('loop', [[0, 0], [8, 0], [8, 6], [0, 6]].map((p, i, a) => core.addWall({ levelId: L0, from: p, to: a[(i + 1) % 4], kind: 'exterior' }))));
     });
     const roofId = await page.evaluate(() => Object.values(window.__hd.editor.getState().scene.roofs)[0].id);
+    // new roofs are flat; dormers sit on a pitched roof
+    await page.evaluate((id) => window.__hd.editor.execute(window.__hd.core.updateRoofs([id], { style: 'gable' })), roofId);
     await page.evaluate((id) => window.__hd.editor.select([id]), roofId);
     await ins.getByRole('button', { name: '+ Add a dormer' }).click();
     check('a roof can get a dormer window', (await scene()).roofs[roofId].dormers?.length === 1);
@@ -2166,6 +2206,7 @@ try {
     });
     const ins = page.getByRole('complementary', { name: 'Properties' });
     const roof = () => page.evaluate(() => Object.values(window.__hd.editor.getState().scene.roofs)[0]);
+    await ins.getByRole('group', { name: 'Shape' }).getByRole('button', { name: 'Gable' }).click();
     check('a gable roof has no terrace railing choice', (await ins.getByRole('group', { name: 'Terrace railing' }).count()) === 0);
     await ins.getByRole('group', { name: 'Shape' }).getByRole('button', { name: 'Flat' }).click();
     check('a flat roof offers a terrace railing', await ins.getByRole('group', { name: 'Terrace railing' }).isVisible());
@@ -2402,7 +2443,7 @@ try {
     const rail = page.getByRole('navigation', { name: 'Tools' });
     await rail.getByRole('button', { name: 'Roof' }).click();
     let r = await roofs();
-    check('the Roof button puts a gable roof on the house and selects it', r.length === 1 && r[0].style === 'gable' && (await page.evaluate(() => window.__hd.editor.getState().selection[0])) === r[0].id);
+    check('the Roof button puts a flat roof (the default) on the house and selects it', r.length === 1 && r[0].style === 'flat' && (await page.evaluate(() => window.__hd.editor.getState().selection[0])) === r[0].id);
     const ins = page.getByRole('complementary', { name: 'Properties' });
     for (const style of ['Butterfly', 'Mansard', 'Barrel']) {
       await ins.getByRole('group', { name: 'Shape' }).getByRole('button', { name: style, exact: true }).click();
@@ -2667,6 +2708,37 @@ try {
     check('deleting the road also removes the neighbours that were filled in along it', (await roads()).length === 0 && (await street()) === 0);
     check('no page errors with roads, neighbours and weather', errors.length === 0, errors.slice(0, 2).join(' | '));
     await page.close();
+  }
+
+  // ---------------------------------------------------------------- 2-save. top-bar Save button + Ctrl+S
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, acceptDownloads: true });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    await page.goto(BASE + '?demo=1&persist=1');
+    await page.waitForSelector('.topbar-right > .save-btn');
+    const btn = page.locator('.topbar-right > .save-btn');
+    check('desktop: Save button is in the top bar', await btn.isVisible());
+    await btn.click();
+    await page.waitForFunction(() => document.querySelector('.topbar-right > .save-btn')?.classList.contains('done'), null, { timeout: 5000 });
+    check('Save saves on this device and says so', (await btn.getAttribute('title')) === 'Saved on this device', await btn.getAttribute('title'));
+    await page.waitForFunction(() => document.querySelector('.topbar-right > .save-btn')?.classList.contains('idle'), null, { timeout: 5000 });
+    await page.keyboard.press('Control+s');
+    await page.waitForTimeout(300);
+    check('Ctrl+S saves too', /Sav/.test(await btn.innerText()), await btn.innerText());
+    check('no page errors with the Save button', errors.length === 0, errors.slice(0, 2).join(' | '));
+    await page.close();
+
+    // A link that never autosaves (?demo) falls back to a file download; the phone keeps Save next to Home.
+    const ph = await browser.newPage({ viewport: { width: 390, height: 780 }, hasTouch: true, acceptDownloads: true });
+    await ph.goto(BASE + '?demo=1');
+    const pb = ph.locator('.topbar-actions > .save-btn');
+    await pb.waitFor();
+    const box = await pb.boundingBox();
+    check('phone: Save button is on screen next to Home', !!box && box.x + box.width <= 390);
+    const [dl] = await Promise.all([ph.waitForEvent('download', { timeout: 5000 }).catch(() => null), pb.tap()]);
+    check('Save in a demo link downloads the home file', !!dl && dl.suggestedFilename().endsWith('.homedesign.json'), dl?.suggestedFilename());
+    await ph.close();
   }
 
   // ---------------------------------------------------------------- 3. benchmark

@@ -15,6 +15,8 @@ export const MaterialRef = z.object({
   tint: z.string().optional(),
   uvScale: z.number().positive().optional(),
   uvRotation: z.number().optional(),
+  /** Mortar / grout / joint colour (hex) for brick, stone, tile and cladding finishes; unset = the finish's own. */
+  joint: z.string().optional(),
 });
 
 export const RoomType = z.enum([
@@ -42,6 +44,42 @@ export const Level = z.object({
 
 export const WallNode = z.object({ id: Id, levelId: Id, p: Vec2 });
 
+/** Two-tone wall face: a second finish from the floor up to `height`, with an optional band on top (ADR-030). */
+export const WallLower = z.object({
+  material: MaterialRef,
+  height: z.number().min(0.1).max(10),
+  /** Colour of a slim band along the top of the lower finish (hex); unset = no band. */
+  band: z.string().optional(),
+});
+
+/** A feature panel: a rectangle of cladding on one face of a wall, cut round the openings (ADR-030). */
+export const WallPanel = z.object({
+  id: Id,
+  /** Which face: A = materialA's side, B = materialB's. */
+  side: z.enum(['A', 'B']),
+  /** Centre along the wall, measured from node a (m). */
+  offset: z.number(),
+  width: z.number().min(0.1),
+  /** Bottom edge above the floor (m). */
+  bottom: z.number().min(0),
+  height: z.number().min(0.1),
+  material: MaterialRef,
+  /** How far it stands proud of the wall (m). */
+  depth: z.number().min(0.005).max(0.15).optional(),
+});
+
+/** Mouldings on the outside face of a wall (ADR-030). */
+export const WallTrim = z.object({
+  cornice: z.boolean().optional(),
+  plinth: z.boolean().optional(),
+  /** Heights (m above the floor) of horizontal bands. */
+  bands: z.array(z.number().min(0.1).max(10)).max(4).optional(),
+  pilasters: z.boolean().optional(),
+  color: z.string().optional(),
+  /** Overall size of the mouldings (1 = standard). */
+  size: z.number().min(0.5).max(2).optional(),
+});
+
 export const Wall = z.object({
   id: Id,
   levelId: Id,
@@ -52,6 +90,10 @@ export const Wall = z.object({
   kind: z.enum(['interior', 'exterior', 'boundary', 'fence']),
   materialA: MaterialRef,
   materialB: MaterialRef,
+  lowerA: WallLower.optional(),
+  lowerB: WallLower.optional(),
+  panels: z.array(WallPanel).max(24).optional(),
+  trim: WallTrim.optional(),
 });
 
 /** A sunshade over a door or window: a chajja slab, awning, louvre fins or a canopy on columns, on the outside face. */
@@ -60,6 +102,31 @@ export const OpeningShade = z.object({
   /** How far it projects from the wall (m). */
   depth: z.number().min(0.15).max(2),
   /** Colour (hex). */
+  color: z.string().optional(),
+});
+
+/** Box window (ADR-030): a projecting frame box round the window, or the window pushed out as a glass bay. */
+export const OpeningBox = z.object({
+  kind: z.enum(['frame', 'bay']),
+  /** How far it projects from the outside face (m). */
+  depth: z.number().min(0.05).max(1.2),
+  /** Frame: thickness of the boards (m). Bay: thickness of the top and bottom slabs. */
+  thickness: z.number().min(0.03).max(0.4).optional(),
+  /** Frame: which sides have a board. */
+  sides: z.enum(['all', 'top-sides', 'top', 'left', 'right']).optional(),
+  color: z.string().optional(),
+  /** Bay: a window seat inside. */
+  seat: z.boolean().optional(),
+});
+
+export const OpeningGrill = z.object({
+  pattern: z.enum(['bars', 'grid', 'diamond', 'ornate']),
+  color: z.string().optional(),
+});
+
+export const OpeningSurround = z.object({
+  style: z.enum(['band', 'stone', 'moulded']),
+  width: z.number().min(0.04).max(0.5),
   color: z.string().optional(),
 });
 
@@ -81,6 +148,24 @@ export const Opening = z.object({
   leafColor: z.string().optional(),
   /** Sunshade over the opening, on the outside face. */
   shade: OpeningShade.optional(),
+  /** Windows: box frame or bay (ADR-030). */
+  box: OpeningBox.optional(),
+  /** Windows: safety grill on the outside. */
+  grill: OpeningGrill.optional(),
+  /** Glass look (windows and glazed doors). */
+  glass: z.enum(['clear', 'frosted', 'tinted', 'reflective']).optional(),
+  /** Glazing bars dividing the glass. */
+  panes: z.enum(['none', 'top', '2x2', '3x2', '3x3']).optional(),
+  /** Shape of the head: the hole stays rectangular, the corners are filled (ADR-030). */
+  head: z.enum(['flat', 'arch', 'segment']).optional(),
+  /** Frame bar width (m) and finish. */
+  frame: z
+    .object({ width: z.number().min(0.03).max(0.15).optional(), finish: z.enum(['paint', 'wood', 'metal', 'upvc']).optional() })
+    .optional(),
+  /** Trim round the opening on the outside face. */
+  surround: OpeningSurround.optional(),
+  /** Doors: handle type. */
+  handle: z.enum(['lever', 'knob', 'pull', 'none']).optional(),
 });
 
 export const Room = z.object({
@@ -106,6 +191,8 @@ export const Item = z.object({
   /** Set on scenery placed by a surroundings preset ('env'), so it can be replaced or cleared as a group. */
   tag: z.string().optional(),
   attach: z.object({ wallId: Id.optional(), roomId: Id.optional() }).optional(),
+  /** Text shown on the item (name plate, house number). */
+  text: z.string().max(40).optional(),
 });
 
 /** Fine tuning of a railing (all optional; unset = the look the railing choice gives). Shared by stairs, balconies and roofs. */
@@ -394,6 +481,12 @@ export type WallNode = z.infer<typeof WallNode>;
 export type Wall = z.infer<typeof Wall>;
 export type Opening = z.infer<typeof Opening>;
 export type OpeningShade = z.infer<typeof OpeningShade>;
+export type OpeningBox = z.infer<typeof OpeningBox>;
+export type OpeningGrill = z.infer<typeof OpeningGrill>;
+export type OpeningSurround = z.infer<typeof OpeningSurround>;
+export type WallLower = z.infer<typeof WallLower>;
+export type WallPanel = z.infer<typeof WallPanel>;
+export type WallTrim = z.infer<typeof WallTrim>;
 export type Room = z.infer<typeof Room>;
 export type Item = z.infer<typeof Item>;
 export type RailingOpts = z.infer<typeof RailingOpts>;

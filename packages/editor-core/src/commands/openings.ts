@@ -63,11 +63,67 @@ export function moveOpening(openingId: Id, wallId: Id, offset: number): Command 
   };
 }
 
-export type OpeningProps = Partial<Pick<Opening, 'width' | 'height' | 'sill' | 'style' | 'frameColor' | 'leafColor'>> & {
+export type OpeningProps = Partial<Pick<Opening, 'width' | 'height' | 'sill' | 'style' | 'frameColor' | 'leafColor' | 'glass' | 'panes' | 'head' | 'handle'>> & {
   flip?: Partial<Opening['flip']>;
   /** A sunshade (fields given are merged into the current one; a style is needed to create it); `null` removes it. */
   shade?: Partial<NonNullable<Opening['shade']>> | null;
+  /** Box frame / bay (merged; `kind` is needed to create it); `null` removes it. Windows only. */
+  box?: Partial<NonNullable<Opening['box']>> | null;
+  /** Grill (merged; `pattern` is needed to create it); `null` removes it. Windows only. */
+  grill?: Partial<NonNullable<Opening['grill']>> | null;
+  /** Frame bar width / finish (merged); `null` resets both. */
+  frame?: Partial<NonNullable<Opening['frame']>> | null;
+  /** Trim round the outside (merged; `style` is needed to create it); `null` removes it. */
+  surround?: Partial<NonNullable<Opening['surround']>> | null;
 };
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** Default projection of a new box: a frame box stands 0.3 m proud, a bay 0.6 m. */
+export const BOX_DEPTH = { frame: 0.3, bay: 0.6 } as const;
+
+/** Apply the ADR-030 extras of `props` to opening `o` (in a draft). */
+function applyExtras(o: Opening, props: OpeningProps): void {
+  if (props.glass !== undefined) o.glass = props.glass;
+  if (props.panes !== undefined) o.panes = props.panes;
+  if (props.head !== undefined) o.head = props.head;
+  if (props.handle !== undefined) o.handle = props.handle;
+
+  if (props.box === null) delete o.box;
+  else if (props.box && o.type === 'window') {
+    const kind = props.box.kind ?? o.box?.kind;
+    if (kind) {
+      // Switching kind starts from that kind's own depth unless one is given.
+      const keep = o.box && o.box.kind === kind ? o.box : undefined;
+      const depth = clamp(props.box.depth ?? keep?.depth ?? BOX_DEPTH[kind], 0.05, 1.2);
+      const next = { ...keep, ...props.box, kind, depth };
+      if (next.thickness !== undefined) next.thickness = clamp(next.thickness, 0.03, 0.4);
+      o.box = next;
+    }
+  }
+
+  if (props.grill === null) delete o.grill;
+  else if (props.grill && o.type === 'window') {
+    const pattern = props.grill.pattern ?? o.grill?.pattern;
+    if (pattern) o.grill = { ...o.grill, ...props.grill, pattern };
+  }
+
+  if (props.frame === null) delete o.frame;
+  else if (props.frame) {
+    const next = { ...o.frame, ...props.frame };
+    if (next.width !== undefined) next.width = clamp(next.width, 0.03, 0.15);
+    o.frame = next;
+  }
+
+  if (props.surround === null) delete o.surround;
+  else if (props.surround) {
+    const style = props.surround.style ?? o.surround?.style;
+    if (style) {
+      const width = clamp(props.surround.width ?? o.surround?.width ?? 0.12, 0.04, 0.5);
+      o.surround = { ...o.surround, ...props.surround, style, width };
+    }
+  }
+}
 
 /** Resize / flip. A width that no longer fits next to its neighbours or the wall ends is refused. */
 export function setOpeningProps(openingId: Id, props: OpeningProps): Command {
@@ -103,6 +159,7 @@ export function setOpeningProps(openingId: Id, props: OpeningProps): Command {
       o.sill = sill;
       o.height = height;
       if (props.flip) o.flip = { ...o.flip, ...props.flip };
+      applyExtras(o, props);
       if (props.shade === null) delete o.shade;
       else if (props.shade) {
         const cur = o.shade;

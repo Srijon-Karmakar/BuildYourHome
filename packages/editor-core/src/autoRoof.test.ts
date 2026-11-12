@@ -33,7 +33,7 @@ describe('automatic roofs', () => {
     const r = roofs(e)[0]!;
     expect(r.auto).toBe(true);
     expect(r.box).toMatchObject({ length: 6, width: 4 });
-    expect(r.style).toBe('gable');
+    expect(r.style).toBe('flat'); // new roofs are flat by default
     // moving a corner keeps the same roof (id and settings) and re-fits it
     e.execute(updateRoofs([r.id], { style: 'hip', pitchDeg: 35 }));
     const node = Object.values(e.getState().scene.nodes).find((n) => n.p[0] === 6 && n.p[1] === 4)!;

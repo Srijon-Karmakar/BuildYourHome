@@ -5,7 +5,7 @@ import { getBackend, SHARE_PATH_PARAM } from './cloud';
 import { useCloud } from './cloud/store';
 import { buildDemoScene } from './plan/demo';
 import { editor, useUi, type ViewMode } from './plan/session';
-import { loadLocal, startAutosave } from './lib/persistence';
+import { loadLocal, registerLocalFlush, startAutosave } from './lib/persistence';
 import { Viewer, ViewerGone } from './ui/Viewer';
 import { startBenchmark } from './view3d/benchmark';
 import { rememberPose, walkInput, walkPose } from './walk/walkState';
@@ -66,6 +66,7 @@ async function startEditor(): Promise<void> {
 
   if (!ephemeral || params.has('persist')) {
     const autosave = startAutosave(editor.subscribe, () => editor.getState().scene);
+    registerLocalFlush(autosave.flush); // the top-bar Save button / Ctrl+S
     // Don't lose the last second of work when the tab is hidden or closed.
     document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && void autosave.flush());
     window.addEventListener('pagehide', () => void autosave.flush());

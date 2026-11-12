@@ -4482,3 +4482,249 @@ html[data-reveal] .bottom {
     stroke-linecap: round;
   }
 }
+
+/* Top-bar Save button (icon + label; icon only on phones) */
+.save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.save-btn svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.save-btn.saving {
+  opacity: 0.7;
+}
+.save-btn.done {
+  color: var(--brick);
+  border-color: var(--brick);
+}
+.save-btn.failed {
+  color: var(--brick);
+}
+/* Desktop has it in the right-hand bar; compact screens keep it next to Home (not inside the Menu sheet). */
+@media (max-width: 899px), (max-height: 500px) {
+  .topbar-right > .save-btn {
+    display: none;
+  }
+}
+@media (max-width: 699px) {
+  .topbar-actions .save-btn {
+    padding: 0 9px;
+  }
+  .save-btn .lbl {
+    display: none;
+  }
+}
+
+/* ---------- Stairs tool: floors stepper, Room above, Stair options card ---------- */
+.stair-bar {
+  position: relative; /* the options card centres on the whole bar, so it stays on screen on a phone */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+.stair-steps {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.stair-steps .pill {
+  min-width: 34px;
+  padding-inline: 0;
+  font-size: 16px;
+}
+.stair-steps-n {
+  min-width: 92px;
+  text-align: center;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.stair-options .popover.above {
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+  width: min(300px, calc(100vw - 28px));
+  max-height: calc(100vh - var(--safe-t) - 160px);
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+}
+
+/* ---------- Desktop top-right bar: no shared backdrop; every button is the same frosted pill ---------- */
+@media (min-width: 900px) and (min-height: 501px) {
+  .topbar-right {
+    gap: 6px;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .topbar-right > .pill,
+  .topbar-right .menu-anchor > .pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 16px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(244, 242, 237, 0.88);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 1px 3px rgba(17, 17, 17, 0.08);
+    color: var(--ink);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .topbar-right > .pill:hover,
+  .topbar-right .menu-anchor > .pill:hover {
+    background: #fff;
+    border-color: var(--line);
+    color: var(--ink);
+  }
+
+  .topbar-right .menu-anchor > .pill[aria-expanded='true'] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--paper-2);
+  }
+
+  /* "+" (new workspace) is the same height, as a circle */
+  .topbar-right .menu-anchor > .pill.ws-plus {
+    width: 38px;
+    padding: 0;
+    font-size: 18px;
+  }
+
+  .topbar-right > .pill.walk-btn {
+    border-color: var(--bar-orange);
+    background: var(--bar-orange);
+    color: var(--on-orange);
+  }
+
+  .topbar-right > .pill.walk-btn:hover {
+    border-color: var(--line);
+    background: #fff;
+  }
+
+  .topbar-right > .pill.save-btn.done {
+    border-color: var(--brick);
+    color: var(--brick);
+  }
+}
+
+/* ---------- Phone top bar: logo, views, Home, Save, Walk and Menu all fit (the walk button turns into an icon) ---------- */
+.walk-quick svg {
+  display: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.walk-quick svg circle {
+  fill: currentColor;
+  stroke: none;
+}
+@media (max-width: 459px) {
+  .topbar {
+    gap: 4px;
+  }
+  .topbar .seg {
+    padding: 0 8px;
+  }
+  .topbar-actions {
+    gap: 4px;
+  }
+  .topbar-actions .pill {
+    padding: 0 9px;
+  }
+  .topbar-actions .walk-quick,
+  .topbar-actions .save-btn,
+  .topbar-actions .menu-btn {
+    width: 34px;
+    padding: 0;
+    justify-content: center;
+  }
+  .walk-quick {
+    display: inline-flex;
+    align-items: center;
+  }
+  .walk-quick svg {
+    display: block;
+  }
+  .walk-quick .lbl {
+    display: none;
+  }
+}
+@media (max-width: 369px) {
+  .brand-icon {
+    width: 28px;
+  }
+  .topbar .seg {
+    padding: 0 7px;
+    font-size: 12px;
+  }
+  .topbar-actions .pill {
+    padding: 0 8px;
+  }
+}
+@media (min-width: 900px) and (min-height: 501px) {
+  .topbar-right .ws {
+    gap: 6px;
+  }
+}
+@media (min-width: 900px) and (max-width: 1199px) and (min-height: 501px) {
+  .topbar-right {
+    gap: 4px;
+  }
+  .topbar-right .ws {
+    gap: 4px;
+  }
+  .topbar-right > .pill,
+  .topbar-right .menu-anchor > .pill {
+    padding: 0 11px;
+  }
+}
+/* 900-1099 px: the full wordmark and labelled Save don't fit beside the bar — small logo, icon-only Save. */
+@media (min-width: 900px) and (max-width: 1099px) and (min-height: 501px) {
+  .topbar .brand .wordmark {
+    display: none;
+  }
+  .topbar .brand-icon {
+    display: block;
+    flex: none;
+    width: 34px;
+    height: auto;
+  }
+  .topbar-right > .pill.save-btn {
+    width: 38px;
+    padding: 0;
+  }
+  .topbar-right > .pill.save-btn .lbl {
+    display: none;
+  }
+}

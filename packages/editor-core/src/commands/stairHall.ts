@@ -3,7 +3,7 @@ import { newId, type Id, type Scene, type Stair, type Vec2 } from '@hd/scene-sch
 import { wrapAngle } from '../placement';
 import type { Command } from '../types';
 import { addOpening } from './openings';
-import { addLevel } from './levels';
+import { addLevel, MAX_LEVEL_HEIGHT_M, MIN_LEVEL_HEIGHT_M } from './levels';
 import { addWall, isHouseWall } from './walls';
 import { DEFAULT_STAIR_MATERIAL, DEFAULT_STAIR_WIDTH_M, layoutOf, levelAbove, stairOutline, type AddStairParams } from './stairs';
 
@@ -132,30 +132,51 @@ export function nextFlightRotation(d: Scene, s: Stair): number {
   return sp && layout ? wrapAngle(s.rotationY + layout.treads.length * sp.delta) : s.rotationY;
 }
 
+/** Most floors one staircase can climb in one go. */
+export const MAX_STAIR_FLIGHTS = 12;
+
 export interface AddStairAssemblyParams extends AddStairParams {
   /** Build the room (walls, landing, door) that carries the top of the stair on the floor above. Default true. */
   hall?: boolean;
   /** Keep going: a stair on every floor up to the top one, one above the other. Default false (one flight). */
   toTop?: boolean;
+  /**
+   * How many floors to climb (one flight per floor, stacked). Floors missing above are added. Wins over `toTop`.
+   * Clamped to 1..MAX_STAIR_FLIGHTS.
+   */
+  flights?: number;
+  /** Floor-to-floor height of the floors this adds (m). Default: the height of the floor below the new one. */
+  floorHeight?: number;
+  build?: Stair['build'];
+  steps?: Stair['steps'];
+  stringer?: Stair['stringer'];
+  railingOpts?: Stair['railingOpts'];
 }
 
 /**
  * Ready-made staircase that connects floors by itself: adds the floor above when there is none, the flight, the room
- * around its top (so the floor opens up and you can step off), and with `toTop` a matching flight on every floor above.
- * One undo step.
+ * around its top (so the floor opens up and you can step off; skip it with `hall: false` for stairs that stand on their
+ * own), and with `flights` / `toTop` a matching flight on every floor above. One undo step.
  */
 export function addStairAssembly(p: AddStairAssemblyParams, rng?: () => number): Command {
-  const ids = Array.from({ length: 16 }, () => newId('stair', rng));
+  const ids = Array.from({ length: MAX_STAIR_FLIGHTS }, () => newId('stair', rng));
+  const count = p.flights !== undefined ? Math.min(MAX_STAIR_FLIGHTS, Math.max(1, Math.round(p.flights))) : p.toTop ? MAX_STAIR_FLIGHTS : 1;
+  // `toTop` alone only adds a floor when there is none above the start; `flights` adds every floor it needs.
+  const addFloors = p.flights !== undefined;
   return {
     type: 'AddStairAssembly',
-    label: 'Add stairs',
+    label: count > 1 && addFloors ? `Add stairs (${count} floors)` : 'Add stairs',
     apply(d) {
       const start = d.levels[p.fromLevel];
       if (!start) return;
-      if (!levelAbove(d, p.fromLevel)) addLevel(undefined, start.height).apply(d);
       let from: Id = p.fromLevel;
       let rotation = wrapAngle(p.rotationY ?? 0);
-      for (let n = 0; n < ids.length; n++) {
+      for (let n = 0; n < count; n++) {
+        if (!levelAbove(d, from) && (n === 0 || addFloors)) {
+          const below = d.levels[from];
+          const h = p.floorHeight ?? below?.height ?? start.height;
+          addLevel(undefined, Math.min(MAX_LEVEL_HEIGHT_M, Math.max(MIN_LEVEL_HEIGHT_M, h))).apply(d);
+        }
         const to = levelAbove(d, from);
         if (!to) break;
         const stair: Stair = {
@@ -169,10 +190,13 @@ export function addStairAssembly(p: AddStairAssemblyParams, rng?: () => number):
           ...(p.mirror ? { mirror: true } : {}),
           material: p.material ?? { id: DEFAULT_STAIR_MATERIAL },
           railing: p.railing ?? 'wood',
+          ...(p.build && p.build !== 'solid' ? { build: p.build } : {}),
+          ...(p.steps ? { steps: { ...p.steps } } : {}),
+          ...(p.stringer ? { stringer: { ...p.stringer } } : {}),
+          ...(p.railingOpts ? { railingOpts: { ...p.railingOpts } } : {}),
         };
         d.stairs[stair.id] = stair;
         if (p.hall !== false) buildStairHall(d, stair);
-        if (!p.toTop) break;
         from = to;
         rotation = nextFlightRotation(d, stair);
       }
@@ -192,8 +216,11 @@ export function connectStairHall(stairId: Id): Command {
   };
 }
 
-/** Carry a stair on up: a matching flight from its top floor to the next one (adding that floor when needed) with its room. */
-export function continueStairUp(stairId: Id, rng?: () => number): Command {
+/**
+ * Carry a stair on up: a matching flight from its top floor to the next one (adding that floor when needed) with its room
+ * (`hall: false` leaves the room out, for stairs that stand on their own).
+ */
+export function continueStairUp(stairId: Id, rng?: () => number, opts: { hall?: boolean } = {}): Command {
   const id = newId('stair', rng);
   return {
     type: 'ContinueStairUp',
@@ -208,7 +235,7 @@ export function continueStairUp(stairId: Id, rng?: () => number): Command {
       if (!next || Object.values(d.stairs).some((o) => o.fromLevel === s.toLevel && o.toLevel === next)) return;
       const up: Stair = { ...s, id, fromLevel: s.toLevel, toLevel: next, rotationY: nextFlightRotation(d, s) };
       d.stairs[id] = up;
-      buildStairHall(d, up);
+      if (opts.hall !== false) buildStairHall(d, up);
     },
   };
 }

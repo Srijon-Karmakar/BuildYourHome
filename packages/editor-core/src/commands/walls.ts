@@ -7,8 +7,21 @@ import {
   type Scene,
   type Vec2,
   type Wall,
+  type WallPanel,
 } from '@hd/scene-schema';
 import type { Command } from '../types';
+
+/** Plain deep copy of wall dressing data (works on Immer drafts too). */
+const copy = <T,>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T));
+
+/** Panel seen from the other end of the wall: the axis runs the other way and the faces swap. */
+const flipPanel = (p: WallPanel, len: number): WallPanel => ({ ...copy(p), offset: len - p.offset, side: p.side === 'A' ? 'B' : 'A' });
+
+/** Two walls can merge only when their dressing matches (faces swapped when one of them is reversed). */
+function sameDressing(w1: Wall, rev1: boolean, w2: Wall, rev2: boolean): boolean {
+  const lowers = (w: Wall, rev: boolean) => JSON.stringify(rev ? [w.lowerB, w.lowerA] : [w.lowerA, w.lowerB]);
+  return lowers(w1, rev1) === lowers(w2, rev2) && JSON.stringify(w1.trim) === JSON.stringify(w2.trim);
+}
 
 /** Points closer than this (metres) on the same level are treated as the same node. */
 export const NODE_MERGE_EPS_M = 1e-3;
@@ -89,7 +102,30 @@ function splitWallsAtNode(d: Scene, levelId: Id, nodeId: Id, stem: string): void
       b: w.b,
       materialA: { ...w.materialA },
       materialB: { ...w.materialB },
+      lowerA: copy(w.lowerA),
+      lowerB: copy(w.lowerB),
+      trim: copy(w.trim),
+      panels: undefined,
     };
+    // Feature panels follow their position; one that crosses the split is cut in two.
+    if (w.panels?.length) {
+      const first: WallPanel[] = [];
+      const second: WallPanel[] = [];
+      for (const p of w.panels) {
+        const s0 = p.offset - p.width / 2;
+        const s1 = p.offset + p.width / 2;
+        if (s1 <= distA + 1e-6) first.push(copy(p));
+        else if (s0 >= distA - 1e-6) second.push({ ...copy(p), offset: p.offset - distA });
+        else {
+          first.push({ ...copy(p), offset: (s0 + distA) / 2, width: distA - s0 });
+          second.push({ ...copy(p), id: `${p.id}~2`, offset: (s1 - distA) / 2, width: s1 - distA });
+        }
+      }
+      w.panels = first.length ? first : undefined;
+      if (second.length) d.walls[secondId]!.panels = second;
+    }
+    for (const k of ['lowerA', 'lowerB', 'trim', 'panels'] as const) if (d.walls[secondId]![k] === undefined) delete d.walls[secondId]![k];
+    if (w.panels === undefined) delete w.panels;
     w.b = nodeId;
     // Openings beyond the split move to the second half.
     for (const o of Object.values(d.openings)) {
@@ -242,10 +278,29 @@ export function mergeCollinearAt(d: Scene, nodeIds: Iterable<Id>): void {
       w1.kind !== w2.kind ||
       w1.levelId !== w2.levelId ||
       f1[0] !== f2[0] ||
-      f1[1] !== f2[1]
+      f1[1] !== f2[1] ||
+      !sameDressing(w1, rev1, w2, rev2)
     ) {
       continue;
     }
+
+    // Feature panels of both walls end up on w1, measured along the merged wall o1 -> o2.
+    const panels: WallPanel[] = [
+      ...(w1.panels ?? []).map((p) => (rev1 ? flipPanel(p, len1) : copy(p))),
+      ...(w2.panels ?? []).map((p) => {
+        const q = rev2 ? flipPanel(p, len2) : copy(p);
+        return { ...q, offset: len1 + q.offset };
+      }),
+    ];
+    if (rev1) {
+      const lower = w1.lowerA;
+      if (w1.lowerB) w1.lowerA = w1.lowerB;
+      else delete w1.lowerA;
+      if (lower) w1.lowerB = lower;
+      else delete w1.lowerB;
+    }
+    if (panels.length) w1.panels = panels;
+    else delete w1.panels;
 
     for (const o of Object.values(d.openings)) {
       if (o.wallId === w1.id) {
@@ -289,7 +344,16 @@ export function removeWalls(wallIds: Id[]): Command {
   };
 }
 
-export type WallProps = Partial<Pick<Wall, 'thickness' | 'height' | 'kind' | 'materialA' | 'materialB'>>;
+export type WallProps = Partial<Pick<Wall, 'thickness' | 'height' | 'kind' | 'materialA' | 'materialB'>> & {
+  /** Two-tone lower finish per face (merged; a material is needed to create it); `null` removes it. */
+  lowerA?: Partial<NonNullable<Wall['lowerA']>> | null;
+  lowerB?: Partial<NonNullable<Wall['lowerB']>> | null;
+  /** Mouldings on the outside face (merged); `null` removes them. */
+  trim?: Partial<NonNullable<Wall['trim']>> | null;
+};
+
+/** Default height of a new two-tone lower finish (m). */
+export const LOWER_HEIGHT_M = 1;
 
 export function setWallProps(wallId: Id, props: WallProps): Command {
   return setWallsProps([wallId], props);
@@ -301,7 +365,7 @@ export function setWallsProps(wallIds: readonly Id[], props: WallProps): Command
     type: 'SetWallProps',
     label: wallIds.length > 1 ? 'Edit walls' : 'Edit wall',
     apply(d) {
-      const p: WallProps = { ...props };
+      const { lowerA, lowerB, trim, ...p } = props;
       if (p.thickness !== undefined) p.thickness = Math.min(1, Math.max(0.05, p.thickness));
       if (p.height !== undefined) p.height = Math.min(10, Math.max(1, p.height));
       for (const id of wallIds) {
@@ -311,6 +375,95 @@ export function setWallsProps(wallIds: readonly Id[], props: WallProps): Command
         // A material object must never be shared between two walls.
         if (p.materialA) w.materialA = { ...p.materialA };
         if (p.materialB) w.materialB = { ...p.materialB };
+        for (const [key, val] of [['lowerA', lowerA], ['lowerB', lowerB]] as const) {
+          if (val === null) delete w[key];
+          else if (val) {
+            const cur = w[key];
+            const material = val.material ?? cur?.material;
+            if (!material) continue;
+            const height = Math.min(w.height - 0.1, Math.max(0.1, val.height ?? cur?.height ?? LOWER_HEIGHT_M));
+            const next = { ...copy(cur), ...copy(val), material: { ...material }, height };
+            if (val.band === '') delete next.band;
+            w[key] = next;
+          }
+        }
+        if (trim === null) delete w.trim;
+        else if (trim) {
+          const next = { ...copy(w.trim), ...copy(trim) };
+          if (next.bands) next.bands = next.bands.filter((h) => h > 0.1 && h < w.height).slice(0, 4);
+          if (next.size !== undefined) next.size = Math.min(2, Math.max(0.5, next.size));
+          if (!next.cornice && !next.plinth && !next.pilasters && !next.bands?.length) delete w.trim;
+          else w.trim = next;
+        }
+      }
+    },
+  };
+}
+
+/** Fields of a feature panel that can be edited. */
+export type WallPanelProps = Partial<Omit<WallPanel, 'id'>>;
+
+/** Keep a panel on its wall: inside the wall length and height. */
+function fitPanel(p: WallPanel, len: number, wallH: number): WallPanel {
+  const width = Math.min(Math.max(0.1, p.width), len);
+  const height = Math.min(Math.max(0.1, p.height), wallH);
+  const bottom = Math.min(Math.max(0, p.bottom), wallH - height);
+  const offset = Math.min(Math.max(width / 2, p.offset), len - width / 2);
+  const out: WallPanel = { ...p, width, height, bottom, offset, material: { ...p.material } };
+  if (out.depth !== undefined) out.depth = Math.min(0.15, Math.max(0.005, out.depth));
+  return out;
+}
+
+const wallLength = (d: Scene, w: Wall): number => {
+  const a = d.nodes[w.a]?.p;
+  const b = d.nodes[w.b]?.p;
+  return a && b ? Math.hypot(b[0] - a[0], b[1] - a[1]) : 0;
+};
+
+/** Add a feature panel to one face of a wall (ADR-030). Defaults: the middle third of the wall, floor to top. */
+export function addWallPanel(wallId: Id, panel: WallPanelProps & Pick<WallPanel, 'side' | 'material'>, rng?: () => number): Command {
+  const id = newId('panel', rng);
+  return {
+    type: 'AddWallPanel',
+    label: 'Add feature panel',
+    apply(d) {
+      const w = d.walls[wallId];
+      if (!w) return;
+      const len = wallLength(d, w);
+      if (len < 0.2) return;
+      const base: WallPanel = { id, side: panel.side, material: panel.material, offset: len / 2, width: Math.max(0.6, len / 3), bottom: 0, height: w.height };
+      const p = fitPanel({ ...base, ...copy(panel), id } as WallPanel, len, w.height);
+      w.panels = [...(w.panels ?? []).map(copy), p].slice(-24);
+    },
+  };
+}
+
+/** Edit feature panels by id (any wall). */
+export function updateWallPanels(panelIds: readonly Id[], props: WallPanelProps): Command {
+  return {
+    type: 'UpdateWallPanels',
+    label: panelIds.length > 1 ? 'Edit panels' : 'Edit panel',
+    apply(d) {
+      for (const w of Object.values(d.walls)) {
+        if (!w.panels?.some((p) => panelIds.includes(p.id))) continue;
+        const len = wallLength(d, w);
+        w.panels = w.panels.map((p) => (panelIds.includes(p.id) ? fitPanel({ ...copy(p), ...copy(props) } as WallPanel, len, w.height) : p));
+      }
+    },
+  };
+}
+
+/** Delete feature panels by id. */
+export function removeWallPanels(panelIds: readonly Id[]): Command {
+  return {
+    type: 'RemoveWallPanels',
+    label: panelIds.length > 1 ? 'Delete panels' : 'Delete panel',
+    apply(d) {
+      for (const w of Object.values(d.walls)) {
+        if (!w.panels?.some((p) => panelIds.includes(p.id))) continue;
+        const rest = w.panels.filter((p) => !panelIds.includes(p.id));
+        if (rest.length) w.panels = rest;
+        else delete w.panels;
       }
     },
   };

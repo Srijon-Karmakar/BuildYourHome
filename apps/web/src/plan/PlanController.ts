@@ -713,7 +713,10 @@ export class PlanController {
         width: ui.newStair.width,
         mirror: ui.newStair.mirror,
         hall: ui.newStair.hall,
-        toTop: ui.newStair.toTop,
+        flights: ui.newStair.flights,
+        build: ui.newStair.build,
+        railing: ui.newStair.railing,
+        ...(ui.newStair.floorHeight !== null ? { floorHeight: ui.newStair.floorHeight } : {}),
       }),
     );
     const added = Object.keys(editor.getState().scene.stairs).filter((id) => !before.has(id));

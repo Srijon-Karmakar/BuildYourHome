@@ -111,3 +111,31 @@ export function startAutosave(
   });
   return { stop: () => (clearTimeout(timer), unsub()), flush };
 }
+
+/** Download the home as a `.homedesign.json` file (Home › Save to file, and the Save button's fallback). */
+export function downloadSceneFile(scene: Scene): void {
+  const url = URL.createObjectURL(new Blob([serializeScene(scene)], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileNameFor(scene);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/** The running local autosave's flush (set by main.tsx); null in ephemeral links (`?demo`, `?fresh`…). */
+let localFlush: (() => Promise<void>) | null = null;
+export const registerLocalFlush = (fn: (() => Promise<void>) | null): void => {
+  localFlush = fn;
+};
+
+/**
+ * Save button / Ctrl+S: write the home to this device right away (skipping the autosave delay).
+ * Resolves true when the home is safely stored here (or nothing changed since the last save).
+ */
+export async function saveLocalNow(): Promise<boolean> {
+  if (!localFlush) return false;
+  await localFlush();
+  return useSaveStatus.getState().status !== 'error';
+}

@@ -100,7 +100,7 @@ describe('buildWallMesh', () => {
     }
     expect(at).toBe(mesh.indices.length);
     // sideA, sideB, top: 1 quad each = 6 indices; ends: 2 caps = 12.
-    expect(mesh.groups.map((g) => g.count)).toEqual([6, 6, 6, 12]);
+    expect(mesh.groups.map((g) => g.count)).toEqual([6, 6, 6, 12, 0, 0]);
   });
 
   it('spans y = elevation .. elevation + height', () => {
