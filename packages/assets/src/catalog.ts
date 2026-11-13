@@ -6,7 +6,7 @@
  * Local frame of every item: origin at the centre of its floor footprint (ceiling items: at the ceiling,
  * wall items: at the back face centre at `mountHeight`), +x = width, +z = FRONT, +y up. Sizes in metres.
  */
-export type AssetCategory = 'living' | 'bedroom' | 'dining' | 'bathroom' | 'office' | 'decor' | 'lighting' | 'plants' | 'outdoor' | 'appliances' | 'kids' | 'nature' | 'scenery';
+export type AssetCategory = 'living' | 'bedroom' | 'dining' | 'bathroom' | 'office' | 'decor' | 'lighting' | 'plants' | 'outdoor' | 'appliances' | 'screens' | 'features' | 'kids' | 'nature' | 'scenery';
 export type AssetTier = 'free' | 'premium' | 'rewarded';
 export type MountKind = 'floor' | 'wall' | 'ceiling';
 
@@ -33,6 +33,50 @@ export interface Asset {
   /** Offered colours for the main material (first = default). */
   colors?: AssetColor[];
   placeholder: boolean;
+  /** LED screens: the picture area, in the item's local frame before scaling (see ScreenFace). */
+  screen?: ScreenFace;
+  /** Curtains and blinds: the hanging area (before scaling) and the style a new one starts with. */
+  curtain?: CurtainFace;
+  /** Wall features: shape and size (before scaling) of the slab. */
+  feature?: FeatureFace;
+}
+
+/** A wall feature: a `w` wide, `h` tall slab `depth` thick (or projecting); standing on the floor, back on the item's z = 0 line. */
+export interface FeatureFace {
+  shape: 'flat' | 'curved' | 'box';
+  w: number;
+  h: number;
+  depth: number;
+  /** Bend a new curved wall starts with (degrees). */
+  curve?: number;
+  /** Wall material id a new one starts with. */
+  material: string;
+}
+
+/** The hanging area of a curtain or blind: `w` x `h` metres centred on the item's origin (the rod is at the top). */
+export interface CurtainFace {
+  w: number;
+  h: number;
+  style: 'pleated' | 'eyelet' | 'sheer' | 'roman' | 'venetian';
+}
+
+/**
+ * The lit face of an LED screen: `w` x `h` metres, centred at height `y` (local frame) and facing +z at depth `z`.
+ * The app draws the picture there; `show` / `demo` / `text` / `scroll` are what a new screen starts with.
+ */
+export interface ScreenFace {
+  w: number;
+  h: number;
+  y: number;
+  z: number;
+  show?: 'color' | 'gradient' | 'demo' | 'text';
+  demo?: 'landscape' | 'city' | 'sports' | 'news' | 'bars' | 'stage';
+  text?: string;
+  scroll?: boolean;
+  /** Can be bent (wall screens whose whole model is the flat panel). */
+  curvable?: boolean;
+  /** Bend a new screen starts with (degrees, + bulges out). */
+  curve?: number;
 }
 
 export const CATEGORIES: Array<{ id: AssetCategory; name: string }> = [
@@ -46,6 +90,8 @@ export const CATEGORIES: Array<{ id: AssetCategory; name: string }> = [
   { id: 'plants', name: 'Plants' },
   { id: 'kids', name: 'Kids' },
   { id: 'appliances', name: 'Appliances' },
+  { id: 'screens', name: 'LED screens' },
+  { id: 'features', name: 'Wall features' },
   { id: 'outdoor', name: 'Outdoor & garden' },
   { id: 'nature', name: 'Trees & nature' },
   { id: 'scenery', name: 'Scenery' },
@@ -76,6 +122,12 @@ const WOODS: AssetColor[] = [
   { id: '#e3d3b8', name: 'Ash' },
   { id: '#2b2a28', name: 'Black' },
   { id: '#f1efea', name: 'White' },
+];
+const SHEERS: AssetColor[] = [
+  { id: '#f4f1ea', name: 'White' },
+  { id: '#efe3cf', name: 'Cream' },
+  { id: '#dfe8ee', name: 'Mist blue' },
+  { id: '#e7d9e1', name: 'Blush' },
 ];
 const PAINTED: AssetColor[] = [
   { id: '#f1efea', name: 'White' },
@@ -130,6 +182,22 @@ const SIGN_COLORS: AssetColor[] = [
   { id: '#c0392b', name: 'Red' },
   { id: '#2f7a4a', name: 'Green' },
   { id: '#e0a43a', name: 'Amber' },
+];
+
+/** Frame colour of LED screens (the picture is set on the screen itself). */
+const SCREEN_FRAMES: AssetColor[] = [
+  { id: '#1c1d20', name: 'Black' },
+  { id: '#5b5e63', name: 'Graphite' },
+  { id: '#c9cbcd', name: 'Silver' },
+  { id: '#f1efea', name: 'White' },
+  { id: '#b98a5b', name: 'Oak' },
+];
+/** Casing colour of outdoor AC units. */
+const AC_CASINGS: AssetColor[] = [
+  { id: '#eeede8', name: 'White' },
+  { id: '#e3dccb', name: 'Ivory' },
+  { id: '#a9acaf', name: 'Grey' },
+  { id: '#3b3c3e', name: 'Dark grey' },
 ];
 
 type Spec = Omit<Asset, 'placeholder' | 'tier' | 'tags' | 'solid' | 'mount' | 'shape'> &
@@ -223,7 +291,10 @@ export const CATALOG: readonly Asset[] = [
   a({ id: 'whiteboard', name: 'Whiteboard', category: 'office', size: [1.2, 0.03, 0.9], mount: 'wall', mountHeight: 1.5, solid: false, tags: ['board', 'work'] }),
   a({ id: 'bookcase-low', name: 'Low bookcase', category: 'office', size: [1.2, 0.3, 0.8], colors: WOODS, tags: ['storage', 'books', 'shelf'] }),
   // ---- More decor
-  a({ id: 'curtain', name: 'Curtain', category: 'decor', size: [1.6, 0.15, 2.3], mount: 'wall', mountHeight: 1.2, solid: false, colors: FABRICS, tags: ['drape', 'window'] }),
+  a({ id: 'curtain', name: 'Curtain', category: 'decor', size: [1.6, 0.15, 2.3], mount: 'wall', mountHeight: 1.2, solid: false, colors: FABRICS, tags: ['drape', 'window', 'pleated', 'eyelet'], curtain: { w: 1.6, h: 2.3, style: 'pleated' } }),
+  a({ id: 'curtain-sheer', name: 'Sheer curtain', category: 'decor', size: [1.6, 0.15, 2.3], mount: 'wall', mountHeight: 1.2, solid: false, colors: SHEERS, tags: ['drape', 'window', 'voile', 'net', 'curtain'], curtain: { w: 1.6, h: 2.3, style: 'sheer' } }),
+  a({ id: 'blind-roman', name: 'Roman blind', category: 'decor', size: [1.2, 0.1, 1.3], mount: 'wall', mountHeight: 1.6, solid: false, colors: FABRICS, tags: ['blind', 'window', 'shade', 'curtain'], curtain: { w: 1.2, h: 1.3, style: 'roman' } }),
+  a({ id: 'blind-venetian', name: 'Venetian blind', category: 'decor', size: [1.2, 0.08, 1.3], mount: 'wall', mountHeight: 1.6, solid: false, colors: PAINTED, tags: ['blind', 'window', 'slats', 'louvre', 'curtain'], curtain: { w: 1.2, h: 1.3, style: 'venetian' } }),
   a({ id: 'wall-clock', name: 'Wall clock', category: 'decor', size: [0.35, 0.05, 0.35], mount: 'wall', mountHeight: 2.0, solid: false, tags: ['time'] }),
   a({ id: 'wall-shelf', name: 'Wall shelf', category: 'decor', size: [0.9, 0.22, 0.05], mount: 'wall', mountHeight: 1.5, solid: false, colors: WOODS, tags: ['storage'] }),
   a({ id: 'vase', name: 'Vase with flowers', category: 'decor', size: [0.2, 0.2, 0.4], shape: 'round', solid: false, tags: ['flowers'] }),
@@ -339,6 +410,12 @@ export const CATALOG: readonly Asset[] = [
   a({ id: 'inverter', name: 'Inverter and battery', category: 'appliances', size: [0.5, 0.4, 0.6], solid: false, tags: ['ups', 'power backup', 'battery'] }),
   a({ id: 'air-cooler', name: 'Air cooler', category: 'appliances', size: [0.5, 0.45, 0.9], solid: false, tags: ['desert cooler', 'cooling'] }),
   a({ id: 'exhaust-fan', name: 'Exhaust fan', category: 'appliances', size: [0.3, 0.12, 0.3], mount: 'wall', mountHeight: 2.1, solid: false, tags: ['fan', 'ventilation'] }),
+  // ---- Outdoor AC units (condensers): on wall brackets, on the ground, on the roof; and a window AC
+  a({ id: 'ac-outdoor', name: 'AC outdoor unit, wall bracket', category: 'appliances', size: [0.85, 0.4, 0.6], mount: 'wall', mountHeight: 1.6, solid: false, colors: AC_CASINGS, tags: ['ac', 'outdoor', 'condenser', 'compressor', 'exterior', 'cooling', 'air conditioning'] }),
+  a({ id: 'ac-outdoor-ground', name: 'AC outdoor unit, on the ground', category: 'appliances', size: [0.9, 0.42, 0.72], colors: AC_CASINGS, tags: ['ac', 'outdoor', 'condenser', 'compressor', 'exterior', 'cooling'] }),
+  a({ id: 'ac-outdoor-twin', name: 'AC outdoor unit, twin fan', category: 'appliances', size: [1.0, 0.42, 1.4], colors: AC_CASINGS, tags: ['ac', 'outdoor', 'condenser', 'vrf', 'exterior', 'cooling', 'multi split'] }),
+  a({ id: 'ac-rooftop', name: 'Rooftop AC condenser', category: 'appliances', size: [1.7, 1.1, 1.15], tier: 'premium', colors: AC_CASINGS, tags: ['ac', 'outdoor', 'condenser', 'roof', 'chiller', 'exterior', 'cooling'] }),
+  a({ id: 'ac-window', name: 'Window AC', category: 'appliances', size: [0.66, 0.6, 0.42], mount: 'wall', mountHeight: 1.4, solid: false, colors: AC_CASINGS, tags: ['ac', 'window', 'outdoor', 'exterior', 'cooling', 'air conditioning'] }),
   a({ id: 'tv-wall', name: 'Wall-mounted TV', category: 'appliances', size: [1.2, 0.06, 0.7], mount: 'wall', mountHeight: 1.3, solid: false, tags: ['television', 'led', 'screen'] }),
   // ---- Batch 3 · outdoor & garden
   a({ id: 'gazebo', name: 'Gazebo', category: 'outdoor', size: [3.0, 3.0, 2.8], tier: 'premium', solid: false, tags: ['pavilion', 'shade', 'garden'] }),
@@ -469,6 +546,21 @@ export const CATALOG: readonly Asset[] = [
   a({ id: 'dog', name: 'Street dog', category: 'scenery', size: [0.35, 0.8, 0.55], solid: false, tags: ['animal', 'pet', 'life', 'street'] }),
   a({ id: 'cow', name: 'Cow', category: 'scenery', size: [0.7, 1.9, 1.4], solid: false, tags: ['animal', 'cattle', 'life', 'village', 'street'] }),
   a({ id: 'auto-rickshaw', name: 'Auto-rickshaw', category: 'scenery', size: [1.4, 2.7, 1.7], solid: false, colors: TAXI_PAINTS, tags: ['vehicle', 'taxi', 'tuk tuk', 'life', 'street'] }),
+  // ---- LED screens (fully customisable picture: colour, gradient, demo pictures, scrolling text or your own photo)
+  a({ id: 'led-screen', name: 'LED screen', category: 'screens', size: [1.6, 0.07, 0.9], mount: 'wall', mountHeight: 1.5, solid: false, colors: SCREEN_FRAMES, tags: ['led', 'screen', 'display', 'tv', 'monitor', 'signage'], screen: { w: 1.6, h: 0.9, y: 0, z: 0.07, show: 'demo', demo: 'landscape', curvable: true } }),
+  a({ id: 'led-video-wall', name: 'LED video wall', category: 'screens', size: [3.2, 0.12, 1.8], mount: 'wall', mountHeight: 1.7, solid: false, colors: SCREEN_FRAMES, tags: ['led', 'screen', 'video wall', 'display', 'signage', 'lobby'], screen: { w: 3.2, h: 1.8, y: 0, z: 0.12, show: 'demo', demo: 'city', curvable: true } }),
+  a({ id: 'led-facade', name: 'LED facade screen', category: 'screens', size: [6.0, 0.25, 3.4], mount: 'wall', mountHeight: 4.5, solid: false, tier: 'premium', colors: SCREEN_FRAMES, tags: ['led', 'screen', 'facade', 'outdoor', 'exterior', 'advert', 'media wall'], screen: { w: 6.0, h: 3.4, y: 0, z: 0.25, show: 'demo', demo: 'stage', curvable: true } }),
+  a({ id: 'led-curved', name: 'Curved LED screen', category: 'screens', size: [4.0, 0.2, 2.2], mount: 'wall', mountHeight: 3.0, solid: false, colors: SCREEN_FRAMES, tags: ['led', 'screen', 'curved', 'corner', 'wrap', 'facade', 'outdoor', 'exterior', 'display', 'signage'], screen: { w: 4.0, h: 2.2, y: 0, z: 0.2, show: 'demo', demo: 'landscape', curvable: true, curve: 70 } }),
+  a({ id: 'led-ticker', name: 'LED ticker strip', category: 'screens', size: [3.0, 0.08, 0.4], mount: 'wall', mountHeight: 2.6, solid: false, colors: SCREEN_FRAMES, tags: ['led', 'ticker', 'scrolling', 'text', 'sign', 'shop', 'signage'], screen: { w: 3.0, h: 0.4, y: 0, z: 0.08, show: 'text', text: 'WELCOME HOME', scroll: true, curvable: true } }),
+  a({ id: 'led-stand', name: 'LED screen on stand', category: 'screens', size: [1.5, 0.6, 1.8], solid: false, colors: SCREEN_FRAMES, tags: ['led', 'screen', 'stand', 'display', 'presentation', 'tv'], screen: { w: 1.5, h: 0.85, y: 1.3, z: 0.05, show: 'demo', demo: 'news' } }),
+  a({ id: 'led-hanging', name: 'Hanging LED screen', category: 'screens', size: [1.4, 0.1, 1.2], mount: 'ceiling', solid: false, colors: SCREEN_FRAMES, tags: ['led', 'screen', 'ceiling', 'menu board', 'display', 'signage'], screen: { w: 1.4, h: 0.8, y: -0.8, z: 0.03, show: 'gradient' } }),
+  a({ id: 'led-totem', name: 'LED totem', category: 'screens', size: [0.7, 0.35, 2.0], solid: false, colors: SCREEN_FRAMES, tags: ['led', 'kiosk', 'standee', 'signage', 'portrait', 'display'], screen: { w: 0.6, h: 1.55, y: 1.12, z: 0.16, show: 'demo', demo: 'bars' } }),
+  a({ id: 'led-billboard', name: 'LED billboard', category: 'screens', size: [5.0, 0.7, 6.4], solid: false, tier: 'premium', colors: SCREEN_FRAMES, tags: ['led', 'billboard', 'hoarding', 'outdoor', 'advert', 'street', 'sign'], screen: { w: 5.0, h: 2.8, y: 4.9, z: 0.3, show: 'demo', demo: 'sports' } }),
+  // ---- Wall features (decorative / extra walls: finish, size, thickness, curve and cap are set on the item)
+  a({ id: 'feature-wall', name: 'Extra wall', category: 'features', size: [3.0, 0.15, 2.8], tags: ['wall', 'feature wall', 'partition', 'screen wall', 'accent', 'extra'], feature: { shape: 'flat', w: 3.0, h: 2.8, depth: 0.15, material: 'wall-brick-red' } }),
+  a({ id: 'feature-curved', name: 'Curved wall', category: 'features', size: [4.0, 0.2, 3.0], tags: ['wall', 'curved', 'arc', 'round', 'feature wall', 'decor'], feature: { shape: 'curved', w: 4.0, h: 3.0, depth: 0.2, curve: 90, material: 'paint-white' } }),
+  a({ id: 'feature-box', name: 'Box wall', category: 'features', size: [2.4, 0.6, 2.6], tags: ['wall', 'box', 'projecting', 'pop out', 'bump out', 'volume', 'feature wall'], feature: { shape: 'box', w: 2.4, h: 2.6, depth: 0.6, material: 'paint-white' } }),
+  a({ id: 'feature-extended', name: 'Extended wall', category: 'features', size: [4.0, 0.23, 3.4], tags: ['wall', 'extended', 'extension', 'wing wall', 'parapet', 'boundary', 'compound'], feature: { shape: 'flat', w: 4.0, h: 3.4, depth: 0.23, material: 'paint-white' } }),
   a({ id: 'bus', name: 'Bus', category: 'scenery', size: [2.5, 10.5, 3.2], solid: false, tier: 'premium', colors: BUS_PAINTS, tags: ['vehicle', 'transport', 'life', 'street'] }),
 ];
 

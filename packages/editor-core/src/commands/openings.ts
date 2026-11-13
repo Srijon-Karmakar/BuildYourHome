@@ -1,6 +1,23 @@
-import { newId, type Id, type Opening } from '@hd/scene-schema';
+import { DOOR_BLOCKS_BELOW, newId, type Id, type Opening } from '@hd/scene-schema';
 import { defaultSize, freeOffset, OPENING_HEAD_CLEARANCE_M } from '../openings';
 import type { Command } from '../types';
+
+/** Open, close or toggle doors. `open` is 0 (closed) to 1 (fully open); 'toggle' flips each door between closed and open. */
+export function setDoorsOpen(ids: readonly Id[], open: number | 'toggle'): Command {
+  return {
+    type: 'SetDoorsOpen',
+    label: open === 'toggle' ? 'Open or close door' : open <= 0 ? 'Close door' : 'Open door',
+    apply(d) {
+      for (const id of ids) {
+        const o = d.openings[id];
+        if (!o || o.type !== 'door') continue;
+        const next = open === 'toggle' ? ((o.open ?? 1) >= DOOR_BLOCKS_BELOW ? 0 : 1) : Math.min(1, Math.max(0, open));
+        if (next >= 1) delete o.open;
+        else o.open = next;
+      }
+    },
+  };
+}
 
 export interface AddOpeningParams {
   wallId: Id;

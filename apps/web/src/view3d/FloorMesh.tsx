@@ -4,6 +4,8 @@ import type { Vec2 } from '@hd/scene-schema';
 import { buildFloorMesh } from '@hd/geometry';
 import { Edges } from '@react-three/drei';
 import { makeSurface } from './materials';
+import { addGroundDetail } from './groundShader';
+import { TIERS } from './qualityLogic';
 import { pickProps, SELECT_COLOR, useIsSelected } from './pick';
 import type { Tier } from './qualityLogic';
 
@@ -19,9 +21,11 @@ interface Props {
   levelId?: string;
   /** Draw above other surfaces at the same height (overlapping garden areas): higher = on top. */
   layer?: number;
+  /** Large outdoor surface: colour patches and fine bumps worked out in the shader (see groundShader.ts). */
+  groundDetail?: boolean;
 }
 
-export function FloorMesh({ polygon, elevation, materialId, tier, holes = [], roomId, levelId, layer = 0 }: Props) {
+export function FloorMesh({ polygon, elevation, materialId, tier, holes = [], roomId, levelId, layer = 0, groundDetail = false }: Props) {
   const selected = useIsSelected(roomId ?? '');
   const key = polygon.map((p) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`).join(';') + '|' + holes.map((h) => h.map((p) => `${p[0].toFixed(4)},${p[1].toFixed(4)}`).join(';')).join('/');
 
@@ -43,8 +47,9 @@ export function FloorMesh({ polygon, elevation, materialId, tier, holes = [], ro
       m.polygonOffsetFactor = -layer;
       m.polygonOffsetUnits = -layer;
     }
+    if (groundDetail) addGroundDetail(m, { bump: TIERS[tier].normalMaps });
     return m;
-  }, [materialId, tier, layer]);
+  }, [materialId, tier, layer, groundDetail]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => material.dispose(), [material]);

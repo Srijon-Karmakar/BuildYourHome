@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useUi } from '../plan/session';
 import { PopClose } from '../ui/PopClose';
-import { resetWalkInput, walkInput } from './walkState';
+import { useStore } from 'zustand';
+import { toggleNearbyDoor } from './doorAction';
+import { resetWalkInput, walkDoor, walkInput } from './walkState';
 
 const STICK_RADIUS_PX = 56;
 const MOUSE_LOOK = 0.0035; // rad per px
@@ -82,6 +84,7 @@ export function WalkOverlay() {
       <div ref={base} className="stick-base" style={{ display: 'none' }}>
         <div ref={knob} className="stick-knob" />
       </div>
+      <DoorPrompt />
     </div>
   );
 
@@ -93,6 +96,27 @@ export function WalkOverlay() {
       showStick(false);
     }
   }
+}
+
+/** "Open door" / "Close door" button that shows up when a door is within reach (also the E key). */
+function DoorPrompt() {
+  const door = useStore(walkDoor, (s) => s.door);
+  if (!door) return null;
+  const blocked = door.isOpen && door.inDoorway;
+  return (
+    <button
+      type="button"
+      className="door-prompt"
+      disabled={blocked}
+      // the overlay underneath turns drags into looking around: this button must not start one
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
+      onClick={() => toggleNearbyDoor()}
+    >
+      <kbd>E</kbd>
+      {blocked ? 'Step out of the doorway to close it' : door.isOpen ? 'Close door' : 'Open door'}
+    </button>
+  );
 }
 
 const EYES: { label: string; value: number }[] = [

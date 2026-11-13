@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { CATEGORIES, searchCatalog, type Asset, type AssetCategory } from '@hd/assets';
+import { CATEGORIES, searchCatalog, type Asset } from '@hd/assets';
 import { accessFor, lockLabel } from '../cloud';
 import { requireAccess, useCloud } from '../cloud/store';
 import { useUi } from '../plan/session';
@@ -27,7 +27,8 @@ export function FurniturePanel() {
   const setOpen = useUi((s) => s.setFurnitureOpen);
   const startPlacing = useUi((s) => s.startPlacing);
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState<AssetCategory | 'all'>('all');
+  const category = useUi((s) => s.catalogCategory);
+  const setCategory = useUi((s) => s.setCatalogCategory);
   const input = useRef<HTMLInputElement>(null);
 
   const results = useMemo(() => searchCatalog(query, category), [query, category]);
@@ -51,7 +52,7 @@ export function FurniturePanel() {
   return (
     <aside className="furniture" aria-label="Furniture catalog">
       <header>
-        <strong>Furniture</strong>
+        <strong>{category === 'features' ? 'Wall decoration' : 'Furniture'}</strong>
         <button type="button" className="ins-close" aria-label="Close" onClick={() => setOpen(false)}>
           ×
         </button>
@@ -60,7 +61,7 @@ export function FurniturePanel() {
         <input
           ref={input}
           type="search"
-          placeholder="Search sofa, bed, lamp…"
+          placeholder={category === 'features' ? 'Search walls…' : 'Search sofa, bed, lamp…'}
           aria-label="Search furniture"
           autoComplete="off"
           value={query}

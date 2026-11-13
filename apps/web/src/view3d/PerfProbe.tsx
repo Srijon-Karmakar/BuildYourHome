@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useUi } from '../plan/session';
 import { summarize } from './perfStats';
-import { shouldStepDown, stepDown } from './qualityLogic';
+import { nextScale, SCALE_WINDOW_FRAMES, shouldStepDown, stepDown } from './qualityLogic';
 import { frameInfo, useBench, usePerf, useQuality } from './qualityStore';
 
 /**
@@ -18,6 +18,18 @@ export function PerfProbe() {
   const samples = useRef<number[]>([]);
   const lastPublish = useRef(0);
   const lastStep = useRef(performance.now());
+  // Dynamic resolution (see nextScale): 1 = full, lowered while the frame time is too long.
+  const scale = useRef(1);
+  const sinceScale = useRef(0);
+  const walk = useUi((s) => s.walk);
+  const setDpr = useThree((s) => s.setDpr);
+  const initialDpr = useThree((s) => s.viewport.initialDpr);
+  const performanceState = useThree((s) => s.performance);
+
+  // Leaving walk mode (or changing the base pixel ratio): back to the full ratio; orbit has its own floor below.
+  useEffect(() => {
+    if (!walk) setDpr(initialDpr);
+  }, [walk, initialDpr, setDpr]);
 
   useEffect(() => {
     gl.info.autoReset = false; // we reset once per frame so multi-pass frames are counted whole
@@ -55,6 +67,19 @@ export function PerfProbe() {
         tris: frameInfo.tris,
         dpr: state.gl.getPixelRatio(),
       });
+    }
+
+    // Dynamic resolution. Orbit: how far the drag-time regress goes down. Walk: the pixel ratio itself.
+    sinceScale.current += 1;
+    if (sinceScale.current >= SCALE_WINDOW_FRAMES && !benching) {
+      const recent = buf.slice(-SCALE_WINDOW_FRAMES);
+      const next = nextScale(scale.current, recent.reduce((s, v) => s + v, 0) / recent.length);
+      sinceScale.current = 0;
+      if (next !== scale.current) {
+        scale.current = next;
+        performanceState.min = Math.max(0.4, 0.6 * next);
+        if (useUi.getState().walk) setDpr(initialDpr * next);
+      }
     }
 
     const q = useQuality.getState();

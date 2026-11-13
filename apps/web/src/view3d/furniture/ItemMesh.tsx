@@ -7,6 +7,9 @@ import { setItemTransform, solvePlacement } from '@hd/editor-core';
 import { editor, useUi } from '../../plan/session';
 import { canPick, CLICK_SLOP_PX, pickObject, SelectionBox, useIsSelected } from '../pick';
 import { buildFurniture } from './builders';
+import { CurtainFace } from './CurtainFace';
+import { FeatureFace } from './FeatureFace';
+import { isCurvedScreen, ScreenFace } from './ScreenFace';
 import { contactShadowGeometry, contactShadowMaterial } from './contactShadow';
 
 /**
@@ -97,7 +100,10 @@ export function ItemMesh({ item, elevation }: { item: Item; elevation: number })
         document.body.style.cursor = '';
       }}
     >
-      <primitive object={object} />
+      {!asset?.curtain && !asset?.feature && !isCurvedScreen(item, asset) && <primitive object={object} />}
+      {asset?.feature && <FeatureFace item={item} asset={asset} />}
+      {asset?.curtain && <CurtainFace item={item} asset={asset} color={item.variant ?? asset.colors?.[0]?.id ?? '#9a9690'} />}
+      {asset?.screen && <ScreenFace item={item} asset={asset} color={item.variant ?? asset.colors?.[0]?.id ?? '#1c1d20'} />}
       {asset && asset.mount === 'floor' && asset.size[2] >= 0.05 && (
         <mesh geometry={contactShadowGeometry} material={contactShadowMaterial()} position={[0, 0.006, 0]} scale={[asset.size[0] * 1.3 + 0.1, 1, asset.size[1] * 1.3 + 0.1]} renderOrder={1} raycast={() => null} />
       )}

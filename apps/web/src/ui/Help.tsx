@@ -37,6 +37,7 @@ const GROUPS: Array<{ title: string; rows: Array<[string, string]> }> = [
     rows: [
       ['W A S D', 'Move'],
       ['Shift', 'Run'],
+      ['E', 'Open or close the door in front of you'],
       ['Drag', 'Look around'],
       ['Esc', 'Exit walk mode'],
     ],

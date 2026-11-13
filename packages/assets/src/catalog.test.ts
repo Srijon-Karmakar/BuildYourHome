@@ -10,7 +10,7 @@ describe('catalog integrity', () => {
     for (const x of CATALOG) {
       expect(cats.has(x.category), x.id).toBe(true);
       // Outdoor things (cars, pools, trees) are bigger than anything indoors; scenery includes a school and an office tower.
-      expect(x.size.every((v) => v > 0 && v < (x.category === 'scenery' ? 50 : x.category === 'outdoor' || x.category === 'nature' ? 8 : 4)), x.id).toBe(true);
+      expect(x.size.every((v) => v > 0 && v < (x.category === 'scenery' ? 50 : x.category === 'outdoor' || x.category === 'nature' || x.category === 'screens' || x.category === 'features' ? 8 : 4)), x.id).toBe(true);
       expect(x.placeholder).toBe(true);
     }
   });

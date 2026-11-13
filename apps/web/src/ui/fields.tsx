@@ -26,6 +26,32 @@ export function Section({ title, children }: { title: string; children: ReactNod
   );
 }
 
+/** The little up / down pair at the end of a number field. Click = one step, Shift+click = ten steps. */
+function Spin({ onStep, disabled }: { onStep: (dir: 1 | -1, big: boolean) => void; disabled?: boolean }) {
+  const btn = (dir: 1 | -1) => (
+    <button
+      type="button"
+      className={dir === 1 ? 'up' : 'down'}
+      aria-label={dir === 1 ? 'Increase' : 'Decrease'}
+      disabled={disabled}
+      tabIndex={-1}
+      // mousedown would blur the field and apply half-typed text first; the click itself does the step
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={(e) => onStep(dir, e.shiftKey)}
+    >
+      <svg viewBox="0 0 10 6" aria-hidden="true">
+        <path d={dir === 1 ? 'M1 5L5 1L9 5' : 'M1 1L5 5L9 1'} />
+      </svg>
+    </button>
+  );
+  return (
+    <span className="f-spin">
+      {btn(1)}
+      {btn(-1)}
+    </span>
+  );
+}
+
 /**
  * Length input. Type `3.5`, `350cm` or `12'6"`; Enter/blur applies, Esc cancels, ↑/↓ nudge (Shift = ×10).
  * `value === null` means "mixed" across a multi-selection (shown as –).
@@ -70,6 +96,15 @@ export function LengthField({
     return true;
   };
 
+  // The buttons move by at least 5 cm so a click is worth making (the arrow keys keep the fine step).
+  const clickStep = Math.max(step, 0.05);
+  const nudge = (dir: 1 | -1, big: boolean) => {
+    const base = parse(draft ?? '') ?? value ?? min;
+    const next = Math.round(Math.min(max, Math.max(min, base + dir * clickStep * (big ? 10 : 1))) * 1e4) / 1e4;
+    setDraft(null);
+    if (value === null || Math.abs(next - value) > 1e-9) onCommit(next);
+  };
+
   return (
     <Row label={label} hint={hint}>
       <label className={`f-input${invalid ? ' invalid' : ''}${disabled ? ' disabled' : ''}`} htmlFor={id}>
@@ -107,6 +142,7 @@ export function LengthField({
           }}
         />
         {units === 'm' && <span>m</span>}
+        <Spin onStep={nudge} disabled={disabled} />
       </label>
     </Row>
   );
@@ -138,6 +174,11 @@ export function AngleField({
       setInvalid(true);
       window.setTimeout(() => setInvalid(false), 600);
     } else if (value === null || Math.abs(n - value) > 1e-6) onCommit(n);
+  };
+  const nudge = (dir: 1 | -1, big: boolean) => {
+    const next = Math.round(((parse(draft ?? '') ?? value ?? 0) + dir * (big ? 45 : 5)) * 1e3) / 1e3;
+    setDraft(null);
+    onCommit(next);
   };
   return (
     <Row label={label}>
@@ -173,6 +214,7 @@ export function AngleField({
           }}
         />
         <span>°</span>
+        <Spin onStep={nudge} />
       </label>
     </Row>
   );
@@ -440,3 +482,24 @@ export function Swatches({
     </div>
   );
 }
+
+/** A colour input; commits on release so one drag is one undo step. */
+export function ColorField({ label, value, onCommit }: { label: string; value: string; onCommit: (hex: string) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <Row label={label}>
+      <input
+        type="color"
+        className="f-color"
+        aria-label={label}
+        value={draft ?? value}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (draft && draft !== value) onCommit(draft);
+          setDraft(null);
+        }}
+      />
+    </Row>
+  );
+}
+

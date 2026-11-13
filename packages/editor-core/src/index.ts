@@ -8,6 +8,7 @@ export * from './presets/street';
 export * from './openings';
 export * from './placement';
 export * from './itemColliders';
+export * from './doorsNear';
 export * from './snapping';
 export * from './tools/wallTool';
 export { syncRoofs, roofParts } from './roofSync';

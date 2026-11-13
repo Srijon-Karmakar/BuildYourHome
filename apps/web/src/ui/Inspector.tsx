@@ -2,17 +2,20 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStore } from 'zustand';
 import { getAsset, CATEGORIES } from '@hd/assets';
 import type { Roof, Zone, Balcony, Item, Opening, Room, RoomType, Stair, Wall } from '@hd/scene-schema';
-import { DOOR_STYLES, FRAME_COLORS, LEAF_COLORS, WINDOW_STYLES } from '@hd/scene-schema';
+import { DOOR_STYLES, doorOpenAmount, FRAME_COLORS, LEAF_COLORS, WINDOW_STYLES } from '@hd/scene-schema';
 import { SHADE_COLORS, SHADE_STYLES, defaultShadeDepth, type ShadeStyle } from '../view3d/sunshade';
 import { RoofPanel } from './RoofPanel';
 import { isTree, TreeSize } from './TreeSize';
+import { CurtainPanel } from './CurtainPanel';
+import { FeaturePanel } from './FeaturePanel';
+import { MountHeight, ScreenPanel } from './ScreenPanel';
 import { StairRailPanel } from './StairRailPanel';
 import { StairExitPanel } from './StairExitPanel';
 import { StairBuildPanel } from './StairBuildPanel';
 import { BalconyPanel } from './BalconyPanel';
 import { RoadPanel } from './RoadPanel';
 import { useEnvPanelVisible } from './EnvironmentPanel';
-import { addRoofOverRooms, connectStairHall, isHouseWall, continueStairUp, levelAbove, batch, updateZones, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, stairProblems, updateStairs, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
+import { addRoofOverRooms, connectStairHall, isHouseWall, continueStairUp, levelAbove, batch, updateZones, duplicateItems, layoutOf, rotateItems, rotateStairs, stairNeedsRoom, stairProblems, updateStairs, setDoorsOpen, setItemsProps, setOpeningProps, setRoomProps, setWallsProps } from '@hd/editor-core';
 import { formatArea, formatLength } from '../lib/units';
 import { requireAccess } from '../cloud/store';
 import { deleteSelection } from '../plan/PlanController';
@@ -64,6 +67,9 @@ const openingName = (o: Opening) => (o.type === 'arch' ? 'Archway' : o.type === 
  * Property panel for the current selection (docs/DESIGN.md: floating, quiet, only when there is something to edit).
  * Edits are single undoable commands; with several items selected, one edit applies to all of them.
  */
+/** The three door states the panel offers (a door opened less than 20 % counts as closed, more than 95 % as open). */
+const doorState = (v: number): 'closed' | 'half' | 'open' => (v < 0.2 ? 'closed' : v < 0.95 ? 'half' : 'open');
+
 export function Inspector() {
   const walk = useUi((s) => s.walk);
   const viewOnly = useUi((s) => s.viewOnly);
@@ -325,6 +331,11 @@ export function Inspector() {
               <Swatches label="Paint" items={paintMaterials()} value={faceValue} onPick={paintWalls} />
               <Swatches label="Finish" items={finishMaterials()} value={faceValue} onPick={paintWalls} />
               {walls.every((w) => w.kind !== 'fence' && w.kind !== 'boundary') && <GlassWallPanel walls={walls} />}
+              <div className="f-chips">
+                <button type="button" title="Extra, curved, box and extended walls" onClick={() => useUi.getState().openCatalog('features')}>
+                  Add wall decoration…
+                </button>
+              </div>
             </Section>
           )}
 
@@ -351,7 +362,13 @@ export function Inspector() {
                   ↻ 90°
                 </button>
               </div>
-              {items.every((i) => isTree(i.assetId)) && sameAsset ? (
+              {sameAsset?.screen ? (
+                <ScreenPanel items={items} />
+              ) : sameAsset?.curtain ? (
+                <CurtainPanel items={items} />
+              ) : sameAsset?.feature ? (
+                <FeaturePanel items={items} />
+              ) : items.every((i) => isTree(i.assetId)) && sameAsset ? (
                 <TreeSize items={items} />
               ) : (
                 <>
@@ -361,6 +378,7 @@ export function Inspector() {
                   <Chips items={SCALE_PRESETS} current={common(items.map((i) => i.scale[0]), near)} onPick={(scale) => editItems({ scale })} />
                 </>
               )}
+              {!sameAsset?.screen && !sameAsset?.curtain && !sameAsset?.feature && items.every((i) => getAsset(i.assetId)?.mount === 'wall' || i.assetId.startsWith('ac-')) && <MountHeight items={items} />}
               <Toggle label="Lock in place" hint="Stops it being moved by accident" checked={items.every((i) => i.locked)} onChange={(locked) => editItems({ locked })} />
               <div className="ins-footer" style={{ paddingTop: 4 }}>
                 <button type="button" className="pill" title="Copy (Ctrl+D)" onClick={() => requireAccess(items.map((i) => i.assetId), 'copy') && editor.execute(duplicateItems(itemIds))}>
@@ -515,6 +533,18 @@ export function Inspector() {
                   }
                 />
               )}
+              {oneType === 'door' && (
+                <Segmented
+                  label="Door is"
+                  value={common(openings.map((o) => doorState(doorOpenAmount(o))))}
+                  options={[
+                    { id: 'closed', label: 'Closed' },
+                    { id: 'half', label: 'Half open' },
+                    { id: 'open', label: 'Open' },
+                  ]}
+                  onChange={(v) => editor.execute(setDoorsOpen(openings.map((o) => o.id), v === 'closed' ? 0 : v === 'half' ? 0.45 : 1))}
+                />
+              )}
               {oneType !== 'arch' && oneType !== null && (
                 <ColorSwatches
                   label="Frame colour"
@@ -554,6 +584,44 @@ export function Inspector() {
                         value={common(openings.map((o) => o.shade!.color ?? SHADE_COLORS[0]!.id))}
                         onPick={(color) => editOpenings({ shade: { color } })}
                       />
+                    </>
+                  )}
+                </>
+              )}
+              {oneType === 'window' && (
+                <>
+                  <Segmented
+                    label="Box window"
+                    value={common(openings.map((o) => o.box?.kind ?? 'none')) ?? 'none'}
+                    options={[
+                      { id: 'none', label: 'None' },
+                      { id: 'frame', label: 'Frame box' },
+                      { id: 'bay', label: 'Glass bay' },
+                    ]}
+                    onChange={(id) => editOpenings(id === 'none' ? { box: null } : { box: { kind: id as 'frame' | 'bay' } })}
+                  />
+                  {openings.every((o) => o.box) && (
+                    <>
+                      <LengthField label="Projection" hint="Out from the wall" value={common(openings.map((o) => o.box!.depth), near)} min={0.05} max={1.2} step={0.05} onCommit={(depth) => editOpenings({ box: { depth } })} />
+                      <LengthField label="Board thickness" value={common(openings.map((o) => o.box!.thickness ?? (o.box!.kind === 'bay' ? 0.1 : 0.08)), near)} min={0.03} max={0.4} step={0.01} onCommit={(thickness) => editOpenings({ box: { thickness } })} />
+                      {openings.every((o) => o.box!.kind === 'frame') && (
+                        <Segmented
+                          label="Boards on"
+                          value={common(openings.map((o) => o.box!.sides ?? 'all'))}
+                          options={[
+                            { id: 'all', label: 'All sides' },
+                            { id: 'top-sides', label: 'Top and sides' },
+                            { id: 'top', label: 'Top only' },
+                            { id: 'left', label: 'Left' },
+                            { id: 'right', label: 'Right' },
+                          ]}
+                          onChange={(sides) => editOpenings({ box: { sides } })}
+                        />
+                      )}
+                      {openings.every((o) => o.box!.kind === 'bay') && (
+                        <Toggle label="Window seat" hint="A cushioned seat in the bay" checked={openings.every((o) => o.box!.seat)} onChange={(seat) => editOpenings({ box: { seat } })} />
+                      )}
+                      <ColorSwatches label="Box colour" items={FRAME_COLORS} value={common(openings.map((o) => o.box!.color ?? '#f1efea'))} onPick={(color) => editOpenings({ box: { color } })} />
                     </>
                   )}
                 </>

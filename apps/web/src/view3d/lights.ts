@@ -1,5 +1,6 @@
 import { getAsset, localToPlan } from '@hd/assets';
 import type { Scene } from '@hd/scene-schema';
+import { screenLook, screenTone } from './screenArt';
 import type { SunState } from './sun';
 
 /** One light source in the home: where it sits in the world and how strong it is. */
@@ -88,6 +89,28 @@ export function lampsOf(scene: Scene): Lamp[] {
       dir,
       angle: ((spec.spot?.angleDeg ?? 90) * Math.PI) / 180,
       penumbra: spec.spot?.penumbra ?? 1,
+    });
+  }
+  for (const it of Object.values(scene.items)) {
+    const asset = getAsset(it.assetId);
+    const level = scene.levels[it.levelId];
+    if (!asset?.screen || !level) continue;
+    const look = screenLook(it, asset);
+    if (look.show === 'off' || !look.castLight) continue;
+    const f = asset.screen;
+    const [fx, fz] = localToPlan([it.position[0], it.position[2]], it.rotationY, 0, f.z * it.scale[2] + 0.5);
+    const area = f.w * it.scale[0] * f.h * it.scale[1];
+    const base = level.elevation + it.position[1];
+    out.push({
+      id: it.id,
+      pos: [fx, base + f.y * it.scale[1], fz],
+      power: Math.min(14, 2 + area * 2.2) * look.brightness,
+      levelId: it.levelId,
+      kind: 'point',
+      color: screenTone(look),
+      dir: [0, -1, 0],
+      angle: Math.PI / 2,
+      penumbra: 1,
     });
   }
   return out;

@@ -1,4 +1,5 @@
 import type { HiddenLayers, LayerId } from '../view3d/layers';
+import type { AssetCategory } from '@hd/assets';
 import { create } from 'zustand';
 import { createEmptyScene, DEFAULT_ROOF_STYLE, type Vec2 } from '@hd/scene-schema';
 import type { StairKind } from '@hd/geometry';
@@ -85,6 +86,11 @@ interface UiState {
   placeRotation: number;
   furnitureOpen: boolean;
   setFurnitureOpen(open: boolean): void;
+  /** Which category tab the catalog shows ('features' = wall decoration). */
+  catalogCategory: AssetCategory | 'all';
+  setCatalogCategory(c: AssetCategory | 'all'): void;
+  /** Open the catalog on one category (the Wall decor button, the wall panel's shortcut). */
+  openCatalog(c: AssetCategory | 'all'): void;
   /** Pick an item from the catalog: closes the panel and switches to placement. */
   startPlacing(assetId: string): void;
   rotatePlacing(delta: number): void;
@@ -237,6 +243,9 @@ export const useUi = create<UiState>((set) => ({
   placing: null,
   placeRotation: 0,
   furnitureOpen: false,
+  catalogCategory: 'all',
+  setCatalogCategory: (catalogCategory) => set({ catalogCategory }),
+  openCatalog: (catalogCategory) => set({ furnitureOpen: true, roomsOpen: false, catalogCategory }),
   setFurnitureOpen: (furnitureOpen) => set(furnitureOpen ? { furnitureOpen, roomsOpen: false } : { furnitureOpen }),
   startPlacing: (assetId) => set({ placing: assetId, tool: 'place', furnitureOpen: false, placeRotation: 0 }),
   rotatePlacing: (delta) => set((s) => ({ placeRotation: s.placeRotation + delta })),

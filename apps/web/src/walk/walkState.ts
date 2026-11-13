@@ -1,5 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 import type { Id, Scene } from '@hd/scene-schema';
+import type { NearDoor } from '@hd/editor-core';
 import { levelRooms } from '../plan/rooms';
 
 /** Walker pose, published every frame while walking (the 2D plan draws a "you are here" marker from it). */
@@ -14,6 +15,9 @@ export interface WalkPose {
 }
 
 export const walkPose = createStore<WalkPose>(() => ({ active: false, x: 0, z: 0, yaw: 0, y: 0 }));
+
+/** The door the walker could open or close right now (null = none in reach); drives the on-screen prompt. */
+export const walkDoor = createStore<{ door: NearDoor | null }>(() => ({ door: null }));
 
 /** Mutable input shared between the touch/mouse overlay and the frame loop (no React re-renders). */
 export const walkInput = {

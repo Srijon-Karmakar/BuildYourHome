@@ -69,6 +69,8 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 - [x] P3-13 One-click staircase through several floors (floors stepper + Stair options card), standalone stairs (no room / walls / roof unless asked), flat roof by default (ADR-031)
 - [x] P3-14 Stair exit on the roof: roof room (chilekotha / mumty), glass box, hatch; stair opening cut through flat roofs (ADR-032)
 - [x] P3-15 Full glass wall (floor-to-ceiling glazing): pane width, frame, colour, tint, low wall under, cross bar; doors in it keep working (ADR-033)
+- [x] P3-16 LED screens (8 kinds, any wall / ceiling / stand / billboard; picture, photo, text ticker, colours, size, height, night light) and outdoor AC units (wall bracket, ground, twin, rooftop, window) (ADR-034)
+- [x] P3-17 Ground texture and relief: colour patches, grain and fine bumps in the shader; gentle mounds past everything placed; walker follows them (ADR-035)
 **Exit:** an exterior "hero view" looks good on high tier and runs on low tier.
 
 ## Phase 4 — Mobile app & polish (≈ 3–4 weeks)
@@ -99,3 +101,4 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 ## Rules
 - Each phase ends with a demo build + retro note in `progressReport.md`.
 - Scope cuts allowed within a phase; moving items **between** phases requires an update here.
+- [x] P3-18 Doors open / close (inspector + walk mode E key, closed doors block), curtain and blind designer (5 styles, size, hem height, openness, fullness, sheer layer, rod), box windows (frame box / glass bay) and wall features (extra / curved / box / extended wall) (ADR-036)

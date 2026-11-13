@@ -10,6 +10,7 @@ import {
   IconBalcony,
   IconDoor,
   IconFurniture,
+  IconWallDecor,
   IconStairs,
   IconRedo,
   IconSelect,
@@ -28,6 +29,8 @@ export function ToolRail() {
   const canRedo = useStore(editor.store, (s) => s.canRedo);
   const editable = view !== '3d';
   const furnitureOpen = useUi((s) => s.furnitureOpen);
+  const catalogCategory = useUi((s) => s.catalogCategory);
+  const openCatalog = useUi((s) => s.openCatalog);
   const setFurnitureOpen = useUi((s) => s.setFurnitureOpen);
   const viewOnly = useUi((s) => s.viewOnly);
   const roomsOpen = useUi((s) => s.roomsOpen);
@@ -172,10 +175,22 @@ export function ToolRail() {
           title="Furniture catalog"
           aria-pressed={editable && (furnitureOpen || tool === 'place')}
           disabled={!editable || viewOnly}
-          onClick={() => setFurnitureOpen(!furnitureOpen)}
+          onClick={() => (furnitureOpen && catalogCategory !== 'features' ? setFurnitureOpen(false) : openCatalog('all'))}
         >
           <IconFurniture />
           <span>Furniture</span>
+        </button>
+
+        <button
+          type="button"
+          className="tool"
+          title="Wall decoration: extra, curved, box and extended walls"
+          aria-pressed={editable && furnitureOpen && catalogCategory === 'features'}
+          disabled={!editable || viewOnly}
+          onClick={() => (furnitureOpen && catalogCategory === 'features' ? setFurnitureOpen(false) : openCatalog('features'))}
+        >
+          <IconWallDecor />
+          <span>Wall decor</span>
         </button>
 
         <div className="rail-sep" />

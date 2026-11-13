@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, type ComponentType } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { AdaptiveDpr, Environment, Lightformer, OrbitControls, Sky } from '@react-three/drei';
@@ -36,13 +36,15 @@ import { RoofMesh } from './RoofMesh';
 import { BalconyMesh } from './BalconyMesh';
 import { resolveEnvironment, zonePolygon } from '@hd/editor-core';
 import { StairMesh } from './StairMesh';
-import { TIERS, type Tier } from './qualityLogic';
+import { dprRange, TIERS, type Tier } from './qualityLogic';
 import { useTier } from './qualityStore';
 import { WallMesh } from './WallMesh';
+import { TerrainMesh } from './TerrainMesh';
+import { terrainFlatRect, type FlatRect } from './terrain';
 
 // Post-processing (AO) is only downloaded on devices that reach the high tier.
 // If the effects code cannot be fetched (no connection and not stored yet) the scene simply draws without them.
-type EffectsProps = { msaa: number; quality: 'performance' | 'medium'; bloom: boolean };
+type EffectsProps = { msaa: number; quality: 'performance' | 'medium'; bloom: boolean; smaa: boolean };
 const Effects = lazy<ComponentType<EffectsProps>>(() => import('./Effects').catch(() => ({ default: () => null })));
 
 /** Lets Home › Export take a high-resolution picture of this canvas. */
@@ -330,7 +332,7 @@ function Zones({ tier }: { tier: Tier }) {
         z.shape === 'road' ? (
           <RoadMesh key={z.id} zone={z} layer={i + 1} tier={tier} />
         ) : (
-          <FloorMesh key={z.id} polygon={zonePolygon(z)} elevation={-0.0025 + Math.min(i, 12) * 0.0004} materialId={z.material.id} tier={tier} roomId={z.id} layer={i + 1} />
+          <FloorMesh key={z.id} polygon={zonePolygon(z)} elevation={-0.0025 + Math.min(i, 12) * 0.0004} materialId={z.material.id} tier={tier} roomId={z.id} layer={i + 1} groundDetail={GRASSY.test(z.material.id)} />
         ),
       )}
       <RoadExtras />
@@ -487,25 +489,27 @@ function Lighting({ tier }: { tier: Tier }) {
 /** Phones keep Medium free of post-processing (the 60 fps rule); desktops get the light AO pass. */
 const COARSE_POINTER = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
 
-const BIG_GROUND: [number, number][] = [[-150, -150], [150, -150], [150, 150], [-150, 150]];
 
 /** The surface around the house (grass, sand, paving…), chosen in the Home menu. */
+/** Garden surfaces that are grass or earth get the same shader detail as the ground. */
+const GRASSY = /^ground-(grass|lawn|moss|soil|red-earth|mulch)/;
+
 function Ground({ tier }: { tier: Tier }) {
   const id = useStore(editor.store, (s) => s.scene.terrain.groundMaterial.id);
   const plot = useStore(editor.store, (s) => s.scene.plot?.boundary);
+  // The flat area under everything placed, rounded to whole metres so small edits do not rebuild the terrain.
+  const flatKey = useStore(editor.store, (s) => terrainFlatRect(s.scene).map((v, i) => (i < 2 ? Math.floor(v) : Math.ceil(v))).join(','));
+  const flat = useMemo(() => flatKey.split(',').map(Number) as FlatRect, [flatKey]);
   if (plot && plot.length >= 3) {
-    // The chosen ground covers only the plot; everything around it is a neutral verge.
+    // The chosen ground covers only the plot; everything around it is a neutral verge (gently rolling further out).
     return (
       <>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, 0]} receiveShadow>
-          <planeGeometry args={[180, 180]} />
-          <meshStandardMaterial color="#cfccc4" roughness={1} />
-        </mesh>
-        <FloorMesh polygon={plot} elevation={-0.012} materialId={id} tier={tier} />
+        <TerrainMesh flat={flat} y={-0.03} tier={tier} color="#cfccc4" />
+        <FloorMesh polygon={plot} elevation={-0.012} materialId={id} tier={tier} groundDetail />
       </>
     );
   }
-  return <FloorMesh polygon={BIG_GROUND} elevation={-0.004} materialId={id} tier={tier} />;
+  return <TerrainMesh flat={flat} y={-0.004} tier={tier} materialId={id} />;
 }
 
 /** Where the last pointer press happened (to tell a click from an orbit drag). */
@@ -544,17 +548,33 @@ function ShadowGate({ tier }: { tier: Tier }) {
   return null;
 }
 
+/** Window size in CSS pixels (updates on resize, so the pixel budget follows the window). */
+function useWindowSize(): { w: number; h: number } {
+  const [s, set] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
+  useEffect(() => {
+    const on = () => set({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  return s;
+}
+
 export function Scene3D() {
   const walk = useUi((s) => s.walk);
   const tier = useTier();
   const cfg = TIERS[tier];
   const hour = useStore(editor.store, (st) => st.scene.lighting.timeOfDay);
   const dim = hour < 7.5 || hour > 16.5; // lamps only read as glowing when the daylight is low
+  const size = useWindowSize();
+  const dpr = useMemo(
+    () => dprRange(tier, size.w, size.h, COARSE_POINTER && tier !== 'high' ? [1, Math.min(cfg.dpr[1], 1.25)] : cfg.dpr),
+    [tier, size.w, size.h, cfg.dpr],
+  );
   return (
     <Canvas
       shadows={COARSE_POINTER ? true : 'soft'}
       frameloop="demand"
-      dpr={COARSE_POINTER && tier !== 'high' ? [1, Math.min(cfg.dpr[1], 1.25)] : cfg.dpr}
+      dpr={dpr}
       // Progressive rendering: while the user orbits, R3F "regresses" performance (DPR drops via AdaptiveDpr)
       // and restores full quality ~180 ms after the last movement.
       performance={{ min: 0.6, max: 1, debounce: 180 }}
@@ -593,7 +613,7 @@ export function Scene3D() {
       <AdaptiveDpr pixelated={false} />
       {cfg.ao && (tier === 'high' || !COARSE_POINTER) && (
         <Suspense fallback={null}>
-          <Effects msaa={cfg.msaa} quality={cfg.aoQuality} bloom={cfg.bloom && dim} />
+          <Effects msaa={cfg.msaa} quality={cfg.aoQuality} bloom={cfg.bloom && dim} smaa={cfg.smaa} />
         </Suspense>
       )}
       <PerfProbe />

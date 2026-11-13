@@ -3,9 +3,11 @@ import type * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useStore } from 'zustand';
 import { buildColliders, moveWithCollision, pointInPolygon, stairHeightAt, stairHole, stairToLocal } from '@hd/geometry';
-import { balconyColliders, itemColliders, layoutOf, stairExitColliders } from '@hd/editor-core';
+import { terrainFlatRect, terrainHeight, type FlatRect } from '../view3d/terrain';
+import { balconyColliders, itemColliders, layoutOf, nearestDoor, stairExitColliders } from '@hd/editor-core';
 import { editor, useUi } from '../plan/session';
-import { rememberPose, resetWalkInput, spawnPose, walkInput, walkPose } from './walkState';
+import { toggleNearbyDoor } from './doorAction';
+import { rememberPose, resetWalkInput, spawnPose, walkDoor, walkInput, walkPose } from './walkState';
 
 /** The orbit view's field of view, restored when the walk ends. */
 const ORBIT_FOV = 50;
@@ -62,6 +64,9 @@ export function WalkControls() {
   }, [stairs, levels]);
   const stairsRef = useRef(stairData);
   stairsRef.current = stairData;
+  const flatKey = useStore(editor.store, (s) => terrainFlatRect(s.scene).map((v, i) => (i < 2 ? Math.floor(v) : Math.ceil(v))).join(','));
+  const flatRef = useRef<FlatRect>([0, 0, 0, 0]);
+  flatRef.current = flatKey.split(',').map(Number) as FlatRect;
 
   const st = useRef({ x: 0, z: 0, yaw: 0, pitch: 0, y: 0, feet: 0 });
 
@@ -76,7 +81,9 @@ export function WalkControls() {
       if (h !== null && state.activeLevelId === stair.toLevel && !pointInPolygon(local, hole, 1e-6)) continue;
       if (h !== null) return { y: fromElevation + h, level: h >= layout.rise / 2 ? stair.toLevel : stair.fromLevel };
     }
-    return { y: state.scene.levels[state.activeLevelId]?.elevation ?? 0, level: state.activeLevelId };
+    // Outside on the ground floor the land may roll gently away from the home (terrain.ts).
+    const ground = state.scene.levelOrder[0] === state.activeLevelId ? terrainHeight(x, z, flatRef.current) : 0;
+    return { y: (state.scene.levels[state.activeLevelId]?.elevation ?? 0) + ground, level: state.activeLevelId };
   };
   const keys = useRef(new Set<string>());
 
@@ -98,6 +105,7 @@ export function WalkControls() {
         return;
       }
       if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+      if (e.code === 'KeyE' && !e.repeat && !e.ctrlKey && !e.metaKey) toggleNearbyDoor();
       keys.current.add(e.code);
     };
     const up = (e: KeyboardEvent) => keys.current.delete(e.code);
@@ -113,6 +121,7 @@ export function WalkControls() {
       window.removeEventListener('blur', blur);
       rememberPose(st.current);
       walkPose.setState({ active: false });
+      walkDoor.setState({ door: null });
       camera.rotation.order = 'XYZ';
       const cam = camera as THREE.PerspectiveCamera;
       cam.fov = ORBIT_FOV;
@@ -177,6 +186,10 @@ export function WalkControls() {
     if (Math.abs(p.x - s.x) > 1e-4 || Math.abs(p.z - s.z) > 1e-4 || Math.abs(p.yaw - s.yaw) > 1e-4 || Math.abs(p.y - s.y) > 1e-3) {
       walkPose.setState({ x: s.x, z: s.z, yaw: s.yaw, y: s.y });
     }
+    // The door in front of you (for the "Open door" prompt); published only when it changes.
+    const near = nearestDoor(editor.getState().scene, editor.getState().activeLevelId, [s.x, s.z], s.yaw);
+    const prev = walkDoor.getState().door;
+    if (near?.id !== prev?.id || near?.isOpen !== prev?.isOpen || near?.inDoorway !== prev?.inDoorway) walkDoor.setState({ door: near });
     invalidate(); // keep the demand-driven canvas rendering every frame while walking
   });
 

@@ -18,6 +18,11 @@ export const DEFAULT_MATERIAL_ROOF = 'roof-concrete';
 
 export const DEFAULT_MATERIAL_CEILING = 'paint-white';
 
+/** How open a door is: 0 closed .. 1 fully open (unset = open). */
+export const doorOpenAmount = (o: { open?: number }): number => o.open ?? 1;
+/** A door opened less than this still blocks the way (you cannot walk through a closed door). */
+export const DOOR_BLOCKS_BELOW = 0.2;
+
 export const DOOR_STYLES = ['flush', 'panel', 'glass', 'double', 'louvered', 'french', 'sliding', 'carved', 'pivot', 'barn', 'glazed'] as const;
 export const WINDOW_STYLES = ['single', 'double', 'sliding', 'casement', 'louvered'] as const;
 export type DoorStyle = (typeof DOOR_STYLES)[number];

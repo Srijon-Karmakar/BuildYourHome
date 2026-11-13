@@ -706,10 +706,9 @@ button {
 .fp-cats {
   flex: none;
   display: flex;
+  flex-wrap: wrap; /* every category is visible, none hides off to the side */
   gap: 6px;
   padding: 0 14px 10px;
-  overflow-x: auto;
-  scrollbar-width: none;
 }
 
 .fp-cats button {
@@ -3664,6 +3663,13 @@ html[data-reveal] .bottom {
     gap: 2px;
   }
 
+  /* The sheet is a column with a max height that scrolls: rows must keep their own height. Without this an opened
+     section (Account, Display) made the column too tall and flexbox squeezed the other rows to a few pixels, so the big
+     words ran over each other instead of the sheet scrolling. */
+  .topbar-right > * {
+    flex-shrink: 0;
+  }
+
   .topbar-actions .home-pop::before,
   .sheet-grip {
     display: none;
@@ -4726,5 +4732,112 @@ html[data-reveal] .bottom {
   }
   .topbar-right > .pill.save-btn .lbl {
     display: none;
+  }
+}
+
+/* Up / down buttons at the end of a number field */
+.f-input {
+  width: 128px;
+  padding-right: 4px;
+}
+.f-input.wide {
+  width: 160px;
+}
+.f-input .f-spin {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-self: stretch;
+  width: 26px;
+  margin: 3px 0 3px 6px;
+  border-left: 1px solid var(--line);
+}
+.f-spin button {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.f-spin button:hover:not(:disabled) {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.f-spin button:active:not(:disabled) {
+  background: var(--ink);
+  color: var(--paper-2);
+}
+.f-spin button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.f-spin svg {
+  width: 10px;
+  height: 6px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Fingers: a taller field with bigger buttons (touch targets of 44 px, see DESIGN.md) */
+@media (pointer: coarse) {
+  .f-input {
+    height: 44px;
+  }
+  .f-input .f-spin {
+    width: 36px;
+    margin: 0 0 0 6px;
+  }
+}
+
+/* Walk mode: the "Open door" prompt */
+.door-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-b) + 150px);
+  translate: -50% 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 18px 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(17, 17, 17, 0.82);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  z-index: 3;
+}
+.door-prompt:disabled {
+  opacity: 0.75;
+  cursor: default;
+}
+.door-prompt kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--bar-orange, #ea5500);
+  color: #111;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+@media (pointer: coarse) {
+  .door-prompt kbd {
+    display: none;
+  }
+  .door-prompt {
+    padding-left: 18px;
   }
 }

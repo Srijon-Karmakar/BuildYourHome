@@ -57,6 +57,15 @@ export const IconFurniture = () =>
     </>,
   );
 
+export const IconWallDecor = () =>
+  wrap(
+    <>
+      <path d="M4 20V6h5v14" />
+      <path d="M9 9h4a4 4 0 014 4v7" />
+      <path d="M13 20v-5M3 20h18" />
+    </>,
+  );
+
 export const IconStairs = () =>
   wrap(
     <>

@@ -182,6 +182,8 @@ export const Opening = z.object({
     .optional(),
   /** Trim round the opening on the outside face. */
   surround: OpeningSurround.optional(),
+  /** Doors: how far open, 0 (closed) to 1 (fully open). Unset = open, the way every door used to be drawn. */
+  open: z.number().min(0).max(1).optional(),
   /** Doors: handle type. */
   handle: z.enum(['lever', 'knob', 'pull', 'none']).optional(),
 });
@@ -197,6 +199,66 @@ export const Room = z.object({
   hasCeiling: z.boolean(),
 });
 
+/** What an LED screen shows. */
+export const SCREEN_SHOWS = ['off', 'color', 'gradient', 'demo', 'text', 'image'] as const;
+/** Built-in pictures for `show: 'demo'` (drawn in code, no downloads). */
+export const SCREEN_DEMOS = ['landscape', 'city', 'sports', 'news', 'bars', 'stage'] as const;
+const Hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
+/** Settings of an LED screen item (catalog assets with a `screen` face). All optional: unset = the default look. */
+export const ScreenOpts = z.object({
+  show: z.enum(SCREEN_SHOWS).optional(),
+  /** Background colour (colour / gradient / text), and the second colour of a gradient. */
+  color: Hex.optional(),
+  color2: Hex.optional(),
+  demo: z.enum(SCREEN_DEMOS).optional(),
+  text: z.string().max(80).optional(),
+  textColor: Hex.optional(),
+  /** Text runs across the screen like a news ticker. */
+  scroll: z.boolean().optional(),
+  /** The user's own picture, already shrunk by the app (JPEG data URL, ≤ ~300 KB). */
+  image: z.string().max(400_000).regex(/^data:image\/(jpeg|png|webp);base64,/).optional(),
+  fit: z.enum(['cover', 'contain', 'stretch']).optional(),
+  /** Bend of a wall screen in degrees: + bulges out (round a building corner), - curves in; 0 = flat. */
+  curve: z.number().min(-180).max(180).optional(),
+  /** 0.2 (dim) – 2 (very bright); 1 = normal. */
+  brightness: z.number().min(0.2).max(2).optional(),
+  /** Frame round the picture (m); 0 = frameless. Its colour is the item's colour (`variant`). */
+  bezel: z.number().min(0).max(0.15).optional(),
+  /** At night the screen also lights up what is in front of it (default on). */
+  castLight: z.boolean().optional(),
+});
+export type ScreenOpts = z.infer<typeof ScreenOpts>;
+
+export const CURTAIN_STYLES = ['pleated', 'eyelet', 'sheer', 'roman', 'venetian'] as const;
+export const CURTAIN_RODS = ['rod', 'track', 'none'] as const;
+
+/** Settings of a curtain or blind item (catalog assets with a `curtain` face). All optional: unset = the default look. */
+export const CurtainOpts = z.object({
+  style: z.enum(CURTAIN_STYLES).optional(),
+  /** Curtains: 0 drawn closed .. 1 pulled right open to the sides. Blinds: 0 fully down .. 1 fully raised. */
+  open: z.number().min(0).max(1).optional(),
+  /** Fabric gathered into the width: 1.2 (flat) - 3 (very full). */
+  fullness: z.number().min(1.2).max(3).optional(),
+  rod: z.enum(CURTAIN_RODS).optional(),
+  rodColor: Hex.optional(),
+  /** A sheer curtain behind the main one, and its colour. */
+  sheer: z.boolean().optional(),
+  sheerColor: Hex.optional(),
+});
+export type CurtainOpts = z.infer<typeof CurtainOpts>;
+
+/** Settings of a wall feature item (extra / curved / box / extended wall). All optional: unset = the asset's own look. */
+export const FeatureOpts = z.object({
+  /** Wall finish (a material id of the wall catalog). */
+  material: z.string().max(64).optional(),
+  /** Curved walls: bend in degrees, + bulges toward the front, - curves in; 0 = straight. */
+  curve: z.number().min(-180).max(180).optional(),
+  /** A cap (coping) along the top edge. */
+  cap: z.boolean().optional(),
+});
+export type FeatureOpts = z.infer<typeof FeatureOpts>;
+
 export const Item = z.object({
   id: Id,
   levelId: Id,
@@ -211,6 +273,12 @@ export const Item = z.object({
   attach: z.object({ wallId: Id.optional(), roomId: Id.optional() }).optional(),
   /** Text shown on the item (name plate, house number). */
   text: z.string().max(40).optional(),
+  /** LED screens: what the screen shows and how it looks. */
+  screen: ScreenOpts.optional(),
+  /** Curtains and blinds: style, how open, fullness, rod, sheer layer. */
+  curtain: CurtainOpts.optional(),
+  /** Wall features: finish, bend, cap. */
+  feature: FeatureOpts.optional(),
 });
 
 /** Fine tuning of a railing (all optional; unset = the look the railing choice gives). Shared by stairs, balconies and roofs. */

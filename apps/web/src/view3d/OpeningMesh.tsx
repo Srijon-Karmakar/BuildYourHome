@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import * as THREE from 'three';
-import { FRAME_COLORS, LEAF_COLORS, type Opening } from '@hd/scene-schema';
+import { useFrame, useThree } from '@react-three/fiber';
+import { doorOpenAmount, FRAME_COLORS, LEAF_COLORS, type Opening } from '@hd/scene-schema';
 import type { WallFootprint } from '@hd/geometry';
 import { pickProps, SelectionBox, useIsSelected } from './pick';
 import { useStore } from 'zustand';
@@ -17,6 +18,37 @@ const BAR = 0.05; // frame bar width (m)
 const OPEN_ANGLE = (80 * Math.PI) / 180;
 
 type Size = [number, number, number];
+
+/** How fast a door swings or slides (share of its full travel per second): about half a second end to end. */
+const DOOR_SPEED = 2.2;
+
+/**
+ * A group whose transform follows an eased value: `apply(group, v)` is called every frame the value moves (a door
+ * swinging, a panel sliding). It starts at `target` (no animation when a home is opened) and glides when `target` changes.
+ */
+function Eased({ target, apply, position, children }: { target: number; apply: (g: THREE.Group, v: number) => void; position?: Size; children: ReactNode }) {
+  const ref = useRef<THREE.Group>(null);
+  const cur = useRef(target);
+  const invalidate = useThree((s) => s.invalidate);
+  useLayoutEffect(() => {
+    if (ref.current) apply(ref.current, cur.current);
+  }, [apply]);
+  useEffect(() => {
+    invalidate(); // the canvas draws on demand: wake it so the move starts
+  }, [target, invalidate]);
+  useFrame((_, dt) => {
+    if (!ref.current || cur.current === target) return;
+    const step = DOOR_SPEED * Math.min(dt, 0.1);
+    cur.current = Math.abs(target - cur.current) <= step ? target : cur.current + Math.sign(target - cur.current) * step;
+    apply(ref.current, cur.current);
+    invalidate();
+  });
+  return (
+    <group ref={ref} position={position}>
+      {children}
+    </group>
+  );
+}
 
 const GLASS = new THREE.MeshPhysicalMaterial({
   color: '#bcd4e6',
@@ -245,10 +277,13 @@ export function OpeningMesh({ opening: o, fp, elevation, levelId }: Props) {
     const sgn = o.flip.swing ? -1 : 1; // +1 opens toward the L side (+z)
     const innerW = o.width - 2 * BAR;
     const leafH = o.height - BAR - 0.01;
+    const amount = doorOpenAmount(o);
     const pivot = (hingeX: number, dir: 1 | -1, width: number, k: string) => {
-      const theta = Math.atan2(-sgn * Math.sin(OPEN_ANGLE), dir * Math.cos(OPEN_ANGLE));
+      const swing = (g: THREE.Group, v: number) => {
+        g.rotation.y = Math.atan2(-sgn * Math.sin(v * OPEN_ANGLE), dir * Math.cos(v * OPEN_ANGLE));
+      };
       return (
-        <group key={k} position={[hingeX, y0 + 0.01, 0]} rotation={[0, theta, 0]}>
+        <Eased key={k} position={[hingeX, y0 + 0.01, 0]} target={amount} apply={swing}>
           <Leaf
             w={width}
             h={leafH}
@@ -256,7 +291,7 @@ export function OpeningMesh({ opening: o, fp, elevation, levelId }: Props) {
             leaf={leaf}
             panel={panel}
           />
-        </group>
+        </Eased>
       );
     };
     content =
@@ -279,8 +314,12 @@ export function OpeningMesh({ opening: o, fp, elevation, levelId }: Props) {
             const cxk = o.offset + k * (innerW / 2 - sw / 2);
             const hh = o.height - BAR - 0.05;
             const zk = k * 0.016;
+            // The right-hand panel slides over the left one as the door opens.
+            const slide = (g: THREE.Group, v: number) => {
+              g.position.x = k === 1 ? -v * (innerW - sw) : 0;
+            };
             return (
-              <group key={k}>
+              <Eased key={k} target={amount} apply={slide}>
                 <Box
                   size={[sw, hh, 0.012]}
                   pos={[cxk, y0 + 0.04 + hh / 2, zk]}
@@ -304,7 +343,7 @@ export function OpeningMesh({ opening: o, fp, elevation, levelId }: Props) {
                   pos={[o.offset - k * 0.03, y0 + 1.0, zk + k * 0.02]}
                   mat={HANDLE}
                 />
-              </group>
+              </Eased>
             );
           })}
         </>
@@ -437,6 +476,7 @@ export function OpeningMesh({ opening: o, fp, elevation, levelId }: Props) {
     >
       {content}
       {o.shade && <Shade opening={o} thickness={t} y1={y1} />}
+      {o.box && o.type === 'window' && <BoxWindow opening={o} thickness={t} frameHex={frameHex} />}
       {selected && (
         <SelectionBox
           center={[o.offset, y0 + o.height / 2, 0]}
@@ -444,6 +484,80 @@ export function OpeningMesh({ opening: o, fp, elevation, levelId }: Props) {
         />
       )}
     </group>
+  );
+}
+
+/** Which boards a frame box has (top, bottom, left, right). */
+const BOX_SIDES: Record<NonNullable<NonNullable<Opening['box']>['sides']>, [boolean, boolean, boolean, boolean]> = {
+  all: [true, true, true, true],
+  'top-sides': [true, false, true, true],
+  top: [true, false, false, false],
+  left: [false, false, true, false],
+  right: [false, false, false, true],
+};
+
+/**
+ * A box window (ADR-030) on the outside face: a projecting frame of boards round the window, or a bay, the window
+ * pushed out as a glass box with a roof and floor slab (and optionally a window seat). The hole in the wall does not
+ * change; everything is built outside the wall's outer face.
+ */
+function BoxWindow({ opening: o, thickness, frameHex }: { opening: Opening; thickness: number; frameHex: string }) {
+  const wall = useStore(editor.store, (s) => s.scene.walls[o.wallId]);
+  const rooms = useStore(editor.store, (s) => s.scene.rooms);
+  const nodes = useStore(editor.store, (s) => s.scene.nodes);
+  const b = o.box!;
+  const side = useMemo(() => (wall ? exteriorSide(editor.getState().scene, wall) : 1), [wall, rooms, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hex = b.color ?? '#f1efea';
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.6 }), [hex]);
+  const bars = useMemo(() => new THREE.MeshStandardMaterial({ color: frameHex, roughness: 0.5 }), [frameHex]);
+  const cushion = useMemo(() => new THREE.MeshStandardMaterial({ color: '#c9b79c', roughness: 0.95 }), []);
+  useEffect(() => () => mat.dispose(), [mat]);
+  useEffect(() => () => bars.dispose(), [bars]);
+  useEffect(() => () => cushion.dispose(), [cushion]);
+
+  const D = b.depth;
+  const th = b.thickness ?? (b.kind === 'bay' ? 0.1 : 0.08);
+  const z0 = side * (thickness / 2); // the outside face
+  const zc = z0 + side * (D / 2);
+  const zf = z0 + side * D; // the front of the box
+  const W = o.width;
+  const y0 = o.sill;
+  const y1 = o.sill + o.height;
+  const cy = (y0 + y1) / 2;
+
+  if (b.kind === 'frame') {
+    const [top, bottom, left, right] = BOX_SIDES[b.sides ?? 'all'];
+    const full = W + (left ? th : 0) + (right ? th : 0);
+    const cx = o.offset + ((right ? th : 0) - (left ? th : 0)) / 2;
+    const tall = o.height + (top ? th : 0) + (bottom ? th : 0);
+    const mid = cy + ((top ? th : 0) - (bottom ? th : 0)) / 2;
+    return (
+      <>
+        {top && <Box size={[full, th, D]} pos={[cx, y1 + th / 2, zc]} mat={mat} />}
+        {bottom && <Box size={[full, th, D]} pos={[cx, y0 - th / 2, zc]} mat={mat} />}
+        {left && <Box size={[th, tall, D]} pos={[o.offset - W / 2 - th / 2, mid, zc]} mat={mat} />}
+        {right && <Box size={[th, tall, D]} pos={[o.offset + W / 2 + th / 2, mid, zc]} mat={mat} />}
+      </>
+    );
+  }
+
+  // Bay: roof and floor slabs, glass on three sides, posts at the front corners, optional seat.
+  const post = 0.05;
+  return (
+    <>
+      <Box size={[W + 2 * th, th, D + 0.06]} pos={[o.offset, y1 + th / 2, z0 + side * (D / 2 + 0.03)]} mat={mat} />
+      <Box size={[W + 2 * th, th, D + 0.03]} pos={[o.offset, y0 - th / 2, z0 + side * (D / 2 + 0.015)]} mat={mat} />
+      <Box size={[W, o.height, 0.012]} pos={[o.offset, cy, zf]} mat={GLASS} shadow={false} />
+      {[-1, 1].map((k) => (
+        <group key={k}>
+          <Box size={[0.012, o.height, D]} pos={[o.offset + (k * W) / 2, cy, zc]} mat={GLASS} shadow={false} />
+          <Box size={[post, o.height, post]} pos={[o.offset + (k * (W - post)) / 2, cy, zf - side * (post / 2)]} mat={bars} />
+        </group>
+      ))}
+      <Box size={[W, 0.04, 0.04]} pos={[o.offset, y1 - 0.02, zf]} mat={bars} />
+      <Box size={[W, 0.04, 0.04]} pos={[o.offset, y0 + 0.02, zf]} mat={bars} />
+      {b.seat && <Box size={[W - 0.04, 0.07, D - 0.05]} pos={[o.offset, y0 + 0.035, zc]} mat={cushion} />}
+    </>
   );
 }
 

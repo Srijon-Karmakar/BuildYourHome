@@ -1,4 +1,4 @@
-import type { Id, Opening, Vec2, Wall, WallNode } from '@hd/scene-schema';
+import { DOOR_BLOCKS_BELOW, doorOpenAmount, type Id, type Opening, type Vec2, type Wall, type WallNode } from '@hd/scene-schema';
 
 /** A wall as a thick 2D segment (centre line + half thickness). */
 export interface Collider {
@@ -15,8 +15,8 @@ const MAX_STEP_M = 0.1;
 const RESOLVE_ITERATIONS = 4;
 
 /**
- * Build colliders for one level's walls. Doors and arches leave a gap in the wall (you can walk through);
- * windows stay solid.
+ * Build colliders for one level's walls. Open doors and arches leave a gap in the wall (you can walk
+ * through); a closed door, like a window, stays solid.
  */
 export function buildColliders(
   nodes: Readonly<Record<Id, WallNode>>,
@@ -33,7 +33,7 @@ export function buildColliders(
     const ux = (b.p[0] - a.p[0]) / len;
     const uz = (b.p[1] - a.p[1]) / len;
     const gaps = openings
-      .filter((o) => o.wallId === w.id && (o.type === 'door' || o.type === 'arch'))
+      .filter((o) => o.wallId === w.id && (o.type === 'arch' || (o.type === 'door' && doorOpenAmount(o) >= DOOR_BLOCKS_BELOW)))
       .map((o) => [o.offset - o.width / 2, o.offset + o.width / 2] as const)
       .sort((p, q) => p[0] - q[0]);
 

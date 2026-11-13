@@ -15,6 +15,8 @@ export interface TierConfig {
   /** Screen-space ambient occlusion + MSAA via the post-processing composer. */
   ao: boolean;
   msaa: number;
+  /** Cheap post-process edge smoothing (SMAA) instead of MSAA, which is very costly together with AO. */
+  smaa: boolean;
   /** Procedural texture size in px (plaster / wood). */
   textureSize: number;
   normalMaps: boolean;
@@ -35,10 +37,39 @@ export interface TierConfig {
 }
 
 export const TIERS: Record<Tier, TierConfig> = {
-  low: { dpr: [1, 1], shadows: false, shadowMapSize: 1024, envResolution: 64, ao: false, msaa: 0, textureSize: 256, normalMaps: false, photoTextures: false, aoQuality: 'performance', sky: false, gloss: false, bloom: false, lamps: 0, spots: 0 },
-  medium: { dpr: [1, 1.5], shadows: true, shadowMapSize: 1024, envResolution: 128, ao: true, msaa: 0, textureSize: 512, normalMaps: true, photoTextures: true, aoQuality: 'performance', sky: true, gloss: true, bloom: true, lamps: 3, spots: 2 },
-  high: { dpr: [1, 2], shadows: true, shadowMapSize: 2048, envResolution: 256, ao: true, msaa: 4, textureSize: 1024, normalMaps: true, photoTextures: true, aoQuality: 'medium', sky: true, gloss: true, bloom: true, lamps: 6, spots: 3 },
+  low: { dpr: [1, 1], shadows: false, shadowMapSize: 1024, envResolution: 64, ao: false, msaa: 0, smaa: false, textureSize: 256, normalMaps: false, photoTextures: false, aoQuality: 'performance', sky: false, gloss: false, bloom: false, lamps: 0, spots: 0 },
+  medium: { dpr: [1, 1.5], shadows: true, shadowMapSize: 1024, envResolution: 128, ao: true, msaa: 0, smaa: false, textureSize: 512, normalMaps: true, photoTextures: true, aoQuality: 'performance', sky: true, gloss: true, bloom: true, lamps: 3, spots: 2 },
+  high: { dpr: [1, 1.75], shadows: true, shadowMapSize: 2048, envResolution: 256, ao: true, msaa: 0, smaa: true, textureSize: 1024, normalMaps: true, photoTextures: true, aoQuality: 'medium', sky: true, gloss: true, bloom: true, lamps: 4, spots: 2 },
 };
+
+/**
+ * Most pixels a tier may render per frame. A big or hi-DPI screen would otherwise ask the GPU for 5-8 million pixels
+ * (full-screen AO, MSAA and every lit fragment are paid per pixel), which lags even a fast desktop card.
+ * Past the budget the pixel ratio is lowered (never below 1): slightly softer, much smoother.
+ */
+export const MAX_RENDER_PIXELS: Record<Tier, number> = { low: 1.3e6, medium: 2.4e6, high: 3.2e6 };
+
+/** The `[min, max]` pixel ratio for a canvas of `cssW` x `cssH` CSS pixels: the tier's range, held under the pixel budget. */
+export function dprRange(tier: Tier, cssW: number, cssH: number, tierDpr: readonly [number, number] = TIERS[tier].dpr): [number, number] {
+  const area = Math.max(1, cssW * cssH);
+  const cap = Math.sqrt(MAX_RENDER_PIXELS[tier] / area);
+  const max = Math.max(tierDpr[0], Math.min(tierDpr[1], cap));
+  return [tierDpr[0], Math.round(max * 100) / 100];
+}
+
+/**
+ * Dynamic resolution: while the camera moves (orbit or walk) the picture is rendered at a share of full resolution
+ * (`SCALE_MIN`..1) that follows the measured frame time, so any GPU settles on a smooth frame rate. Sharp again at rest.
+ */
+export const SCALE_MIN = 0.5;
+export const SLOW_FRAME_MS = 20; // under ~50 fps: render smaller
+export const FAST_FRAME_MS = 13; // over ~75 fps: win some sharpness back
+export const SCALE_WINDOW_FRAMES = 20;
+export function nextScale(scale: number, avgFrameMs: number): number {
+  if (avgFrameMs > SLOW_FRAME_MS) return Math.max(SCALE_MIN, Math.round((scale - 0.05) * 100) / 100);
+  if (avgFrameMs < FAST_FRAME_MS) return Math.min(1, Math.round((scale + 0.025) * 1000) / 1000);
+  return scale;
+}
 
 export const stepDown = (t: Tier): Tier => TIER_ORDER[Math.max(0, TIER_ORDER.indexOf(t) - 1)]!;
 export const canStepDown = (t: Tier): boolean => TIER_ORDER.indexOf(t) > 0;
