@@ -74,7 +74,7 @@ Estimates assume a small team (2–3 devs + part-time designer); scale as needed
 **Exit:** an exterior "hero view" looks good on high tier and runs on low tier.
 
 ## Phase 4 — Mobile app & polish (≈ 3–4 weeks)
-- [ ] P4-01 Capacitor iOS + Android shells, icons/splash
+- [ ] P4-01 Capacitor iOS + Android shells, icons/splash — built 2026-11-14 (ADR-037, docs/MOBILE.md); waiting for an on-phone check before ticking
 - [ ] P4-02 Native share/export, haptics, file import
 - [ ] P4-03 Touch UX pass (gestures, bottom sheets, safe areas)
 - [ ] P4-04 Performance + memory tuning on devices; crash-free ≥ 99%

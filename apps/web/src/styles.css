@@ -676,8 +676,16 @@ button {
 }
 
 .furniture header strong {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   font-size: 16px;
   font-weight: 400;
+}
+
+.furniture header strong small {
+  color: var(--ink-3);
+  font-size: 12px;
 }
 
 .fp-search {
@@ -703,16 +711,80 @@ button {
   border-color: var(--ink);
 }
 
-.fp-cats {
+.fp-cats-wrap {
+  position: relative;
   flex: none;
+  padding: 0 0 10px;
+}
+
+.fp-cats {
   display: flex;
-  flex-wrap: wrap; /* every category is visible, none hides off to the side */
   gap: 6px;
-  padding: 0 14px 10px;
+  padding: 0 14px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fp-cats::-webkit-scrollbar {
+  display: none;
+}
+
+/* soft fades at the ends tell you the row scrolls */
+.fp-cats.fade-right {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
+}
+
+.fp-cats.fade-left {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 44px);
+  mask-image: linear-gradient(to right, transparent, #000 44px);
+}
+
+.fp-cats.fade-left.fade-right {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 44px, #000 calc(100% - 44px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 44px, #000 calc(100% - 44px), transparent);
+}
+
+.fp-arrow {
+  position: absolute;
+  top: 0;
+  z-index: 1;
+  width: 28px;
+  height: 32px;
+  padding: 0 0 3px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fp-arrow[hidden] {
+  display: none;
+}
+
+.fp-arrow.left {
+  left: 6px;
+}
+
+.fp-arrow.right {
+  right: 6px;
+}
+
+/* swipe on a touch screen; the arrows are for the mouse */
+@media (pointer: coarse) {
+  .fp-arrow {
+    display: none;
+  }
 }
 
 .fp-cats button {
   flex: none;
+  scroll-snap-align: start;
   min-height: 32px;
   padding: 0 12px;
   border: 1px solid var(--line);

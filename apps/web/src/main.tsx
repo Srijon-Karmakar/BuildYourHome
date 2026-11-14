@@ -16,8 +16,10 @@ import { SAMPLES } from './plan/samples';
 import '@fontsource-variable/outfit';
 import './styles.css';
 import { startPwa } from './lib/pwa';
+import { startNative } from './lib/native';
 
 startPwa();
+startNative();
 
 const params = new URLSearchParams(window.location.search);
 

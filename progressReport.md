@@ -745,3 +745,16 @@ Planning/documentation: **Done** (2026-11-05). Dashboard last refreshed 2026-11-
 - **Wall decor** button on the tool bar (next to Furniture) opens the catalog straight on "Wall decoration" (Extra wall, Curved wall, Box wall, Extended wall). Selecting a wall also shows **Add wall decoration...** in its panel. The category tabs now wrap onto several rows so every category is visible. `useUi.catalogCategory` / `openCatalog`, `IconWallDecor`.
 - Checked in a browser: button opens the right list, the four cards appear and place, the wall shortcut works, no tab is clipped; all 197 web tests, typecheck, lint pass.
 
+## Furniture catalog: compact category row (2026-11-13)
+- Owner: the Furniture menu is not user friendly, the filters squeeze the space (on a phone my wrapped chips took five rows and left a few items visible).
+- Now one row of category chips that scrolls sideways: soft fade at the ends, mouse wheel and arrow buttons on desktop, swipe on touch, and the chosen chip is scrolled into view. The header shows how many items match ("Furniture  302 items"). On a 375 px phone the item grid is now 69 % of the panel, on desktop 79 %. `CategoryBar` in `ui/FurniturePanel.tsx`, `.fp-cats-wrap` CSS.
+- Checked on a phone-size and a desktop window: every category reachable (Wall features picked from the row, shown in view), no errors; 197 web tests, typecheck, lint pass.
+
+
+## P4-01 — Android + iOS app shells (2026-11-14, ADR-037)
+- Phase 4 started. New `apps/mobile` (Capacitor 8.6): `capacitor.config.ts` (app id `in.senevon.plotframer`, name PlotFramer, wraps `apps/web/dist`), generated `android/` and `ios/` projects (iOS uses Swift Package Manager, no CocoaPods), icon + launch-screen sources in `assets/` and 81 generated sizes (icon: dark-ink PF frame on paper, adaptive icon for Android; launch screen: dark with the light icon, matching the default dark splash).
+- Inside the app (`apps/web/src/lib/native.ts`, off in browsers): no service worker; Android Back closes the open sheet / card / walk / tool / selection first (sends the app's Esc) and minimises the app only when nothing is open; status bar dark on the dark splash, paper colours in the workspace; native launch screen hides once the web splash has painted; `html[data-native]`.
+- Scripts: `pnpm --filter @hd/mobile sync` (build web + copy into both apps), `apk` (debug APK; uses Android Studio's JDK 21 because this machine's JAVA_HOME is Java 25, which Gradle cannot run), `assets`, `android` (open in Android Studio). How-to in `docs/MOBILE.md`.
+- Checked: Android debug APK builds (`BUILD SUCCESSFUL`, 8.9 MB) and installs on an emulator; web typecheck, lint, 197 web tests pass. **Not checked:** the app running on screen. The only emulator image here (Android 17 preview, headless) stayed black and locked, so the APK could not be opened there. iOS can only be built on a Mac.
+- Also: removed two leftover lines in `facade.test.ts` that broke lint (the test itself still fails, ADR-030 wall panels unfinished).
+- **Owner next:** install `apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk` on your Android phone and check: launch screen, splash, Back button, status bar, saving; then run Display > Run benchmark at Medium inside the app (P4-04). Confirm or change the app id before the first store upload.

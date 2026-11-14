@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { create } from 'zustand';
 
 /** The browser's "install this app" offer (Chrome / Edge / Android). */
@@ -40,7 +41,8 @@ export function startPwa(): void {
     usePwa.setState({ offer: e as InstallPrompt });
   });
   window.addEventListener('appinstalled', () => usePwa.setState({ offer: null, installed: true }));
-  if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  // Not inside the phone app (ADR-037): its files are already on the device.
+  if ('serviceWorker' in navigator && import.meta.env.PROD && !Capacitor.isNativePlatform()) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/sw.js').catch(() => {
         /* the app works without it */

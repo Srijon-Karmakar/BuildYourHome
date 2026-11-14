@@ -123,11 +123,8 @@ describe('feature panels', () => {
     e.execute(addWallPanel(wallId, { side: 'B', material: { id: 'wall-stone' }, offset: 4, width: 2 }));
     e.execute(setWallsProps([wallId], { lowerA: { material: { id: 'wall-brick-red' } }, trim: { cornice: true } }));
     e.execute(addWall({ levelId: L(e), from: [4.5, 0], to: [4.5, 3] }));
-    const walls = Object.values(scene(e).walls).filter((w) => w.id !== wallId && w.panels);
     const first = scene(e).walls[wallId]!;
-    const second = walls[0]!;
     expect(first.panels!.map((p) => [p.side, +p.offset.toFixed(3), +p.width.toFixed(3)])).toEqual([['A', 1, 1], ['B', 4, 2]]);
-    expect(second).toBeUndefined; // nothing crosses 4.5 except... the second panel ends at 5
     const all = Object.values(scene(e).walls).flatMap((w) => (w.panels ?? []).map((p) => ({ w: w.id, ...p })));
     // Panel B spans 3..5: cut at 4.5 into 3..4.5 (first half) and 4.5..5 (second half, offset 0.25 there).
     const pieces = all.filter((p) => p.side === 'B');
